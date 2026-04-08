@@ -5,6 +5,7 @@ import numpy_financial
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.storage import default_storage
 from django.http import HttpResponse, JsonResponse
 from django.http.response import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404, redirect
@@ -2801,7 +2802,7 @@ def generar_plan_pagos_pdf(request, project, sale_id):
     # Leer el archivo generado desde la ruta en 'root'
     pdf_path = pdf.get('root')
     if pdf_path:
-        with open(pdf_path, 'rb') as pdf_file:
+        with default_storage.open(pdf_path, 'rb') as pdf_file:
             return HttpResponse(pdf_file.read(), content_type='application/pdf')
     
     # Si no se encuentra el archivo, retornar un error
@@ -2870,7 +2871,7 @@ def generar_recibos_pdf(request, project, sale_id):
     # Leer el archivo generado desde la ruta en 'root'
     pdf_path = pdf.get('root')
     if pdf_path:
-        with open(pdf_path, 'rb') as pdf_file:
+        with default_storage.open(pdf_path, 'rb') as pdf_file:
             return HttpResponse(pdf_file.read(), content_type='application/pdf')
     
     # Si no se encuentra el archivo, retornar un error

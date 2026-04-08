@@ -11,11 +11,16 @@ from django.shortcuts import get_object_or_404, resolve_url
 from django.template.loader import get_template
 from django.db.models.fields.related import ForeignKey, ManyToManyField
 from django.db.models.fields.files import FileField, ImageField
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.core.mail import EmailMultiAlternatives
 from xhtml2pdf import pisa
 from django.contrib.staticfiles import finders
 import locale 
 from datetime import datetime
+from io import BytesIO
 from random import SystemRandom
 
 
@@ -139,41 +144,71 @@ def numbers_names(numero):
         
         return valor_letras
 
-def link_callback(uri, rel):
-    path=''
-    if uri.startswith('/static'):   
-        path = os.path.join(settings.STATIC_ROOT, uri.replace(settings.STATIC_URL, ""))
-    elif uri.startswith('/media'):   
-        path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ""))
-    return path
+def normalize_tmp_filename(filename):
+    normalized = str(filename).replace('\\', '/').lstrip('/')
+    if normalized.startswith(settings.TMP_MEDIA_PREFIX):
+        normalized = normalized[len(settings.TMP_MEDIA_PREFIX):]
+    return normalized
 
-def pdf_gen(template_path,context,filename,):
-    # Create a Django response object, and specify content_type as pdf
-    #response = HttpResponse(content_type='application/pdf')
-    #response['Content-Disposition'] = 'attachment; filename="report.pdf"'
-    # find the template and render it.
+
+def build_tmp_media_name(filename):
+    return f"{settings.TMP_MEDIA_PREFIX}{normalize_tmp_filename(filename)}"
+
+
+def build_tmp_media_url(filename):
+    return f"{settings.TMP_MEDIA_URL}{normalize_tmp_filename(filename)}"
+
+
+def build_persistent_media_url(path):
+    return f"{settings.PERSISTENT_MEDIA_BASE_URL}{str(path).lstrip('/')}"
+
+
+def save_tmp_storage_bytes(content, filename):
+    name = build_tmp_media_name(filename)
+    if default_storage.exists(name):
+        default_storage.delete(name)
+    return default_storage.save(name, ContentFile(content))
+
+
+def save_workbook_to_tmp_storage(workbook, filename):
+    output = BytesIO()
+    workbook.save(output)
+    return save_tmp_storage_bytes(output.getvalue(), filename)
+
+
+def open_tmp_storage_file(filename):
+    return default_storage.open(build_tmp_media_name(filename), 'rb')
+
+
+def link_callback(uri, rel):
+    if uri.startswith(settings.TMP_MEDIA_URL):
+        return build_tmp_media_url(uri.replace(settings.TMP_MEDIA_URL, '', 1))
+    if uri.startswith(settings.STATIC_URL):
+        return os.path.join(settings.STATIC_ROOT, uri.replace(settings.STATIC_URL, ''))
+    if uri.startswith(settings.MEDIA_URL):
+        relative_path = uri.replace(settings.MEDIA_URL, '', 1)
+        if relative_path.startswith(settings.TMP_MEDIA_PREFIX):
+            return build_tmp_media_url(relative_path)
+        if settings.USE_S3_MEDIA:
+            return build_persistent_media_url(relative_path)
+        return os.path.join(settings.MEDIA_ROOT, relative_path)
+    return uri
+
+
+def pdf_gen(template_path, context, filename):
     template = get_template(template_path)
     html = template.render(context)
-    file_dir = settings.MEDIA_ROOT / f'tmp/{filename}'
-    try:
-        output_file = open(file_dir,"w+b")
-    except FileNotFoundError:
-        os.makedirs(settings.MEDIA_ROOT / 'tmp')
-        output_file = open(file_dir,"w+b")
-    # create a pdf
-    pisa_status = pisa.CreatePDF(
-       html, dest=output_file, link_callback=link_callback)
-    # if error then show some funy view
+    output_file = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=output_file, link_callback=link_callback)
     if pisa_status.err:
-       return HttpResponse('We had some errors <pre>' + html + '</pre>')
-    
-    output_url = settings.MEDIA_ROOT / f'tmp/{filename}'
-   
+        return HttpResponse('We had some errors <pre>' + html + '</pre>')
+
+    root = save_tmp_storage_bytes(output_file.getvalue(), filename)
     output = {
-        'url':settings.MEDIA_URL + f'tmp/{filename}',
-        'root':settings.MEDIA_ROOT / f'tmp/{filename}'
+        'url': build_tmp_media_url(filename),
+        'root': root,
     }
-   
+
     return output
 
 from django.contrib import messages
@@ -284,8 +319,8 @@ class JsonRender():
                     field_value = self.ForeingKeyRender(field,field_value)
                 elif type(field) == ManyToManyField:
                     field_value = 'ManytoManyField'
-                elif type(field) == FileField or ImageField:
-                    field_value = str(field_value)
+                elif isinstance(field, (FileField, ImageField)):
+                    field_value = field_value.url if field_value else ''
                 item[field.name] = field_value
             for func in self.query_functions:
                 if func.endswith(')'): 
@@ -309,8 +344,8 @@ class JsonRender():
                     field_value = self.ForeingKeyRender(field,field_value)
                 elif type(field) == ManyToManyField:
                     field_value = 'ManytoManyField'
-                elif type(field) == FileField or ImageField:
-                    field_value = str(field_value)
+                elif isinstance(field, (FileField, ImageField)):
+                    field_value = field_value.url if field_value else ''
             query_dict[field.name] = field_value
         return query_dict
     

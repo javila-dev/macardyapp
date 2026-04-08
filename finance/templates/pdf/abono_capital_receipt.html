@@ -154,7 +154,7 @@
                 </td>
                 <td style="width: 25%; text-align: right; border: none; vertical-align: middle;">
                     {% if project.logo %}
-                    <img src='/media/{{project.logo}}' width="105" height="105">
+                    <img src="{{ project.logo.url }}" width="105" height="105">
                     {% endif %}
                 </td>
             </tr>

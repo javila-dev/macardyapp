@@ -34,5 +34,8 @@ urlpatterns = [
     path('partners/',include(terceros_views.urls)),
     path('sales/',include(sales_views.urlpattern)),
     path('finance/',include(finance_views.urlpattern)),
-] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT
-) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

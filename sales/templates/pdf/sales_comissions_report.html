@@ -11,7 +11,7 @@
             <th><h1 style="margin:1px">HOJA DE RADICACIÓN</h1>
                 </th>
             <th style=" vertical-align: top!important;">
-                <img src='/media/{{project.logo}}' width="150" height="140"></th>
+                <img src="{{ project.logo.url }}" width="150" height="140"></th>
             
             {%else%}
             <th>
@@ -20,7 +20,7 @@
             <th><h1 style="margin:1px">HOJA DE RADICACIÓN</h1>
             </th>
             <th style=" vertical-align: top!important;">
-                <img src='/media/{{project.logo}}' width="150" height="140"></th>
+                <img src="{{ project.logo.url }}" width="150" height="140"></th>
             {%endif%}
         </tr>
     </table>

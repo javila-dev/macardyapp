@@ -590,9 +590,9 @@
             console.log(row)
             $('#id_manage_seller_state').val(row.seller_state)
             $('#id_manage_seller_group').val(row.sales_group)
-            $('#link-to-cv').attr('href','/media/'+row.cv)
-            $('#link-to-rut').attr('href','/media/'+row.rut_support)
-            $('#link-to-bankcert').attr('href','/media/'+row.bank_certificate)
+            $('#link-to-cv').attr('href', row.cv)
+            $('#link-to-rut').attr('href', row.rut_support)
+            $('#link-to-bankcert').attr('href', row.bank_certificate)
             $('#modalSellers').find('.header').first().html('Datos del vendedor ' + row.full_name)
             $('#modalSellers').modal('show').modal({
                 closeIcon: true,
@@ -887,7 +887,7 @@
             for (i in projects) {
                 let p = `
                 <div class="item">
-                    <img class="ui avatar image" src="/media/${projects[i].logo}">
+                    <img class="ui avatar image" src="${projects[i].logo}">
                     <div class="content">
                         <div class="header">${projects[i].name}</div>
                     </div>

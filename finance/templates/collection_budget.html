@@ -5,7 +5,7 @@
   Cartera
 </div>
 <div class='header item'>
-  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+  <img class='avatar image' src="{{ project.logo.url }}">{{project.name_to_show}}
 </div>
 <a class='item submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
 <a class='item {%if portfolio_type == "comercial" %}active{%endif%} submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>

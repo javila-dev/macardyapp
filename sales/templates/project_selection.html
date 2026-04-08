@@ -24,7 +24,7 @@
         <div class="column">
           <div class="ui fluid raised link card">
             <a class="image" href="/sales/{{project.name}}">
-              <img src="/media/{{project.logo}}" class="image medium">
+              <img src="{{ project.logo.url }}" class="image medium">
             </a>
           </div>
         </div>{%endfor%}
@@ -33,7 +33,7 @@
         <div class='card'>
             <div class='mt-3'>
                 <a href="/sales/{{project.name}}/{{next}}" class="image">
-                    <img src="/media/{{project.logo}}" class='ui centered medium image'>
+                    <img src="{{ project.logo.url }}" class='ui centered medium image'>
                 </a>
             </div>
         </div>

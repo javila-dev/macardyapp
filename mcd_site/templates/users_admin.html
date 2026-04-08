@@ -38,7 +38,7 @@
                         {%for user in users%}<tr>
                           <td>{{user.pk}}</td>
                           <td>
-                            <img class="ui avatar image" src="/media/{{user.user_profile.avatar}}" alt="...">
+                            <img class="ui avatar image" src="{% if user.user_profile.avatar %}{{ user.user_profile.avatar.url }}{% endif %}" alt="...">
                             <span>{{user.username}}</span>
                           </td>
                           <td class="center aligned">{{user.last_login|default_if_none:"Nunca"}}</td>
@@ -159,7 +159,7 @@ $(document).ready(function(){
         $('#id_psw_change').parent('div.checkbox')
         .checkbox(profile.force_change_pswd == "True" ? 'check':'uncheck') 
 
-        $('#img-user').attr('src','/media/'+profile.avatar)
+        $('#img-user').attr('src', profile.avatar)
       },
       error: (xhr) => error_message(xhr)
     })

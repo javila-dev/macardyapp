@@ -12,7 +12,7 @@
             <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
         </td>
         <td style='text-align: center; width: 30%;vertical-align: top;'>
-            <img src="/media/{{income.sale.project.logo}}" width="70" height="70">
+            <img src="{{ income.sale.project.logo.url }}" width="70" height="70">
         </td>
        {%else%} 
         <td style='text-align: center; width: 30%;vertical-align: top;'>
@@ -24,7 +24,7 @@
             <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
         </td>
         <td style='text-align: center; width: 30%;vertical-align: top;'>
-            <img src="/media/{{income.sale.project.logo}}" width="70" height="70">
+            <img src="{{ income.sale.project.logo.url }}" width="70" height="70">
         </td>
         {%endif%}
     </tr>

@@ -1,17 +1,55 @@
 services:
-  db:
-    image: postgres:13
-    restart: always
-    expose:
-      - "${POSTGRES_PORT:-5432}"
-    ports:
-      - "${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}"
+  macardyapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data  # volumen nombrado
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-false}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS}
+      USE_S3_MEDIA: ${USE_S3_MEDIA}
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME}
+      AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_REGION_NAME: ${AWS_S3_REGION_NAME:-us-east-1}
+      AWS_DEFAULT_ACL: ${AWS_DEFAULT_ACL:-public-read}
+      AWS_QUERYSTRING_AUTH: ${AWS_QUERYSTRING_AUTH:-false}
+      AWS_S3_FILE_OVERWRITE: ${AWS_S3_FILE_OVERWRITE:-false}
+      AWS_S3_ADDRESSING_STYLE: ${AWS_S3_ADDRESSING_STYLE:-path}
+      AWS_S3_SIGNATURE_VERSION: ${AWS_S3_SIGNATURE_VERSION:-s3v4}
+      PERSISTENT_MEDIA_BASE_URL: ${PERSISTENT_MEDIA_BASE_URL}
+      TMP_MEDIA_URL: ${TMP_MEDIA_URL:-/media/tmp/}
+      TMP_MEDIA_PREFIX: ${TMP_MEDIA_PREFIX:-tmp/}
+    networks:
+      - dokploy-network
+      - shared-services
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.macardyapp-secure.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.macardyapp-secure.entrypoints=websecure"
+      - "traefik.http.routers.macardyapp-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.services.macardyapp.loadbalancer.server.port=8000"
+      - "traefik.http.routers.macardyapp.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.macardyapp.entrypoints=web"
+      - "traefik.http.routers.macardyapp.middlewares=macardyapp-redirect"
+      - "traefik.http.middlewares.macardyapp-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.macardyapp-redirect.redirectscheme.permanent=true"
 
-volumes:
-  postgres_data:
+networks:
+  dokploy-network:
+    external: true
+  shared-services:
+    external: true

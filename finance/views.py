@@ -29,6 +29,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import path, reverse
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.files.storage import default_storage
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
@@ -42,7 +43,11 @@ from finance.models import (PMT, CommentType, Collection_budget, Collection_budg
                             Incomes_detail, Incomes_return, PMT_detail, Payment_methods, Sales_extra_info, SolicitudRecibo, cost_center, expenses_detail, payment_accounts)
 
 from mcd_site.models import Counters, Parameters, Perfil, Projects, Timeline
-from mcd_site.utils import JsonRender, parse_semantic_date, pdf_gen, project_permission, user_check_perms, user_permission,numbers_names, countries_data
+from mcd_site.utils import (
+    JsonRender, build_tmp_media_url, countries_data, numbers_names,
+    parse_semantic_date, pdf_gen, project_permission,
+    save_workbook_to_tmp_storage, user_check_perms, user_permission,
+)
 from sales.forms import collectionfeed_Form, ComissionPositionForm
 from sales.models import Assigned_comission, Comission_position, Paid_comissions, Payment_plans, Sales, Sales_history
 from terceros.models import Sellers
@@ -484,10 +489,10 @@ def incomes_list(request, project):
                         
                     filename = f'Incomes_report_{date_from.date()}_a_{date_to.date()}.xlsx'
                         
-                    wb.save(settings.MEDIA_ROOT / f"tmp/{filename}")
+                    save_workbook_to_tmp_storage(wb, filename)
                     
                     data = {
-                        'href':f'tmp/{filename}',
+                        'href': build_tmp_media_url(filename),
                     }
                 
                 
@@ -1056,7 +1061,7 @@ def reprint_receipt(request, project):
             }
             return JsonResponse(data)
 
-        f = open(str(pdf_file.get('root')), 'rb')
+        f = default_storage.open(str(pdf_file.get('root')), 'rb')
 
         return FileResponse(f, as_attachment=True, filename=filename)
 
@@ -1291,7 +1296,7 @@ def incomes_actions(request, project):
                 }
                 return JsonResponse(data)
 
-            f = open(pdf_file.get('root'), 'rb')
+            f = default_storage.open(pdf_file.get('root'), 'rb')
 
             return FileResponse(f, as_attachment=True, filename=filename)
 
@@ -2486,9 +2491,9 @@ def ajax_print_pmt(request, project):
                 
                 filename = f'tmp/Liquidacion_PMT_{obj_project.name_to_show}_{date_dt.date()}.xlsx'.replace(
                     'ñ', 'n')
-                wb.save(settings.MEDIA_ROOT /filename )
+                save_workbook_to_tmp_storage(wb, filename)
                 
-                href = f'<a href="/media/{filename}" target="_blank"><strong>Aqui</strong></a>'
+                href = f'<a href="{build_tmp_media_url(filename)}" target="_blank"><strong>Aqui</strong></a>'
 
                 data = {
                     'type': 'success',
@@ -2620,10 +2625,9 @@ def ajax_print_filetobank(request, project):
                 date_to_string = comission_date.replace('/', '-')
                 doc_name = f'PAB_COMISIONES_{proj_reference}_{date_to_string}.xlsx'
 
-            root = settings.MEDIA_ROOT/f'tmp/{doc_name}'
-            book.save(root)
+            root = save_workbook_to_tmp_storage(book, doc_name)
 
-            href = f'<a href="/media/tmp/{doc_name}" target="_blank"><strong>aqui</strong></a>'
+            href = f'<a href="{build_tmp_media_url(doc_name)}" target="_blank"><strong>aqui</strong></a>'
             href2 = f'<a href="https://www.satbancolombia.com/conversores#!/pab" target="_blank"><strong>aqui</strong></a>'
             data = {
                 'type': 'success',
@@ -3037,9 +3041,9 @@ def print_comissions_ds(request,project):
                 
                 filename = f'tmp/Documento_soporte_comisiones_{seller.full_name()}.xlsx'.replace(
                     'ñ', 'n').replace(' ','_')
-                wb.save(settings.MEDIA_ROOT /filename )
+                save_workbook_to_tmp_storage(wb, filename)
                 
-                href = f'<a href="/media/{filename}" target="_blank"><strong>Descargar</strong></a>'
+                href = f'<a href="{build_tmp_media_url(filename)}" target="_blank"><strong>Descargar</strong></a>'
                 
                 msj += '<li>Documento soporte comisiones: '+href + '</li>'
 
@@ -4437,7 +4441,7 @@ def export_abono_capital_receipt(request, project, abono_id):
             }
             return JsonResponse(data)
         
-        f = open(pdf_file.get('root'), 'rb')
+        f = default_storage.open(pdf_file.get('root'), 'rb')
         return FileResponse(f, as_attachment=True, filename=filename)
         
     except Exception as e:

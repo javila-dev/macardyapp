@@ -21,7 +21,7 @@
             <th style=" vertical-align: top!important;">
                 <p style="font-size: 10px;text-align: right;">Fecha Operación: <u>{{pmt.add_date}}</u><br>
                 Proyecto: <u>{{project.name_to_show}}</u></p>
-                <img src='/media/{{project.logo}}' width="100" height="90">
+                <img src="{{ project.logo.url }}" width="100" height="90">
             </th>
             {%else%}
             <th>
@@ -39,7 +39,7 @@
             <th style=" vertical-align: top!important;">
                 <p style="font-size: 10px;text-align: right;">Fecha Operación: <u>{{pmt.add_date}}</u><br>
                 Proyecto: <u>{{project.name_to_show}}</u></p>
-                <img src='/media/{{project.logo}}' width="100" height="90">
+                <img src="{{ project.logo.url }}" width="100" height="90">
             </th>
             {%endif%}
         </tr>

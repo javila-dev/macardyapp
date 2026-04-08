@@ -24,3 +24,6 @@ exclude-file.txt
 # OS-specific noise
 desktop.ini
 .DS_Store
+
+docker-compose.dev.yml
+dockerfile.dev

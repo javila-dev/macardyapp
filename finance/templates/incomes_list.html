@@ -5,7 +5,7 @@
     Finanzas | Lista de recaudos
 </div>
 <div class='header item'>
-    <img class='avatar image' src='/media/{{project.logo}}'>
+    <img class='avatar image' src="{{ project.logo.url }}">
     {{project.name_to_show}}
 </div>
 <!-- ⚠️ DEPRECADO: Ahora se usa el sistema de solicitudes -->
@@ -302,7 +302,7 @@
                 },
                 url: window.location,
                 success: function(data){
-                    new_message('success','Listo',`Puedes descargar tu documento <a href="/media/${data.href}">aquí</a>`)
+                    new_message('success','Listo',`Puedes descargar tu documento <a href="${data.href}">aquí</a>`)
                 },
                 complete: function(){
                     $('#export-xlsx').removeClass('disabled loading');

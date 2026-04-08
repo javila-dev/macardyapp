@@ -43,6 +43,14 @@ def get_list_env(name, default=''):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def get_path_env(name, default):
+    value = os.getenv(name)
+    if not value:
+        return Path(default)
+    path = Path(value)
+    return path if path.is_absolute() else BASE_DIR / path
+
+
 load_env_file(BASE_DIR / '.env')
 
 
@@ -81,8 +89,13 @@ INSTALLED_APPS = [
     'finance',
 ]
 
+USE_S3_MEDIA = get_bool_env('USE_S3_MEDIA', False)
+if USE_S3_MEDIA:
+    INSTALLED_APPS.append('storages')
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -226,13 +239,45 @@ STATIC_ROOT = BASE_DIR / 'static_files'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'static_media'
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
+if not MEDIA_URL.endswith('/'):
+    MEDIA_URL += '/'
+
+LOCAL_MEDIA_ROOT = get_path_env('LOCAL_MEDIA_ROOT', BASE_DIR / 'static_media')
+MEDIA_ROOT = LOCAL_MEDIA_ROOT
+TMP_MEDIA_PREFIX = os.getenv('TMP_MEDIA_PREFIX', 'tmp/')
+TMP_MEDIA_PREFIX = TMP_MEDIA_PREFIX.strip('/') + '/'
+TMP_MEDIA_ROOT = get_path_env('TMP_MEDIA_ROOT', LOCAL_MEDIA_ROOT / 'tmp')
+TMP_MEDIA_URL = os.getenv('TMP_MEDIA_URL', f"{MEDIA_URL}{TMP_MEDIA_PREFIX}")
+if not TMP_MEDIA_URL.endswith('/'):
+    TMP_MEDIA_URL += '/'
+
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
+AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', '')
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+AWS_DEFAULT_ACL = os.getenv('AWS_DEFAULT_ACL', 'public-read')
+AWS_QUERYSTRING_AUTH = get_bool_env('AWS_QUERYSTRING_AUTH', False)
+AWS_S3_FILE_OVERWRITE = get_bool_env('AWS_S3_FILE_OVERWRITE', False)
+AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE', 'path')
+AWS_S3_SIGNATURE_VERSION = os.getenv('AWS_S3_SIGNATURE_VERSION', 's3v4')
+PERSISTENT_MEDIA_BASE_URL = os.getenv(
+    'PERSISTENT_MEDIA_BASE_URL',
+    f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/" if AWS_S3_ENDPOINT_URL and AWS_STORAGE_BUCKET_NAME else MEDIA_URL,
+)
+if not PERSISTENT_MEDIA_BASE_URL.endswith('/'):
+    PERSISTENT_MEDIA_BASE_URL += '/'
+
+if USE_S3_MEDIA:
+    DEFAULT_FILE_STORAGE = 'mcd_project.storage_backends.PublicMediaStorage'
 
 STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 ]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+WHITENOISE_USE_FINDERS = DEBUG
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
