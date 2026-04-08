@@ -1,0 +1,173 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Admin | Usuarios{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Usuarios
+</div>
+<div class='header item'>
+    <img class='avatar image' src="{% static 'img/Macardy PNG.png'%}" >{{project.name_to_show}}
+</div>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+  <h3 class="ui header">
+    <i class="house user circular colored teal bank icon"></i>
+    <div class="content">Gestión de usuarios</div>
+  </h3>
+
+  <div class="ui basic segment">
+    <div class="ui two column very relaxed grid">
+      <div class="column">
+        <div class="ui basic blurring segment" style="max-height: 70vh;overflow: auto;"
+          id= 'segment-users-list'>
+          <div class="ui inverted dimmer"></div>
+                <button class="ui green labeled icon button" id="btnnewuser">
+                    <i class="plus icon"></i>
+                    Nuevo
+                </button>
+                <table id="tableListusers" class="ui selectable compact table">
+                    <thead>
+                        <tr class="center aligned">
+                            <th>id</th>
+                            <th>Usuario</th>
+                            <th>Ultimo login</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {%for user in users%}<tr>
+                          <td>{{user.pk}}</td>
+                          <td>
+                            <img class="ui avatar image" src="/media/{{user.user_profile.avatar}}" alt="...">
+                            <span>{{user.username}}</span>
+                          </td>
+                          <td class="center aligned">{{user.last_login|default_if_none:"Nunca"}}</td>
+                          <td class="center aligned">{% if user.is_active%}Activo{%else%}Inactivo{%endif%}</td>
+                        </tr>{%endfor%}
+                    </tbody>
+                </table>
+              </div>
+      </div>
+      <div class="column">
+        <div class="ui basic segment center aligned">
+            <img id="img-user" class="ui small centered circular image" src="">
+        </div>
+          
+        {%crispy form%}
+      </div>
+      </div>
+      <div class="ui vertical icon divider">
+        <i class="arrow alternate circle right outline icon"></i>
+      </div>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+<script>
+const isSuperuser = {% if request.user.is_superuser %}true{% else %}false{% endif %};
+let currentUserId = null;
+
+$(document).ready(function(){
+  $('.ui.dropdown').dropdown();
+  $('.ui.calendar').calendar({
+    type: 'date',
+    text: calendar_spanish(),
+  })
+  
+  $('#btnnewuser').click(function(){
+    $('#submit-id-registrar').val('Registrar')
+    $('#segment-users-list').addClass('disabled')
+    $('#segment-users-form .dimmer').removeClass('active')
+    $('#form-user').trigger('reset')
+    $('#btn-impersonate-user').hide()
+    currentUserId = null
+    $('#form-user').on('submit',function(){
+      $(this).addClass('double teal loading')
+      $(this).append('<input name="is_new" hidden value="is_new">')
+    })
+  })
+  
+  $('#btn-cancel-user').click(function(){
+    $('#submit-id-registrar').val('Registrar')
+    $('#segment-users-list').removeClass('disabled')
+    $('#segment-users-form .dimmer').addClass('active')
+    $('#form-user').trigger('reset')
+    $('.ui.dropdown').dropdown('clear')
+    $('#img-user').attr('src','')
+    $('#btn-impersonate-user').hide()
+    currentUserId = null
+  })
+  
+  $('#btn-impersonate-user').click(function(){
+    if (!currentUserId) {
+      alert('No hay usuario seleccionado')
+      return
+    }
+    if (confirm('¿Estás seguro de que deseas impersonar a este usuario? Serás redirigido y navegarás como ese usuario.')) {
+      window.location.href = '/impersonate/start/' + currentUserId + '/'
+    }
+  })
+  
+  $('#tableListusers tbody').on('click','tr',function(){
+    $('#form-user').trigger('reset')
+    $('#submit-id-registrar').val('Modificar')
+    let user = $(this)[0].cells[0].innerText
+    currentUserId = user
+    
+    // Mostrar botón impersonate solo si es superuser
+    if (isSuperuser) {
+      $('#btn-impersonate-user').show()
+    }
+    
+    $.ajax({
+      type:'get',
+      url:'/usersadmin',
+      data:{
+        'user':user
+      },
+      success: (xhr) => {
+        $('#segment-users-list').addClass('disabled')
+        $('#segment-users-form .dimmer').removeClass('active')
+        let profile = xhr.profile[0]
+        let userdata = xhr.user[0]
+
+        let is_active = userdata.is_active ? 'check': 'uncheck'
+          $('#id_is_active').parent('div.checkbox').checkbox(is_active) 
+
+        $('#id_username').val(userdata.username)
+        $('#id_first_name').val(userdata.first_name)
+        $('#id_last_name').val(userdata.last_name) 
+        $('#id_user_id').val(profile.identificacion != "None" ? profile.identificacion:'')
+        if (profile.fecha_nacimiento != "None"){
+          let year = profile.fecha_nacimiento.split('-')[0]
+          let month = (profile.fecha_nacimiento.split('-')[1] * 1) -1
+          let day = profile.fecha_nacimiento.split('-')[2]
+          let date = new Date(year,month,day)
+          $('#div_id_birth_date').calendar('set date',date)
+        }
+        $('#id_email').val(userdata.email != "None" ? userdata.email:"")
+        
+        $('#id_rols').parent('div.ui.dropdown').dropdown(
+          'set selected',xhr.rols
+        )
+        $('#id_projects').parent('div.ui.dropdown').dropdown(
+          'set selected',xhr.projects
+        )
+        $('#id_is_staff').parent('div.checkbox')
+        .checkbox(userdata.is_staff ? 'check':'uncheck') 
+
+        $('#id_psw_change').parent('div.checkbox')
+        .checkbox(profile.force_change_pswd == "True" ? 'check':'uncheck') 
+
+        $('#img-user').attr('src','/media/'+profile.avatar)
+      },
+      error: (xhr) => error_message(xhr)
+    })
+  })
+  $('#form-user').on('submit',function(){
+      $(this).addClass('double teal loading')
+  });
+
+})
+</script>
+{%endblock%}

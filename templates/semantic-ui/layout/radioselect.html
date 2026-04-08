@@ -1,0 +1,25 @@
+{% load crispy_forms_filters %}
+{% load l10n %}
+<div class="{% if inline_class %}inline fields{% else %}grouped fields{% endif %}">
+    {%if inline_class%}
+        {% if field.label %}
+            <label {% if field.id_for_label %}for="{{ field.id_for_label }}" {% endif %}class="{{ label_class }}{% if not inline_class %} col-form-label{% endif %}{% if field.field.required %} requiredField{% endif %}">
+                {{ field.label|safe }}
+            </label>
+        {% endif %}
+    {% endif %}
+    {% include 'semantic-ui/layout/field_errors_block.html' %}
+    {% for choice in field.field.choices %}
+    <div class='field'>
+        <div class="{% if inline_class %}ui radio checkbox{% endif %}{% if field_class %} {{ field_class }}{% endif %}"{% if flat_attrs %} {{ flat_attrs|safe }}{% endif %}>
+                {% if not inline_class %}<div class="field "><div class="ui {%if field.field.widget.attrs.slider%}slider{%endif%} radio checkbox">{% endif %}
+                <input class="hidden" tabindex="0" type="radio" {% if choice.0|stringformat:"s" == field.value|default_if_none:""|stringformat:"s" %} checked="checked"{% endif %} name="{{ field.html_name }}" id="id_{{ field.id_for_label }}_{{ forloop.counter }}" value="{{ choice.0|unlocalize }}" {{ field.field.widget.attrs|flatatt }}>
+                <label for="id_{{ field.id_for_label }}_{{ forloop.counter }}" class="form-check{% if inline_class %}{{ inline_class }}{% else %}label{% endif %}">
+                    {{ choice.1|unlocalize }}
+                </label>
+              {% if not inline_class %}</div></div>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% include 'semantic-ui/layout/help_text.html' %}
+</div>

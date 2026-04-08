@@ -1,0 +1,306 @@
+{% extends 'site_base.html' %}
+{% load humanize %}
+
+{% block title %}Fechas de Entrega{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/dataTables.semanticui.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.semanticui.min.css">
+<style>
+/* Alineación de elementos DataTables */
+.dataTables_wrapper .dataTables_filter {
+    text-align: right !important;
+}
+
+.dataTables_wrapper .dataTables_paginate {
+    text-align: right !important;
+}
+
+.dataTables_wrapper .dataTables_info {
+    text-align: left !important;
+}
+
+/* Ajustes para botones */
+.dataTables_wrapper .dt-buttons {
+    text-align: left !important;
+}
+
+/* Responsive fixes */
+@media (max-width: 768px) {
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_paginate {
+        text-align: center !important;
+        margin-top: 10px;
+    }
+}
+</style>
+{% endblock %}
+
+{%block submenu%}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/new_sale" data-tab='tab-clientes'>Nueva venta</a>
+<a class='item submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item active submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{%endblock%}
+
+{% block content %}
+<div class="ui basic segment">
+    <div class="ui secondary pointing menu">
+        <h2 class="ui header">
+            <i class="calendar check icon"></i>
+            <div class="content">
+                Fechas de Entrega y Escrituración
+                <div class="sub header">Control de entregas programadas</div>
+            </div>
+        </h2>
+    </div>
+
+    <div class="ui segment">
+        <div class="ui three statistics">
+            <div class="statistic">
+                <div class="value">{{ estadisticas.total }}</div>
+                <div class="label">Total ventas</div>
+            </div>
+            <div class="green statistic">
+                <div class="value">{{ estadisticas.entregadas }}</div>
+                <div class="label">Entregadas</div>
+            </div>
+            <div class="blue statistic">
+                <div class="value">{{ estadisticas.escrituradas }}</div>
+                <div class="label">Escrituradas</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui segment">
+        {% if delivery_data %}
+        <table class="ui very relaxed small compact striped table" id="delivery-table">
+            <thead>
+                <tr style="text-align:center;">
+                    <th>Contrato</th>
+                    <th>Cliente</th>
+                    <th>Inmueble</th>
+                    <th>Fecha Prog. Entrega</th>
+                    <th>Estado Entrega</th>
+                    <th>Fecha Real Entrega</th>
+                    <th>Días Entrega</th>
+                    <th>Fecha Prog. Escritura</th>
+                    <th>Estado Escritura</th>
+                    <th>Fecha Real Escritura</th>
+                    <th>Días Escritura</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in delivery_data %}
+                <tr class="{% if item.delivery_delay > 0 and not item.is_delivered %}negative{% elif item.delivery_delay < 0 and item.is_delivered %}positive{% endif %}">
+                    <td>
+                        <strong>CTR{{ item.sale.contract_number }}</strong>
+                    </td>
+                    <td>
+                        {{ item.sale.first_owner.first_name }} {{ item.sale.first_owner.last_name }}
+                    </td>
+                    <td>
+                        {{ item.sale.property_sold.description }}
+                    </td>
+                    <td data-sort="{{ item.sale.scheduled_delivery_date|date:'Y-m-d' }}">
+                        {% if item.sale.scheduled_delivery_date %}
+                            <i class="calendar outline icon"></i>
+                            {{ item.sale.scheduled_delivery_date|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="ui grey text">No programada</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;" data-sort="{% if item.is_delivered %}1{% else %}0{% endif %}">
+                        {% if item.is_delivered %}
+                            <div class="ui green icon label">
+                                <i class="checkmark icon"></i>
+                                {{ item.delivery_status }}
+                            </div>
+                        {% else %}
+                            <div class="ui orange icon label">
+                                <i class="clock outline icon"></i>
+                                {{ item.delivery_status }}
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td data-sort="{{ item.sale.actual_delivery_date|date:'Y-m-d' }}">
+                        {% if item.sale.actual_delivery_date %}
+                            <i class="calendar check icon"></i>
+                            {{ item.sale.actual_delivery_date|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="ui grey text">Sin entregar</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;" data-sort="{% if item.delivery_delay %}{{ item.delivery_delay }}{% else %}999{% endif %}">
+                        {% if item.delivery_delay is not None %}
+                            {% if item.delivery_delay > 0 %}
+                                <div class="ui red icon label">
+                                    +{{ item.delivery_delay }} días
+                                </div>
+                            {% elif item.delivery_delay < 0 %}
+                                <div class="ui green icon label">
+                                    {{ item.delivery_delay }} días
+                                </div>
+                            {% else %}
+                                <div class="ui grey icon label">
+                                    A tiempo
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td data-sort="{{ item.sale.scheduled_deed_date|date:'Y-m-d' }}">
+                        {% if item.sale.scheduled_deed_date %}
+                            <i class="file alternate outline icon"></i>
+                            {{ item.sale.scheduled_deed_date|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="ui grey text">No programada</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;" data-sort="{% if item.is_deed_signed %}1{% else %}0{% endif %}">
+                        {% if item.is_deed_signed %}
+                            <div class="ui blue icon label">
+                                <i class="checkmark icon"></i>
+                                {{ item.deed_status }}
+                            </div>
+                        {% else %}
+                            <div class="ui orange icon label">
+                                <i class="clock outline icon"></i>
+                                {{ item.deed_status }}
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td data-sort="{{ item.sale.actual_deed_date|date:'Y-m-d' }}">
+                        {% if item.sale.actual_deed_date %}
+                            <i class="file alternate icon"></i>
+                            {{ item.sale.actual_deed_date|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="ui grey text">Sin escriturar</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;" data-sort="{% if item.deed_delay %}{{ item.deed_delay }}{% else %}999{% endif %}">
+                        {% if item.deed_delay is not None %}
+                            {% if item.deed_delay > 0 %}
+                                <div class="ui red label">
+                                    +{{ item.deed_delay }} días
+                                </div>
+                            {% elif item.deed_delay < 0 %}
+                                <div class="ui green label">
+                                    {{ item.deed_delay }} días
+                                </div>
+                            {% else %}
+                                <div class="ui grey label">
+                                    A tiempo
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td data-sort="0">
+                        <div class="ui buttons">
+                            <button class="ui mini orange icon button" 
+                                    onclick="editDeliveryDates({{ item.sale.id_sale|default:item.sale.pk }})">
+                                <i class="edit icon"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="ui placeholder segment" id="delivery-empty">
+            <div class="ui icon header">
+                <i class="search icon"></i>
+                No hay ventas con fechas de entrega programadas
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.6/js/dataTables.semanticui.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.semanticui.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    const $table = $('#delivery-table');
+    if (!$table.length) {
+        return;
+    }
+    $table.DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
+        },
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+        "order": [[3, "desc"]],
+        "columnDefs": [
+            {
+                "targets": [11],
+                "orderable": false,
+                "searchable": false
+            },
+            {
+                "targets": [4, 8],
+                "type": "num"
+            },
+            {
+                "targets": [6, 10],
+                "type": "num"
+            }
+        ],
+        "dom": '<"ui stackable grid"<"left floated eight wide column"B><"right floated eight wide column"f>>' +
+               '<"ui stackable grid"<"sixteen wide column"t>>' +
+               '<"ui stackable grid"<"left floated eight wide column"i><"right floated eight wide column"p>>',
+        "buttons": [
+            {
+                extend: 'excel',
+                text: '<i class="file excel outline icon"></i> Excel',
+                className: 'ui green button',
+                title: 'Fechas de Entrega - {{ project.name_to_show }}',
+                filename: 'fechas_entrega_{{ project.name }}_' + new Date().toISOString().slice(0,10),
+                exportOptions: {
+                    columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                }
+            },
+            {
+                extend: 'print',
+                text: '<i class="print icon"></i> Imprimir',
+                className: 'ui blue button',
+                title: 'Fechas de Entrega y Escrituración',
+                messageTop: '<h3>{{ project.name_to_show }}</h3><p>Fecha de reporte: ' + new Date().toLocaleDateString('es-ES') + '</p>',
+                exportOptions: {
+                    columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                }
+            }
+        ],
+        "responsive": true,
+        "processing": true,
+        "searching": true,
+        "info": true,
+        "stateSave": true
+    });
+});
+
+function editDeliveryDates(saleId) {
+    window.location.href = `/sales/{{ project.name }}/adjudicatesales?sale=${saleId}&open_delivery_modal=true`;
+}
+</script>
+{% endblock %}

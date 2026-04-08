@@ -1,0 +1,474 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Listado recaudos{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | Lista de recaudos
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<!-- ⚠️ DEPRECADO: Ahora se usa el sistema de solicitudes -->
+<!-- <a class='item submenu' href="/finance/{{project.name}}/incomes/new_sales">Ventas nuevas</a> -->
+<a class='item active submenu' href="/finance/{{project.name}}/incomes/list">Listado</a>
+<a class='item submenu' href="/finance/{{project.name}}/availablecash">Disponibilidad</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='income-segment'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="clipboard list circular teal icon"></i>
+          <div class="content">
+            Listado de recaudos
+          </div>
+        </h2>
+      </div>
+      <div class='ui basic segment'>
+        <div class="ui form">
+            <div class="fields">
+              <div class="three wide field">
+                <label>Desde</label>
+                <div class="ui calendar" id="rangestart">
+                  <div class="ui input left icon">
+                    <i class="calendar icon"></i>
+                    <input type="text" id="date-from">
+                  </div>
+                </div>
+              </div>
+              <div class="three wide field">
+                <label>Hasta</label>
+                <div class="ui calendar" id="rangeend">
+                  <div class="ui input left icon">
+                    <i class="calendar icon"></i>
+                    <input type="text" id="date-to">
+                  </div>
+                </div>
+              </div>
+              <div class="three wide field">
+                <label>Filtrar por</label>
+                <select class="ui dropdown" id="date-field">
+                  <option value="add_date" selected>Fecha de elaboración</option>
+                  <option value="payment_date">Fecha de pago</option>
+                </select>
+              </div>
+              <div class="two wide field">
+                <div class="ui radio checkbox checked" id="check-just-incomes" style="margin-bottom: 1rem;">
+                    <input type="radio" id="id-just-incomes" name="type-of-view" checked="" tabindex="0" class="hidden">
+                    <label>Solo ver Ingresos</label>
+                </div>
+              </div>
+              <div class="two wide field">
+                <div class="ui radio checkbox" id="check-just-devolutions" style="margin-bottom: 1rem;">
+                    <input type="radio" id="id-just-devolutions" name="type-of-view" tabindex="0" class="hidden">
+                    <label>Solo ver devoluciones</label>
+                </div>
+              </div>
+              <div class="two wide field">
+                <div class="ui radio checkbox" id="check-include-devolutions" style="margin-bottom: 1rem;">
+                    <input type="radio" id="id-include-devolutions" name="type-of-view" tabindex="0" class="hidden">
+                    <label>Ver Ingresos y devoluciones</label>
+                </div>
+              </div>
+              <div class="three wide field" style="margin-top: 1.5rem;">
+                <button class="circular ui teal icon button" id="search-incomes">
+                    <i class="icon search"></i>
+                </button>
+                <button class="circular ui teal icon button" id="export-xlsx">
+                    <i class="file download icon"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        <table class='ui celled selectable table' id='tableRcdos'>
+          <thead>
+              <tr class='center aligned'>
+                  <th>Fecha elaboración</th>
+                  <th>Fecha pago</th>
+                  <th>Recibo</th>
+                  <th>Primer propietario</th>
+                  <th>Contrato</th>
+                  <th>Inmueble</th>
+                  <th>Forma de pago</th>
+                  <th>Estado venta</th>
+                  <th>Usuario</th>
+                  <th>Valor</th>
+              </tr>
+          </thead>
+          <tfoot>
+            <tr>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th>Total</th>
+                <th></th>
+            </tr>
+          </tfoot>
+        </table>
+    </div>
+</div>
+<div class="ui tiny modal" id="modal-comments">
+    <i class="close icon"></i>
+    <div class="header">Comentarios recibo</div>
+    <div class="content">
+        <form class="ui form" id="form-obs-income" method="POST">{%csrf_token%}
+            <div class="field">
+              <label>Cuenta de pago</label>
+              <input type="text" name="obs-1" id="id-obs-1">
+            </div>
+            <div class="field">
+              <label>Observaciones</label>
+              <input type="text" name="obs-2" id="id-obs-2">
+            </div>
+            <button class="ui green button" type="submit">Guardar</button>
+          </form>
+    </div>
+  </div>
+  <div class="ui mini modal" id="modal-returns">
+    <i class="close icon"></i>
+    <div class="header">Devoluciones</div>
+    <div class="content">
+        <label>Fecha devolución</label>
+        <div class="ui calendar" id="div-id-return-date">
+            <div class="ui input left icon">
+            <i class="calendar icon"></i>
+            <input type="text" id="id-return-date">
+            </div>
+        </div>
+    </div>
+    <div class="actions">
+        <button type="button" class="ui green button" id="btn-save-return">Guardar</button>
+    </div>
+  </div>
+{%endblock%}
+{%block contextmenu%}
+<div class="ui popup bottom left " id='popup-incomes' style="position: absolute; 
+    padding:0px; left: 0px;top:0px;max-width: 15rem;">
+    <div class='ui basic vertical menu'>
+        <a class="item" id='imprimir'>
+            Imprimir
+            <i class="print circular teal icon" style='margin-top:-7px'></i>
+          </a>
+
+          <a class="item" id='comentarios'>
+            Observaciones
+            <i class="comment dots outline circular teal icon" style='margin-top:-7px'></i>
+          </a>
+          <a class="item" id='anular'>
+            Anular
+            <i class="ban circular teal icon" style='margin-top:-7px'></i>
+          </a>
+    </div>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    th,td{
+        font-size: small;
+    }
+</style>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script>
+    const project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('.ui.radio.checkbox').checkbox();
+        $('#date-field').dropdown();
+
+        $('#rangestart').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+            endCalendar: $('#rangeend')
+        });
+        $('#rangeend').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+            startCalendar: $('#rangestart')
+        });
+        
+        
+        var tableRcdos = $('#tableRcdos').DataTable({
+            processing:true,
+            deferRender: true,
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            ajax:{
+                url:'/finance/'+project+'/incomes/list?todo=datatable',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'add_date_uk'},
+                {'data':'payment_date_uk'},
+                {'data':'receipt'},
+                {'data':'sale.first_owner',render: (data)=> data.first_name + ' ' + data.last_name},
+                {'data':'sale.contract_number'},
+                {'data':'sale.property_sold.description'},
+                {'data':'fp'},
+                {'data':'sale.status'},
+                {'data':'user.username'},
+                {'data':'value',render: $.fn.dataTable.render.number( ',', '.', 0)},
+            ],
+            order:[[0,'desc'],[2,'desc']],
+            columnDefs:[
+                {targets:[0,1],type:'date-uk'},
+                {targets:[9],className:'right aligned'},
+                {targets:[0,1,2,4,5,7],className: 'center aligned'},
+            ],
+            footerCallback: function (row, data, start, end, display) {
+                let api = this.api();
+        
+                // Remove the formatting to get integer data for summation
+                let intVal = function (i) {
+                    return typeof i === 'string'
+                        ? i.replace(/[\$,]/g, '') * 1
+                        : typeof i === 'number'
+                        ? i
+                        : 0;
+                };
+        
+                // Total over all pages
+                total = api
+                    .column(9)
+                    .data()
+                    .reduce((a, b) => intVal(a) + intVal(b), 0);
+        
+        
+                // Update footer
+                api.column(9).footer().innerHTML = '$' + new Intl.NumberFormat('en-EN').format(total);
+            }
+        })
+        
+
+        $('#search-incomes').click(function(){
+            let from = $('#date-from').val() 
+            let to = $('#date-to').val()
+            let dateField = $('#date-field').val()
+            if(from == '' || to == '') {
+                new_message('red','Error','Debes ingresar ambas fechas')
+                return;
+            }
+            $(this).addClass('disabled loading')
+            
+            if ($('#check-just-incomes').checkbox('is checked')){
+                what_to_show = 'just-incomes'
+            }
+            else if ($('#check-include-devolutions').checkbox('is checked')){
+                what_to_show = 'incomes-and-devolutions'
+            }
+            else if ($('#check-just-devolutions').checkbox('is checked')){
+                what_to_show = 'just-devolutions'
+            }
+            
+            let url = `/finance/${project}/incomes/list?todo=datatable&from=${from}&to=${to}&what_to_show=${what_to_show}&date_field=${dateField}`
+            tableRcdos.ajax.url(url).load(function(e){
+                $('#search-incomes').removeClass('disabled loading');
+            });
+        })
+        $('#export-xlsx').click(function(){
+            let from = $('#date-from').val() 
+            let to = $('#date-to').val()
+            let dateField = $('#date-field').val()
+            if(from == '' || to == '') {
+                new_message('red','Error','Debes ingresar ambas fechas')
+                return;
+            }
+            let include_devs = $('#check-include-devolutions').checkbox('is checked')
+            $(this).addClass('disabled loading')
+            if ($('#check-just-incomes').checkbox('is checked')){
+                what_to_show = 'just-incomes'
+            }
+            else if ($('#check-include-devolutions').checkbox('is checked')){
+                what_to_show = 'incomes-and-devolutions'
+            }
+            else if ($('#check-just-devolutions').checkbox('is checked')){
+                what_to_show = 'just-devolutions'
+            }
+            $.ajax({
+                type: 'GET',
+                data:{
+                    'todo':'report',
+                    'from':from,
+                    'to':to,
+                    'what_to_show':what_to_show,
+                    'date_field':dateField
+                },
+                url: window.location,
+                success: function(data){
+                    new_message('success','Listo',`Puedes descargar tu documento <a href="/media/${data.href}">aquí</a>`)
+                },
+                complete: function(){
+                    $('#export-xlsx').removeClass('disabled loading');
+                }
+            })
+        })
+        $('#form-obs-income').submit(function(e){
+            e.preventDefault();
+            let button = $(this).find('button')
+            button.addClass('loading disabled')
+            let receipt = tableRcdos.row($('tr.active')).data()
+            let data = new FormData(this)
+            data.append('receipt', receipt.receipt)
+            $.ajax({
+                url: window.location,
+                data: data,
+                type: 'POST',
+                contentType: false,
+                processData: false,
+                success: function(data){
+                    new_message('success','Listo','Observaciones guardadas')
+                    $('#modal-comments').modal('hide')
+                },
+                complete: function(data){
+                    button.removeClass('disabled loading')
+                }
+            })
+
+        })
+        $('#btn-save-return').click(function(){
+            let row = tableRcdos.row($('tr.active')).data()
+            let date = $('#id-return-date').val()
+            if (date == '') {
+                new_message('red','Error','Debes ingresar una fecha de devolución')
+                return;
+            }
+            let sale = row.sale.id_sale
+            $(this).addClass('disabled loading')
+            $.ajax({
+                type:'POST',
+                url:'/sales/ajax/desistsale/'+sale,
+                data:{
+                    'csrfmiddlewaretoken':getCookie('csrftoken'),
+                    'todo':'return-desist-income',
+                    'income':row.id,
+                    'date':date
+                },
+                success:function(xhr){
+                    window.location.reload()
+                },
+                error: function(xhr){
+                    $('#modal-desist div.actions button').removeClass('disabled loading')
+                    if (xhr.status == 403){
+                        new_message('error',xhr.responseJSON.title,xhr.responseJSON.msj)
+                    }
+                    else{
+                        console.log(xhr.responseText)
+                    }
+                },
+            })
+        })
+        $('#tableRcdos tbody').on('contextmenu','tr',function(e){
+            let row = tableRcdos.row(this).data()
+            console.log(row)
+            if (row.fp == 'Devoluciones'){
+                new_message('error','No disponible','Las devoluciones no tienen ningun tipo de opción')
+                return false;
+            }
+            tableRcdos.$('tr.active').removeClass('active');
+            $(this).addClass('active')
+            side = 'left'
+            side_to_remove='right'
+            var width = $(document).width()
+            var positionX = e.pageX -20
+            if (positionX>=width*3/4){
+                positionX -= 173
+                side = 'right'
+                side_to_remove='left'
+            }
+            positionY = e.pageY+15
+            $('#popup-incomes').css({
+                'left':positionX+'px',
+                'top':positionY+'px',
+            }).addClass('transition visible')
+            .removeClass(side_to_remove)
+            .addClass(side)
+            return false;
+        })
+        $("#popup-incomes").click(function(e){
+            let row = tableRcdos.row($('tr.active')).data()
+            switch(e.target.id){
+                case "imprimir":
+                    new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    $.ajax({
+                        type:'GET',
+                        url:'/finance/'+project+'/print/receipt',
+                        data:{
+                            'receipt_number':row.receipt,
+                        },
+                        success:function(xhr){
+                            new_message(xhr.type,xhr.title,xhr.msj,true)
+                        }
+                    })
+                    break; 
+                case "devolucion":
+                    if(row.sale.status != 'Desistido'){
+                        new_message('error','No disponible','Para realizar una devolución el contrato debe estar desistido.')
+                        break;
+                    }
+                    $('#modal-returns').modal('show')
+                    $('#div-id-return-date').calendar({
+                        type: 'date',
+                        text: calendar_spanish(),
+                    });
+                    break; 
+                case 'comentarios':
+                    $.ajax({
+                        url: window.location,
+                        data:{
+                            'todo':'get-comments',
+                            'receipt':row.receipt
+                        },
+                        type: 'GET',
+                        success: function(data) {
+                            $('#id-obs-1').val(data.obs_1)
+                            $('#id-obs-2').val(data.obs_2)
+                            $('#modal-comments').find('.header').text('Comentarios recibo # ' + row.receipt)
+                            $('#modal-comments').modal('show')
+                        },
+                        error: function(data){
+                            new_message('red','Error','No se pudo obtener los comentarios')
+                        }
+                    })
+                    
+                    break;
+                case "anular":
+                    new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    $.ajax({
+                        type:'POST',
+                        url:'/finance/ajax/'+project+'/incomes_actions',
+                        data:{
+                            'csrfmiddlewaretoken':'{{csrf_token}}',
+                            'receipt_number':row.receipt,
+                            'action':'nullify',
+                            'reload':true,
+                        },
+                        success:function(xhr){
+                            window.location.reload() 
+                        },
+                        error: (xhr) => {
+                            if (xhr.status == 403){
+                                new_message('error',xhr.responseJSON.title,xhr.responseJSON.msj)
+                            }
+                            else{
+                                $('body').toast({
+                                    class: 'error',
+                                    showProgress: 'bottom',
+                                    displayTime: 'auto',
+                                    message: 'Ocurrió un error, por favor contacta al administrador del sistema'
+                                })
+                                console.log(xhr.responseText)
+                            }
+                        }
+                    })   
+            }
+        });
+    })
+</script>
+{%endblock%}

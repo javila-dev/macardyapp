@@ -1,0 +1,1028 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Ventas | Sin aprobar{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/new_sale" data-tab='tab-clientes'>Nueva venta</a>
+<a class='item active submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    {%if not is_selected%}
+    <div id='div_table_nonapproved'>
+        <div class='ui center aligned basic segment' id='div_sale'>
+            <h2 class="ui icon dividing header">
+                <i class="tasks circular teal icon"></i>
+              <div class="content">
+                Listado de ventas sin aprobar
+              </div>
+            </h2>
+          </div>
+        <div class='ui centered very padded grid' >
+            <div class='basic segment'>
+                <table id='tablenonapproved' class='ui selectable striped collapsing table'>
+                    <thead>
+                        <tr>
+                            <th>Contrato</th>
+                            <th>Cliente</th>
+                            <th>Usuario</th>
+                            <th>Fecha</th>
+                            <th>Inmueble</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>{%for sale in nonapprovedsales%}
+                    <tr>
+                        <td>{{sale.contract_number}}</td>
+                        <td>{{sale.first_owner.full_name}}</td>
+                        <td>{{sale.sale_id_history.first.user.username}}</td>
+                        <td>{{sale.add_date|date:"d/m/Y"}}</td>
+                        <td>{{sale.property_sold.description}}</td>
+                        <td>${{sale.value|format_number}}</td>
+                    </tr>
+                    {%endfor%}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {%elif is_selected%}
+      <div class='ui container' id='div_sale'>
+        <div class="ui menu" style="
+            margin-left: -3em;
+            margin-right: -3em;
+        ">
+            <div class="header item">
+                <h2>
+                    <i class="info circle teal icon"></i>
+                    Detalles contrato {{sale.contract_number}}
+                </h2>
+            </div>
+            <div class="right menu">
+                <div class="ui dropdown pointing item">
+                    Acciones
+                    <i class="dropdown icon"></i>
+                    <div class="menu">
+                      <a class="item" id='actions-modify'>
+                        <i class="edit icon"></i>Modificar</a>
+                      <a class="item" id='actions-approve'>
+                        <i class="thumbs up outline icon"></i>Aprobar</a>
+                      <a class="item" id='actions-nullify'>
+                        <i class="trash alternate outline icon"></i>Anular</a>
+                    </div>
+                  </div>
+                  <div class="ui dropdown pointing item">
+                    <i class="file pdf outline icon"></i>Documentos
+                    <i class="dropdown icon"></i>
+                    <div class="menu">
+                      <a class="item" id='print-contract'>Contrato</a>
+                      <a class="item" id='print-verification'>Verificacion</a>
+                      <a class="item" id='print-pagare'>Pagaré</a>
+                      <a class="item" id='print-admision'>Admisión</a>
+                      <a class="item" id='print-autorizacion'>Autorización de datos</a>
+
+                    </div>
+                  </div>
+                  <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale.contract_number }}')">
+                            <i class="copy outline icon"></i>Cargar Documentos</a>
+                  <a class='item' id='actions-comissions'>
+                      <i class="list ol icon"></i>Escala de Comisiones
+                  </a>
+                  <a class='item' id='actions-incomes'>
+                    <i class="money bill alternate icon"></i>Recaudos
+                </a>
+              </div>
+      </div>
+          {% if not sale_has_scale %}
+          <div class="ui warning icon message">
+            <i class="exclamation triangle icon"></i>
+            <div class="content">
+                <div class="header">Escala de comisiones pendiente</div>
+                <p>No has cargado la escala de comisiones para este contrato. Si apruebas así, el sistema no podrá liquidar comisiones hasta que registres la escala.</p>
+            </div>
+          </div>
+          {% endif %}
+          {%crispy form%}
+      </div>
+      {%endif%}
+</div>
+<!-- modal approve sale -->
+<div class="ui basic modal" id='approve-confirmation'>
+    <div class="ui green icon header">
+        <i class="thumbs up outline icon"></i>
+      Aprobar venta
+    </div>
+    <div class="content">
+      <p>Estas seguro que deseas aprobar esta venta?</p>
+      <div class="ui warning message no-scale-warning" {% if sale_has_scale %}style="display:none;"{% endif %}>
+        <i class="exclamation triangle icon"></i>
+        Esta venta no tiene una escala de comisiones asignada. Si continúas, el sistema no podrá liquidar comisiones hasta que cargues la escala.
+      </div>
+    </div>
+    <div class="actions">
+      <div class="ui red basic cancel inverted button">
+        <i class="remove icon"></i>
+        No
+      </div>
+      <div class="ui green ok inverted button">
+        <i class="checkmark icon"></i>
+        Si
+      </div>
+    </div>
+  </div>
+  <!-- modal nullify sale -->
+  <div class="ui basic modal" id='nullify-confirmation'>
+    <div class="ui icon header">
+        <i class="trash alternate icon"></i>
+      Anular venta
+    </div>
+    <div class="content">
+      <p>Estas seguro que deseas anular esta venta?</p>
+    </div>
+    <div class="actions">
+      <div class="ui red basic cancel inverted button">
+        <i class="remove icon"></i>
+        No
+      </div>
+      <div class="ui green ok inverted button">
+        <i class="checkmark icon"></i>
+        Si
+      </div>
+    </div>
+  </div>
+  <!-- modal comisionss -->
+  <div class="ui coupled modal" id='modal-comissions'>
+    <div class="header">Comisiones por venta</div>
+    <div class="content">
+      <div class='ui grid'>
+          <div class='row'>
+              <form id='form-scale' class='ui form' style='width: 100%;'>{%csrf_token%}
+                <table id='table-comissions-scale' style="width: 100%;"
+                class="ui very compact selectable definition collapsing celled table">
+                    <thead>
+                        <tr class="center aligned">
+                            <th></th>
+                            <th>Cargo</th>
+                            <th>Id asesor</th>
+                            <th>Nombre</th>
+                            <th>%</th>
+                        </tr>
+                    </thead>
+                    <tbody>{%for position in comission_assign%}
+                        <tr>
+                            <td class="collapsing">
+                                <button type="button" class="circular ui red icon button" onclick="deletepositioninScale($(this));">
+                                    <i class="trash alternate outline icon"></i>
+                                </button>
+                            </td>
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.position.name}}" name="position" readonly>
+                                </div>
+                            </td>  
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.seller.pk}}" name="seller_id" readonly>
+                                </div>
+                            </td>     
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.seller.full_name}}" name="seller_name" readonly>
+                                </div>
+                            </td>   
+                            <td>
+                                <div class="ui input">
+                                    <input type="number" class="text-center" min="0" step='0.01' name="comission" value="{{position.comission|unlocalize}}" required>
+                                </div>
+                            </td>   
+                        </tr>
+                    {%endfor%}</tbody>
+                    <tfoot class='full-width'>
+                        <tr>
+                            <th colspan="5">
+                                <button type='button' class="ui primary basic button">
+                                    <i class="plus icon"></i>
+                                    Agregar un nuevo cargo</button>
+                                <button class="ui right floated approve green button" type='submit'>Registrar</button>
+                                <div class="ui right floated cancel button" onclick="$('#modal-comissions').modal('hide')">Cancelar</div>
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </form>
+          </div>
+      </div>
+    </div>
+  </div>
+  <!-- modal position comisionss -->
+  <div class="ui coupled modal" id='modal-positions'>
+    <i class="close icon"></i>
+    <div class="header">Seleccionar asesor y cargo</div>
+    <div class="content">
+        <div class="ui grid">
+            <div class="four wide column">
+                <div class="ui vertical pointing menu" id='menu-comissions-position'>
+                    {%for position in comission_position%}
+                        <a class="item">{{position.name}}</a>
+                    {%endfor%}
+                </div>
+            </div>
+            <div class="twelve wide column">
+                <div class="ui basic segment" style="max-height: 400px;overflow-x: hidden;overflow-y:auto;">
+                <table class='ui table selectable ml-2' 
+                        id='table_sellers' style='width: 100%;'>
+                        <thead>
+                            <th>Id</th>
+                            <th>Nombre</th>
+                        </thead>
+                        <tbody>
+                            {%for seller in sellers%}
+                            <tr>
+                                <td>{{seller.pk}}</td>
+                                <td>{{seller.full_name}}</td>
+                            </tr>
+                            {%endfor%}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="actions">
+      <div class="ui cancel button">Cancelar</div>
+      <div class="ui approve green button" id="btn-register-comiss-position">Asignar</div>
+    </div>
+  </div>
+  <div class="ui modal" id='modalListaRcdos'>
+    <div class="header">Recaudos efectuados</div>
+    <div class="scrolling content mb-3">
+        <table class='ui celled selectable table' id='tableRcdosVentasNR'>
+            <thead>
+                <tr class='center aligned'>
+                    <th>Fecha</th>
+                    <th>Recibo</th>
+                    <th>Cliente</th>
+                    <th>Venta</th>
+                    <th>Forma de pago</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody>{%for r in receipts%}
+                <tr class='center aligned {%if r.value < 0%}error{%endif%}'>
+                    <td>{{r.add_date}}</td>
+                    <td>{{r.receipt}}</td>
+                    <td>{{r.sale.first_owner.full_name}}</td>
+                    <td>{{r.sale.contract_number}}</td>
+                    <td>{{r.payment_method.name}}</td>
+                    <td>${{r.value|format_number}}</td>
+                </tr>
+            {%endfor%}</tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="5" class='right aligned'>Total:</th>
+                    <th class='center aligned'></th>
+                </tr>
+            </tfoot>
+          </table>
+    </div>
+  </div>
+{% include 'sales_files_modal.html' %}
+{%endblock%}
+{%block script%}
+{%include 'datejs.html'%}
+{{ci_form|json_script:'initial_quota_json'}}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    const project = '{{project.name}}'
+    var sale = '{{sale.contract_number}}'
+    var contract_number = '{{sale.contract_number}}'
+    const saleHasScale = {{ sale_has_scale|yesno:"true,false"|lower }};
+</script>
+<script src="{% static 'js/sales_files_modal.js' %}"></script>
+<script>
+    $(document).ready(function(){
+        $('.money').mask('#,##0', {reverse: true});
+        $('#tablenonapproved tbody').on('click','tr',function(){
+            let sale = this.cells[0].innerText
+            window.location.href = '/sales/'+project+'/nonapprovedsales?sale='+sale
+        })
+        $('.dropdown').dropdown({
+            action:'activate',
+            clearable:true
+        })
+        $('#button-add-ci').click(function(){
+            let id_calendar = $('.ci-row').length
+            
+            let new_row = `
+            <tr class="ci-row">
+                <td>
+                    <div class="ui input">
+                        <input type="number" class="text-center" name="quanty_ci_quota" min="1"
+                        onchange="totalizeCI();">
+                    </div>
+                </td>
+                <td>
+                    <div class="ui calendar" id="calendar_${id_calendar}">
+                        <div class="ui input left icon">
+                            <i class="calendar icon"></i>
+                            <input type="text" name="date_ci_quota" onkeypress="return false;">
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="ui input">
+                        <input type="text" class="text-center money" name="value_ci_quota"
+                        onchange="totalizeCI();">
+                    </div>
+                </td>
+            </tr>
+            `
+            let previous_row = $('.ci-row').last()
+            let new_date = null
+            if (previous_row.length>0) {
+                let last_date = previous_row.find('.ui.calendar').calendar('get date')
+                let last_quanty = previous_row.find('input[name="quanty_ci_quota"]').val()
+                if (last_quanty == 0 || last_quanty == "") {
+                    new_message('warning','Revisalo','Debes ingresar la cantidad antes de agregar una nueva linea')
+                    return;
+                }
+                else if (last_date[0] == null){
+                    new_message('warning','Revisalo','Debes ingresar una fecha antes de agregar una nueva linea')
+                    return;
+                }
+                let date_utc = new Date(last_date)
+                new_date = date_utc.add(parseInt(last_quanty)).months()
+            }
+            $('#tableCI tbody').first().append(new_row)
+            $('#calendar_'+id_calendar).calendar({
+                type: 'date',
+                text: calendar_spanish(),
+                initialDate: new_date
+            })
+            $('.money').mask('#,##0', {reverse: true});
+        })
+        $('#button-remove-ci').click(function(){
+             $('#tableCI tbody tr.ci-row').last().remove()
+             totalizeCI();
+        })
+        $('#id_initial_rate').on('change',function(){
+            calculate_initial_tofinance('percent')
+        })
+        $('#id_initial_value').on('change',function(){
+            calculate_initial_tofinance('value')
+        })
+        $('#id_sale_plan').on('change',function(){
+            let plan_element = $(this)
+            let plan = $(this).val()
+            plan_element.parent('div.select.dropdown').addClass('loading')
+            $.ajax({
+                url:'/sales/ajax/salesplansinfo',
+                type:'get',
+                data:{
+                    'plan':plan,
+                },
+                success:function(response){
+                    let data = response.data[0]
+                    $('#id_rate').val(
+                        parseFloat(data.rate)
+                    )
+                    $('#id_initial_rate').val(
+                        parseFloat(data.initial_payment)
+                    ).prop(
+                        'min',parseFloat(data.initial_payment)
+                    )
+                    if (data.initial_payment == 100){
+                        $('#div_regular_quotas input').prop('disabled',true)
+                    }
+                    else {
+                        $('#div_regular_quotas input').prop('disabled',false)
+                    }
+                    calculate_initial_tofinance('percent')
+                },
+                complete: function(){
+                    plan_element.parent('div.select.dropdown').removeClass('loading')
+                }
+            })
+            $('#div_saldo input').val('')
+        })
+        $('#id_type_of_payment').on('change',function(){
+            let type = $(this).val()
+            if (type == 'Extraordinario') {
+                $('#id_value_to_finance_quota').prop('readonly',false)
+                $('#id_periodicity_extra_quota').prop('disabled',false)
+                $('#id_periodicity_extra_quota').parent('div.dropdown').removeClass('disabled')
+                $('#id_quanty_extra_quota').prop('disabled',false)
+                $('#id_initial_date_extra_quota').prop('disabled',false)
+                $('#id_value_extra_quota').prop('disabled',false)
+            }
+            else{
+                $('#id_value_to_finance_quota').prop('readonly',true)
+                $('#id_periodicity_extra_quota').val('').prop('disabled',true)
+                $('#id_periodicity_extra_quota').parent('div.dropdown').addClass('disabled')
+                $('#id_quanty_extra_quota').val('').prop('disabled',true)
+                $('#id_initial_date_extra_quota').val('').prop('disabled',true)
+                $('#id_value_extra_quota').val('').prop('disabled',true)
+            }
+            $('#div_saldo input').val('')
+        })
+        $('#id_quanty_to_finance_quota').on('change',function(){
+            let payment_type = $('#id_type_of_payment').val()
+            if (payment_type == 'Extraordinario') return;
+            let quanty = $(this).val()
+            let to_finance = $('#id_to_finance').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_normal',
+                    'rate':rate,
+                    'vp':to_finance,
+                    'nper':quanty
+                },
+                success: function(response){
+                    $('#id_value_to_finance_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota)
+                    )
+                }
+            })
+        })
+        $('#id_quanty_extra_quota').on('change',function(){
+            let quanty_regular = $('#id_quanty_to_finance_quota').val()
+            let regular_quota = $('#id_value_to_finance_quota').val().replace(/[\$,]/g,'') *1
+            let quanty_extra = $(this).val()
+            let periodicity = $('#id_periodicity_extra_quota').val() * 1
+            let to_finance = $('#id_to_finance').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_extra',
+                    'rate':rate,
+                    'totalamount':to_finance,
+                    'pmt':regular_quota,
+                    'nper':quanty_regular,
+                    'nper_extra':quanty_extra,
+                    'period_extra':periodicity,
+                },
+                success: function(response){
+                    $('#id_value_extra_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota_extra)
+                    )
+                }
+            })
+        })
+        $('#id_periodicity_extra_quota').on('change',function(){
+            let periodicity = $('#id_periodicity_extra_quota').val() * 1
+            let date = new Date(
+                $('#div_id_initial_date_to_finance_quota').calendar('get date')
+            )
+            let new_date = date.add(periodicity).months()
+            $('#div_id_initial_date_extra_quota').calendar('set date',new_date)
+
+            let quanty_regular = $('#id_quanty_to_finance_quota').val()
+            let max_extra_quotas = parseInt(quanty_regular/periodicity)
+            $('#id_quanty_extra_quota').attr('max',max_extra_quotas)
+        })
+        $('#id_sale_value').on('change',function(){
+            calculate_initial_tofinance('percent')
+            $('#div_saldo input').val('')
+            totalizeCI();
+        })
+        $('#id_quanty_to_finance_quota').focusout(function(){
+            let last_row = $('.ci-row').last()
+            let last_date = last_row.find('.ui.calendar').calendar('get date')
+            
+            let last_quanty = last_row.find('input[name="quanty_ci_quota"]').val()
+            if (last_quanty == 0 || last_quanty == "") {
+                return;
+            }
+            let date_utc = new Date(last_date)
+            new_date = date_utc.add(parseInt(last_quanty)).months()
+            if (last_date.length > 0) {
+                $('#div_id_initial_date_to_finance_quota').calendar({
+                    type: 'date',
+                    text: calendar_spanish(),
+                    initialDate: new_date
+                })
+            }
+            else {
+                $('#div_id_initial_date_to_finance_quota').calendar({
+                    type: 'date',
+                    text: calendar_spanish()
+                })
+            }
+            
+            
+
+            let payment_type = $('#id_type_of_payment').val()
+            if (payment_type == 'Extraordinario') return;
+            let quanty = $(this).val()
+            let to_finance = $('#id_finance_to_change').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_normal',
+                    'rate':rate,
+                    'vp':to_finance,
+                    'nper':quanty
+                },
+                success: function(response){
+                    $('#id_value_to_finance_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota)
+                    )
+                }
+            })
+        })
+        $('#form-sale').on('submit',function(e){
+            let total_ci_added = $('#tableCI tfoot th').last().text().replace(/[\$,]/g,'') * 1
+            let total_ci = $('#id_initial_value').val().replace(/[\$,]/g,'') * 1
+            let ci_difference = new Intl.NumberFormat('en-EN').format(total_ci - total_ci_added)
+            let first_owner = $('#id_id_first_owner').val()
+            let second_owner = $('#id_id_second_owner').val()
+            let third_owner = $('#id_id_third_owner').val()
+            if (first_owner == ''){
+                new_message('error','Ocurrio un error','Debes seleccionar por lo menos un primer titular')
+                $('#id_id_first_owner').focus()
+                return false;
+            }
+            if (first_owner == second_owner || first_owner == third_owner || second_owner == third_owner
+                && second_owner!= ""){
+                new_message('error','Ocurrio un error','Un titular no puede estar mas de una (1) vez en un contrato.')
+                return false;
+            }
+            if (second_owner == '' && third_owner!= ''){
+                new_message('error','Ocurrio un error','Para agregar un 3er titular el 2do no puede estar vacio.')
+                $('#id_id_first_owner').focus()
+                return false;
+            }
+            if (total_ci_added != total_ci){
+                new_message('error','Ocurrio un error',
+                `El total del detalle de cuotas iniciales no es igual a la cuota inicial seleccionada,
+                <br>tienes una diferencia de ${ci_difference}`)
+                return false;
+            }
+            e.preventDefault();
+            $(this).addClass('loading')
+            let dataform = new FormData(this)
+            dataform.append('action','modify')
+            dataform.append('sale','{{sale.contract_number}}')
+            $.ajax({
+                url:'/sales/'+project+'/nonapprovedsales',
+                type:'POST',
+                data:dataform,
+                contentType:false,
+                processData:false,
+                success:function(response){
+                    new_message(response.type,response.title,response.msj)
+                },
+                complete: function(){
+                    $('#form-sale').removeClass('loading')
+                },
+                error: function(response){
+                    new_message('red','Error','Ocurrió un error inesperado, intentalo nuevamente o contacta al administrador del sitio.')
+                    var error = response.responseText
+                    console.log(error)
+                }
+            })
+        })
+        $('#actions-modify').on('click',function(){
+            $('#form-sale').submit()
+        })
+        $('#actions-approve').click(function(){
+            if (!saleHasScale){
+                $('#approve-confirmation .no-scale-warning').show();
+            } else {
+                $('#approve-confirmation .no-scale-warning').hide();
+            }
+            $('#approve-confirmation').modal({
+                closable  : false,
+                onApprove : function() {
+                    $('#approve-confirmation .ui.ok.button')
+                    .addClass('loading')
+                    .addClass('disabled')
+                    $.ajax({
+                        url:'/sales/'+project+'/nonapprovedsales',
+                        type:'POST',
+                        data:{
+                            'csrfmiddlewaretoken':'{{csrf_token}}',
+                            'action':'approve',
+                            'sale':'{{sale.contract_number}}'
+                        },
+                        success:function(xhr){
+                            console.log(xhr)
+                            $('#approve-confirmation').modal('hide')
+                            window.location.href = "/sales/"+project+"/nonapprovedsales"
+                        },
+                        error: function(xhr){
+                            if (xhr.status == 403){
+                                $('#approve-confirmation').modal('hide')
+                                $('#approve-confirmation .ui.ok.button')
+                                .removeClass('loading')
+                                .removeClass('disabled')
+                                $('body').toast({
+                                    class: 'error',
+                                    showProgress: 'bottom',
+                                    displayTime: 'auto',
+                                    message: xhr.responseJSON.msj
+                                })
+                            }
+                        }
+                    })
+                    return false;
+                }
+            }).modal('show')
+        })
+        $('#actions-nullify').click(function(){
+            $('#nullify-confirmation').modal({
+                closable  : false,
+                onApprove : function() {
+                    $('#nullify-confirmation .ui.ok.button')
+                    .addClass('loading')
+                    .addClass('disabled')
+                    $.ajax({
+                        url:'/sales/'+project+'/nonapprovedsales',
+                        type:'POST',
+                        data:{
+                            'csrfmiddlewaretoken':'{{csrf_token}}',
+                            'action':'nullify',
+                            'sale':'{{sale.contract_number}}'
+                        },
+                        success:function(xhr){
+                            $('#nullify-confirmation').modal('hide')
+                            window.location.href = "/sales/"+project+"/nonapprovedsales"
+                        },
+                        complete:function(xhr){
+                            $('#nullify-confirmation .ui.ok.button')
+                            .removeClass('loading')
+                            .removeClass('disabled')
+                        },
+                    })
+                    return false;
+                }
+            }).modal('show')
+        })
+        $('#actions-comissions').click(function(){
+            $('#modal-comissions').modal('show')
+        })
+        $('#actions-incomes').click(function(){
+            $('#modalListaRcdos').modal('show')
+        })
+        $('#menu-comissions-position a.item').click(function(){
+            $('#menu-comissions-position a.item').removeClass('active')
+            $(this).addClass('active')
+        })
+        $('#table_sellers tbody tr').click(function(){
+            $('#table_sellers tbody tr').removeClass('active')
+            $(this).addClass('active')
+        })
+        $('#btn-register-comiss-position').click(function(){
+            var position = $('#menu-comissions-position a.item.active').text()
+            var seller = $('#table_sellers tbody tr.active')
+            var seller_id = seller[0].cells[0].textContent
+            var seller_name = seller[0].cells[1].textContent
+            var position_exist = false
+
+            var data_table = $('#table-comissions-scale input[name="position"]')
+            .each(function(index,elem){
+                if ($(elem).val() == position) position_exist = true
+            })
+
+            if (position == "" || seller_id == undefined){
+                new_message('warning','Advertencia','Debes seleccionar el cargo y el asesor para poder adicionarlos a la escala')
+                return;
+            }
+            else if (position_exist){
+                new_message('warning','Advertencia','Este cargo ya fue asignado y está registrado en la escala')
+                return;
+            }
+
+
+            let new_row = `
+            <tr>
+                <td class="collapsing">
+                    <button type="button" class="circular ui red icon button" onclick="deletepositioninScale($(this));">
+                        <i class="trash alternate outline icon"></i>
+                    </button>
+                </td>
+                <td>
+                    <div class="ui transparent input">
+                        <input type="text" value="${position}" name="position" readonly>
+                    </div>
+                </td>  
+                <td>
+                    <div class="ui transparent input">
+                        <input type="text" value="${seller_id}" name="seller_id" readonly>
+                    </div>
+                </td>     
+                <td>
+                    <div class="ui transparent input">
+                        <input type="text" value="${seller_name}" name="seller_name" readonly>
+                    </div>
+                </td>   
+                <td>
+                    <div class="ui input">
+                        <input type="number" class="text-center" min="0" step='0.01' name="comission" required>
+                    </div>
+                </td>   
+            </tr>
+            `
+            $('#table-comissions-scale tbody').append(
+                new_row
+            )
+        })
+        $('#form-scale').on('submit',function(e){
+            e.preventDefault();
+            $(this).addClass('loading')
+            dataform = new FormData(this)
+
+            $.ajax({
+                type:'post',
+                url:'/sales/ajax/'+project+'/comissions/'+sale,
+                data:dataform,
+                contentType:false,
+                processData: false,
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj)
+                },
+                complete: function(xhr){
+                    $('#form-scale').removeClass('loading')
+                }
+            })
+        })
+        $('#print-contract').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            $.ajax({
+                type:'GET',
+                url:'/sales/ajax/'+project+'/printsalesdocuments',
+                data:{
+                    'type':'contract',
+                    'sale':sale
+                },
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                }
+            })
+        })
+        $('#print-admision').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            $.ajax({
+                type:'GET',
+                url:'/sales/ajax/'+project+'/printsalesdocuments',
+                data:{
+                    'type':'admission_application',
+                    'sale':sale
+                },
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                }
+            })
+        })
+        $('#print-autorizacion').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            $.ajax({
+                type:'GET',
+                url:'/sales/ajax/'+project+'/printsalesdocuments',
+                data:{
+                    'type':'data_authorization',
+                    'sale':sale
+                },
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                }
+            })
+        })
+        $('#print-pagare').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            $.ajax({
+                type:'GET',
+                url:'/sales/ajax/'+project+'/printsalesdocuments',
+                data:{
+                    'type':'pagare',
+                    'sale':sale
+                },
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                }
+            })
+        })
+        $('#print-verification').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            $.ajax({
+                type:'GET',
+                url:'/sales/ajax/'+project+'/printsalesdocuments',
+                data:{
+                    'type':'verification',
+                    'sale':sale
+                },
+                success:function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                }
+            })
+        })
+
+        $('.coupled.modal').modal({
+                allowMultiple: true
+            })
+            ;
+        // open second modal on first modal buttons
+        $('#modal-positions').modal('attach events', '#table-comissions-scale tfoot .primary.button')
+        ;
+        loadplan();
+        loadCIQuotas();
+        totalizeIncomes();
+        checkpaymentmethod();
+        
+    })
+    function loadplan(){
+        $('#id_initial_rate').prop('readonly',false)
+        $('#id_initial_value').prop('readonly',false)
+        let plan = $('#id_sale_plan').val()
+        $.ajax({
+                url:'/sales/ajax/salesplansinfo',
+                type:'get',
+                data:{
+                    'plan':plan,
+                },
+                success:function(response){
+                    let data = response.data[0]
+                    $('#id_initial_rate').prop(
+                        'min',parseFloat(data.initial_payment)
+                    )
+                    if (data.initial_payment == 100){
+                        $('#div_regular_quotas input').prop('disabled',true)
+                    }
+                    else {
+                        $('#div_regular_quotas input').prop('disabled',false)
+                    }
+                },
+            })
+    }
+    function totalizeIncomes(){
+        let total_incomes = 0
+        $('#tableRcdosVentasNR tbody tr').each(function(index,elem){
+            total_incomes += parseInt($(elem)[0].cells[5].textContent.replace(/[\$,]/g,''))
+        })
+        total_incomes = new Intl.NumberFormat('en-EN').format(total_incomes)
+        $('#tableRcdosVentasNR tfoot th').last().text('$ '+total_incomes)
+    }
+    function deletepositioninScale(element){
+        element.parents('tr').remove()
+    }
+    function loadCIQuotas(){
+        const json_quotas = document.getElementById('initial_quota_json')
+        const ci_quotas = JSON.parse(json_quotas.innerText);
+        for (i in ci_quotas){
+            let quotas = ci_quotas[i]
+            let id_calendar = i
+            let new_row = `
+            <tr class="ci-row">
+                <td>
+                    <div class="ui input">
+                        <input type="number" class="text-center" name="quanty_ci_quota" min="1"
+                        onchange="totalizeCI();" value="${quotas.quanty}">
+                    </div>
+                </td>
+                <td>
+                    <div class="ui calendar" id="calendar_${id_calendar}">
+                        <div class="ui input left icon">
+                            <i class="calendar icon"></i>
+                            <input type="text" name="date_ci_quota" onkeypress="return false;">
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="ui input">
+                        <input type="text" class="text-center money" name="value_ci_quota"
+                        onchange="totalizeCI();" value="${quotas.value}">
+                    </div>
+                </td>
+            </tr>
+            `
+            $('#tableCI tbody').first().append(new_row)
+            date = new Date.parse(quotas.initial_date)
+            $('#calendar_'+id_calendar).calendar({
+                type: 'date',
+                text: calendar_spanish(),
+                initialDate: date
+            })
+            totalizeCI()
+        }
+        $('.ui.calendar').calendar({
+                type: 'date',
+                text: calendar_spanish()
+            })
+        $('.money').mask('#,##0', {reverse: true});
+    }
+    function checkpaymentmethod(){
+        let type = $('#id_type_of_payment').val()
+        if (type == 'Extraordinario') {
+            $('#id_value_to_finance_quota').prop('readonly',false)
+            $('#id_periodicity_extra_quota').prop('disabled',false)
+            $('#id_periodicity_extra_quota').parent('div.dropdown').removeClass('disabled')
+            $('#id_quanty_extra_quota').prop('disabled',false)
+            $('#id_initial_date_extra_quota').prop('disabled',false)
+            $('#id_value_extra_quota').prop('disabled',false)
+        }
+        else{
+            $('#id_value_to_finance_quota').prop('readonly',true)
+            $('#id_periodicity_extra_quota').val('').prop('disabled',true)
+            $('#id_periodicity_extra_quota').parent('div.dropdown').addClass('disabled')
+            $('#id_quanty_extra_quota').val('').prop('disabled',true)
+            $('#id_initial_date_extra_quota').val('').prop('disabled',true)
+            $('#id_value_extra_quota').val('').prop('disabled',true)
+        }
+    }
+    function totalizeCI(){
+        var total = 0
+        $('input[name="value_ci_quota"]').each(function(index,element){
+            /* date = Date(date.calendar('get date')) */
+            let tr = $(element).parents('tr')
+            let value = $(element).val()
+            let quanty = $(tr).find('input[name="quanty_ci_quota"]').val()
+            $(element).find('input[name="date_ci_quota"]')
+            total += quanty * (value.replace(/[\$,]/g,'')*1)
+        })
+        total = new Intl.NumberFormat('en-EN').format(total)
+        $('#tableCI tfoot th').last().text('$'+total)
+    }
+    function calculate_initial_tofinance(type){
+        let total_value = $('#id_sale_value').val().replace(/[\$,]/g,'')*1
+        if (type == 'percent'){
+            let ci_percent = parseFloat($('#id_initial_rate').val())
+            let ci_value = parseInt(ci_percent * total_value/100)
+            let to_finance = total_value - ci_value
+            $('#id_initial_value').val(
+                new Intl.NumberFormat('en-EN').format(ci_value)
+            )
+            $('#id_to_finance_rate').val(
+                100 - ci_percent
+            )
+            $('#id_to_finance').val(
+                new Intl.NumberFormat('en-EN').format(to_finance)
+            )
+        }
+        else if (type == 'value'){
+            let ci_value = $('#id_initial_value').val().replace(/[\$,]/g,'')*1
+            let ci_percent = (ci_value / total_value)*100
+            ci_percent = Math.round(ci_percent)
+            let to_finance = total_value - ci_value
+            $('#id_initial_rate').val(
+                ci_percent
+            )
+            $('#id_to_finance_rate').val(
+                100 - ci_percent
+            )
+            $('#id_to_finance').val(
+                new Intl.NumberFormat('en-EN').format(to_finance)
+            )
+        }
+        $('#div_saldo input').val('')
+    }
+</script>
+{%endblock%}

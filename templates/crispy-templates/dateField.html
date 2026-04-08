@@ -1,0 +1,9 @@
+{% load crispy_forms_field %}
+<div class='ui calendar field' id='div_{{ field.id_for_label }}' 
+    {%if field.field.widget.attrs.date%}data-type="date" data-date="{{field.field.widget.attrs.date}}"{%endif%}>
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    <div class='ui input left icon'>
+        <i class='calendar icon'></i>
+        {% crispy_field field %}
+    </div>
+</div>

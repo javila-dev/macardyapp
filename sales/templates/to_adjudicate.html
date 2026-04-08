@@ -1,0 +1,348 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Ventas | Por adjudicar{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/new_sale" data-tab='tab-clientes'>Nueva venta</a>
+<a class='item submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item active submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    {%if not is_selected%}
+    <div id='div_table_nonapproved'>
+        <div class='ui center aligned basic segment' id='div_sale'>
+            <h2 class="ui icon dividing header">
+                <i class="tasks circular teal icon"></i>
+              <div class="content">
+                Listado de ventas por adjudicar
+              </div>
+            </h2>
+          </div>
+        <div class='ui centered  very padded grid' >
+            <div class='basic segment'>
+                <table id='tablenonapproved' class='ui selectable striped collapsing table'>
+                    <thead>
+                        <tr>
+                            <th>Contrato</th>
+                            <th>Cliente</th>
+                            <th>Usuario</th>
+                            <th>Fecha</th>
+                            <th>Inmueble</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>{%for sale in nonapprovedsales%}
+                    <tr>
+                        <td>{{sale.contract_number}}</td>
+                        <td>{{sale.first_owner.full_name}}</td>
+                        <td>{{sale.sale_id_history.first.user.username}}</td>
+                        <td>{{sale.add_date|date:"d/m/Y"}}</td>
+                        <td>{{sale.property_sold.description}}</td>
+                        <td>${{sale.value|format_number}}</td>
+                    </tr>
+                    {%endfor%}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {%elif is_selected%}
+      <div class='ui container' id='div_sale'>
+        <div class="ui menu">
+            <div class="header item">
+                <h2>
+                    <i class="info circle icon"></i>
+                    Detalles contrato {{sale.contract_number}}
+                </h2>
+            </div>
+            <div class="right menu">
+                <div class="ui dropdown item">
+                    Acciones
+                    <i class="dropdown icon"></i>
+                    <div class="menu">
+                      <a class="item" id='actions-adjudicate'>
+                        <i class="thumbs up outline icon"></i>Adjudicar</a>
+                      <a class="item" id='actions-disapprove'>
+                        <i class="undo icon"></i>Desaprobar</a>
+                    </div>
+                  </div>
+                  <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale.contract_number }}')">
+                            <i class="copy outline icon"></i>Cargar Documentos</a>
+                  <a class='item' id='actions-comissions'>
+                      Comisiones
+                  </a>
+                  <a class='item' id='actions-incomes'>
+                    Recaudos
+                </a>
+              </div>
+          </div>
+          {%crispy form%}
+      </div>
+      <div class="ui mini modal" id='modalAdjudicate'>
+        <div class="ui icon header">
+            <i class="object ungroup outline icon"></i> Adjudicar contrato</div>
+        <div class="content">
+          {%crispy adjudicate_form%}
+        </div>
+        <div class="actions">
+            <div class="ui cancel red button">Cancelar</div>
+            <div class="ui approve green button">Adjudicar</div>
+        </div>
+      </div>
+      <div class="ui mini basic modal" id='modalDeapprovate'>
+        <div class="ui icon header">
+            <i class="undo icon"></i>
+            Desaprobar contrato
+        </div>
+        <div class="content">
+            ¿Estás seguro que deseas desaprobar este contrato?
+        </div>
+        <div class="actions">
+            <div class="ui cancel inverted red button">Cancelar</div>
+            <div class="ui approve inverted green button">Desaprobar</div>
+        </div>
+      </div>
+      {%endif%}
+</div>
+<div class="ui coupled modal" id='modal-comissions'>
+    <i class="close icon"></i>
+    <div class="header">Comisiones por venta</div>
+    <div class="content">
+      <div class='ui grid'>
+          <div class='row'>
+              <form id='form-scale' class='ui form' style='width: 100%;'>{%csrf_token%}
+                <table id='table-comissions-scale' style="width: 100%;"
+                class="ui very compact selectable definition collapsing celled table">
+                    <thead>
+                        <tr class="center aligned">
+                            <th>Cargo</th>
+                            <th>Id asesor</th>
+                            <th>Nombre</th>
+                            <th>%</th>
+                        </tr>
+                    </thead>
+                    <tbody>{%for position in comission_assign%}
+                        <tr>
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.position.name}}" name="position" readonly>
+                                </div>
+                            </td>  
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.seller.pk}}" name="seller_id" readonly>
+                                </div>
+                            </td>     
+                            <td>
+                                <div class="ui transparent input">
+                                    <input type="text" value="{{position.seller.full_name}}" name="seller_name" readonly>
+                                </div>
+                            </td>   
+                            <td>
+                                <div class="ui input">
+                                    <input type="number" class="text-center" min="0" step='0.01' name="comission" readonly value="{{position.comission|unlocalize}}" required>
+                                </div>
+                            </td>   
+                        </tr>
+                    {%endfor%}</tbody>
+                </table>
+            </form>
+          </div>
+      </div>
+    </div>
+  </div>
+  <div class="ui modal" id='modalListaRcdos'>
+    <i class="close icon"></i>
+    <div class="header">Recaudos efectuados</div>
+    <div class="scrolling content mb-3">
+        <table class='ui celled selectable table' id='tableRcdosVentasNR'>
+            <thead>
+                <tr class='center aligned'>
+                    <th>Fecha</th>
+                    <th>Recibo</th>
+                    <th>Cliente</th>
+                    <th>Forma de pago</th>
+                    <th>Valor</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>{%for r in receipts%}
+                <tr class='center aligned {%if r.value < 0%}error{%endif%}'>
+                    <td>{{r.add_date}}</td>
+                    <td>{{r.receipt}}</td>
+                    <td>{{r.sale.first_owner.full_name}}</td>
+                    <td>{{r.payment_method.name}}</td>
+                    <td>${{r.value|format_number}}</td>
+                    <td>{{r.user.username}}</td>
+                </tr>
+            {%endfor%}</tbody>
+          </table>
+    </div>
+  </div>
+  {% include 'sales_files_modal.html' %}
+{%endblock%}
+{%block css%}
+{%endblock%}
+{%block script%}
+{{ci_form|json_script:'initial_quota_json'}}
+{%include 'datejs.html'%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    var project = '{{project.name}}'
+    var sale = '{{sale.pk}}'
+    const csrftoken = getCookie('csrftoken')
+    var contract_number = '{{sale.contract_number}}'
+</script>
+<script src="{% static 'js/sales_files_modal.js' %}"></script>
+<script>
+    $(document).ready(function(){
+        $('.money').mask('#,##0', {reverse: true});
+        $('#tablenonapproved tbody').on('click','tr',function(){
+            let sale = this.cells[0].innerText
+            window.location.href = '/sales/'+project+'/toadjudicatesales?sale='+sale
+        })
+        $('.dropdown').dropdown({
+            action:'activate',
+            clearable:false
+        })
+        loadCIQuotas();
+        $('#form-sale input,textarea').prop('readonly',true)
+        $('#form-sale .dropdown').addClass('read-only')
+        $('#form-sale .ui.calendar').addClass('disabled')
+        $('#form-sale .ui.checkbox').addClass('disabled')
+        $('#actions-adjudicate').click(function(){
+            $('#modalAdjudicate').modal('show')
+            .modal({
+                onApprove: function(){
+                    $('#form-adjudicate').submit()
+                    
+                    return false;
+                }
+            })
+            $('#id_comission_base').val(
+                $('#id_sale_value').val()
+            )
+        })
+        $('#actions-comissions').click(function(){
+            $('#modal-comissions').modal('show')
+        })
+        $('#actions-incomes').click(function(){
+            $('#modalListaRcdos').modal('show')
+        })
+        
+        $('#form-adjudicate').submit(function(e){
+            let sale_value = $('#id_sale_value').val().replace(
+                /[\$,]/g,''
+            ) * 1
+            let comission_base = $('#id_comission_base').val().replace(
+                /[\$,]/g,''
+            ) * 1
+            if (sale_value < comission_base){
+                new_message('red','Tenemos un problema','La base de comision no puede ser mayor al valor de venta')
+                return false;
+            }
+            let user = $('#id_collector_user').val()
+            if (user == ''){
+                new_message('red','Tenemos un problema','Debes asignar un gestor de cartera para adjudicar')
+                return false;
+            }
+            $('#modalAdjudicate .ui.approve.button')
+                .addClass('disabled loading')
+            $('<input/>').attr('type','hidden')
+            .attr('name','sale').attr('value',sale)
+            .appendTo('#form-adjudicate')
+            $('<input/>').attr('type','hidden')
+            .attr('name','action').attr('value','approve')
+            .appendTo('#form-adjudicate')
+            return true;
+        })
+        $('#actions-disapprove').click(function(){
+            $('#modalDeapprovate').modal('show')
+            .modal({
+                onApprove: function(){
+                    $('#modalDeapprovate .ui.approve.button').addClass('disabled loading')
+                    $.ajax({
+                        type:'POST',
+                        url:'/sales/'+project+'/toadjudicatesales',
+                        data:{
+                            'csrfmiddlewaretoken':csrftoken,
+                            'sale':sale,
+                            'action':'disapprove'
+                        },
+                        success: function(xhr){
+                            window.location.replace('/sales/'+project+'/nonapprovedsales')
+                        },
+                        error: function(xhr){
+                            console.log(xhr.responseText)
+                            $('#modalDeapprovate .ui.approve.button').addClass('disabled loading')
+                        }
+                    })
+                }
+            })
+        })
+    })
+    function loadCIQuotas(){
+        $('#tableCI .ui.buttons').remove()
+        const json_quotas = document.getElementById('initial_quota_json')
+        const ci_quotas = JSON.parse(json_quotas.innerText);
+        for (i in ci_quotas){
+            let quotas = ci_quotas[i]
+            let id_calendar = i
+            let new_row = `
+            <tr class="ci-row">
+                <td>
+                    <div class="ui input">
+                        <input type="number" class="text-center" name="quanty_ci_quota"
+                        onchange="totalizeCI();" value="${quotas.quanty}">
+                    </div>
+                </td>
+                <td>
+                    <div class="ui disabled calendar" id="calendar_${id_calendar}">
+                        <div class="ui input left icon">
+                            <i class="calendar icon"></i>
+                            <input type="text" name="date_ci_quota" onkeypress="return false;">
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="ui input">
+                        <input type="text" class="text-center money" name="value_ci_quota"
+                        onchange="totalizeCI();" value="${quotas.value}">
+                    </div>
+                </td>
+            </tr>
+            `
+            $('#tableCI tbody').first().append(new_row)
+            date = new Date.parse(quotas.initial_date)
+            $('#calendar_'+id_calendar).calendar({
+                type: 'date',
+                text: calendar_spanish(),
+                initialDate: date
+            })
+            totalizeCI()
+        }
+    }
+    function totalizeCI(){
+        var total = 0
+        $('input[name="value_ci_quota"]').each(function(index,element){
+            /* date = Date(date.calendar('get date')) */
+            let tr = $(element).parents('tr')
+            let value = $(element).val()
+            let quanty = $(tr).find('input[name="quanty_ci_quota"]').val()
+            $(element).find('input[name="date_ci_quota"]')
+            total += quanty * (value.replace(/[\$,]/g,'')*1)
+        })
+        total = new Intl.NumberFormat('en-EN').format(total)
+        $('#tableCI tfoot th').last().text('$'+total)
+    }
+</script>
+{%endblock%}

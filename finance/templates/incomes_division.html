@@ -1,0 +1,164 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Disponibilidad{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Tesorería
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<!-- ⚠️ DEPRECADO: Ahora se usa el sistema de solicitudes -->
+<!-- <a class='item submenu' href="/finance/{{project.name}}/incomes/new_sales">Ventas nuevas</a> -->
+<a class='item submenu' href="/finance/{{project.name}}/incomes/adjudicated_sales">Adjudicados</a>
+<a class='item submenu' href="/finance/{{project.name}}/incomes/list">Listado</a>
+<a class='item active submenu' href="/finance/{{project.name}}/availablecash">Disponibilidad</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='income-segment'>
+    <div class='ui center aligned basic segment'>
+        <h2 class="ui icon dividing header">
+            <i class="expand arrows alternate circular teal icon"></i>
+          <div class="content">
+            Disponible por centro de costo <span class="ui text info">{{period}}</span>
+          </div>
+        </h2>
+        <form method="GET" id="form-avbcash">
+            <div class="inline fields">
+                <div class="ui input">
+                    <div class="ui selection dropdown">
+                        <input type="hidden" name="month-to-search" id="id-month-to-search" required>
+                        <i class="dropdown icon"></i>
+                        <div class="default text">Mes</div>
+                        <div class="menu">
+                            <div class="item" data-value="1">Enero</div>
+                            <div class="item" data-value="2">Febrero</div>
+                            <div class="item" data-value="3">Marzo</div>
+                            <div class="item" data-value="4">Abril</div>
+                            <div class="item" data-value="5">Mayo</div>
+                            <div class="item" data-value="6">Junio</div>
+                            <div class="item" data-value="7">Julio</div>
+                            <div class="item" data-value="8">Agosto</div>
+                            <div class="item" data-value="9">Septiembre</div>
+                            <div class="item" data-value="10">Octubre</div>
+                            <div class="item" data-value="11">Noviembre</div>
+                            <div class="item" data-value="12">Diciembre</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ui input" style="margin-top: 0.5rem;">
+                    <input type="number" min="2000" class="text-center" name="year-to-search" id="id-year-to-search" placeholder="Año">
+                </div>
+                <button type="submit" class="ui teal icon circular button ml-2" id="btn-search-period">
+                    <i class="search icon"></i>
+                </button>
+                <button type="button" class="ui yellow icon circular button ml-2" id="btn-close-period"
+                data-tooltip="Cerrar periodo">
+                    <i class="door closed icon"></i>
+                </button>
+            </div>
+        </form>
+        <div class="ui three statistics mt-2">
+            <div class="statistic" id="statics-income">
+              <div class="value">
+                {{total_incomes|default:"0"|format_number}}
+              </div>
+              <div class="label">
+                <span class="ui text green">
+                    <i class="arrow alternate circle down outline icon"></i> Ingresos</span>
+              </div>
+            </div>
+            <div class="statistic" id="statics-expenses">
+                <div class="value">
+                    {{total_expenses|default:"0"|format_number}}
+                </div>
+                <div class="label">
+                  <span class="ui text red">
+                    <i class="arrow alternate circle up outline icon"></i>Gastos</span>
+                </div>
+              </div>
+              <div class="statistic" id="statics-ratio">
+                <div class="value">
+                    <span class="ui text {% if remaining < 0 %}red {%elif remaining == 0%} yellow
+                    {%else%} green {%endif%}">
+                    {{remaining|default:"0"|floatformat:-2}}%
+                    </span>
+                </div>
+                <div class="label">
+                  <span class="ui text teal">
+                    <i class="percent icon"></i>Disponible</span>
+                </div>
+              </div>
+        </div>
+        <div class="ui basic segment" id="div-table-avcash">
+            <table id="table-avcash" class="ui compact celled small table" style="width: 100%;">
+                <thead>
+                    <tr class="center aligned">
+                        <th>Centro de costo</th>
+                        <th>% asignado</th>
+                        <th>Ingresos</th>
+                        <th>Gastos</th>
+                        <th>Restante</th>
+                        <th>% disponible</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cc in costcenter %}<tr 
+                    class="{% if cc.statics.remaining < 0 %}error {%elif cc.statics.remaining == 0%} warning
+                    {%else%} positive {%endif%}">
+                        <td>{{cc.name.capitalize}}</td>
+                        <td class="center aligned">{{cc.percentage}}%</td>
+                        <td class="right aligned">$ {{cc.statics.total_incomes|format_number}}</td>
+                        <td class="right aligned">$ {{cc.statics.total_expenses|format_number}}</td>
+                        <td class="right aligned">$ {{cc.statics.remaining|format_number}}</td>
+                        <td class="center aligned">{{cc.statics.perc_avb|floatformat:-2}}%</td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+      </div>
+</div>
+<div class="ui modal" id='modalClosePeriod'>
+    <i class="close icon"></i>
+    <div class="header">Abrir nueva distribucion de CC</div>
+    <div class="content">
+        <p>Por favor ingresa los valores a dividir a partir de este periodo</p>
+        <form method="POST" id="form-new-cc">{% csrf_token %}
+            <table id="table-newcc" class="ui compact small table" style="width: 100%;">
+                <thead>
+                    <tr class="center aligned">
+                        <th>Centro de costo</th>
+                        <th>% asignado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cc in lastcostcenter %}<tr>
+                        <td class="center aligned">
+                            <div class="ui input">
+                                <input type="text" name="cc_name" readonly value="{{cc.name.capitalize}}">
+                              </div>
+                            </td>
+                        <td class="center aligned">
+                            <div class="ui input">
+                                <input type="number" class="text-center" step="0.1" min="0" max="100" placeholder="%" name='cc_perc'>
+                            </div>
+                        </td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+            <div class="ui center aligned basic segment">
+                <input class="ui green button" type="submit" value="Registrar">
+            </div>
+
+        </form>
+    </div>
+</div>
+{%endblock%}
+{% block script %}
+<script>
+    const project = "{{project.name}}"
+    const month = '{{month}}'
+    const year = "{{year}}"
+</script>
+<script src="{% static 'js/incomes_division.js' %}"></script>
+{%endblock%}

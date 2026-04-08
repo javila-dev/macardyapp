@@ -1,0 +1,57 @@
+{% load humanize %}
+<table class="ui celled compact small selectable table">
+  <thead>
+    <tr style="text-align:center;">
+      <th>Fecha</th>
+      <th>Cliente</th>
+      <th>Gestor</th>
+      <th>Recibo</th>
+      <th>Valor recibo</th>
+      <th>Abono capital</th>
+      <th>Tipo Abono</th>
+      <th>Catch Out</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in abonos %}
+    <tr data-abono-id="{{ a.id }}" 
+      data-valor="{{ a.valor_comision|default_if_none:'' }}" 
+      data-asesor="{% if a.comision_pagado_a %}{{ a.comision_pagado_a.id }}{% elif a.gestor %}{{ a.gestor.id }}{% else %}{% endif %}">
+      <td style="text-align:center;">{{ a.income.payment_date|date:"d/m/Y" }}</td>
+      <td>{{ a.sale.first_owner.full_name|default_if_none:"" }}</td>
+      <td style="text-align:center;">
+        {{ a.gestor.get_full_name }}
+      </td>
+      <td style="text-align:center;">{{ a.income.receipt }}</td>
+      <td style="text-align:right;">${{ a.income.value|floatformat:0|intcomma }}</td>
+      <td style="text-align:right;">${{ a.capital_aplicado|floatformat:0|intcomma }}</td>
+      <td style="text-align:center;">{{ a.tipo }}</td>
+      <td style="text-align:right;">
+        {% if a.valor_comision %}
+          ${{ a.valor_comision|floatformat:0|intcomma }}
+          ({{ a.porcentaje_comision|default:"" }}%)
+          {% if a.comision_pagado_a %}
+            pagado a {{ a.comision_pagado_a.get_full_name }}
+            <button onclick="exportReceipt({{ a.id }})" class="ui mini blue button">
+              <i class="download icon"></i> Exportar Recibo
+            </button>
+          {% endif %}
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td style="text-align:center;">
+        <button class="ui mini circular red icon button btn-revertir-abono"
+                data-abono-id="{{ a.id }}"
+                data-sale-id="{{ a.sale.pk }}"
+                data-tooltip="Revertir abono a capital">
+          <i class="undo icon"></i>
+        </button>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" style="text-align:center;">No hay abonos a capital en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

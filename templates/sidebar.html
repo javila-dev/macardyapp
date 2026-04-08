@@ -1,0 +1,157 @@
+{%load static%}<div class="ui visible inverted left vertical icon sidebar thin menu" 
+id='principal-sidebar'>
+  <a class="header" href="/">
+    <img src="{% static 'img/Macardy PNG_negative.png'%}" class='ui centered image mt-1 mb-1' 
+    style="width: 100px">
+  </a>
+  <a class="item" id='partners-sidebar-item' data-subsidebar="#partners-sub-sidebar">
+    <i class="user icon"></i>
+    Partners
+  </a>
+  <a class="item" id='sales-sidebar-item' data-subsidebar="#sales-sub-sidebar">
+    <i class="search dollar icon"></i>
+    Ventas
+  </a>
+  <a class="item" id='comercial-sidebar-item' data-subsidebar="#comercial-sub-sidebar">
+    <i class="star outline icon"></i>
+    Comercial
+  </a>
+  <a class="item" id='cartera-sidebar-item' data-subsidebar="#cartera-sub-sidebar">
+    <i class="wallet icon"></i>
+    Cartera
+  </a>
+  <a class="item" id='admin-sidebar-item' data-subsidebar="#admin-sub-sidebar">
+    <i class="lightbulb icon"></i>
+    Administración
+  </a>
+  <a class="item" id='finance-sidebar-item' data-subsidebar="#finance-sub-sidebar">
+    <i class="university icon"></i>
+    Tesoreria
+  </a>
+  <a class="item" href="/action_history">
+    <i class="calendar icon"></i>
+    History
+  </a>
+</div>
+<!-- SUBSIDEBARS -->
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='partners-sub-sidebar'>
+  <a class="item" href="/partners/registro-clientes/">
+    Registro cliente
+  </a>
+  <a class="item" href="/partners/clientes">
+    Buscar
+  </a>
+  <a class="item" href="/partners/principal">
+    Gestionar Clientes y gestores
+  </a>
+  <a class="item" href="/partners/collaborators">
+    RRHH
+  </a>
+</div>
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='sales-sub-sidebar'>
+  <a class="item" href="/sales/projectselection?next=new_sale&menu=ventas">
+    Nueva venta
+  </a>
+  <a class="item" href="/sales/projectselection?next=nonapprovedsales&menu=ventas">
+    Sin aprobar
+  </a>
+  <a class="item" href="/sales/projectselection?next=toadjudicatesales&menu=ventas">
+    Por adjudicar
+  </a>
+  <a class="item" href="/sales/projectselection?next=adjudicatesales&menu=ventas">
+    Adjudicadas
+  </a>
+  <a class="item" href="/sales/projectselection?next=reestructuraciones&menu=ventas">
+    Reestructuraciones
+  </a>
+  <a class="item" href="/sales/projectselection?next=fechas-entrega&menu=ventas">
+      Fechas de Entrega
+  </a>
+  <a class="item" href="/sales/projectselection?next=planes-pago&menu=ventas">
+      Planes de Venta
+  </a>
+</div>
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='finance-sub-sidebar'>
+  <a class="item" href="/finance/projectselection?next=incomes/new_sales&menu=ventas">
+    Recaudos nuevas ventas
+  </a>
+{% comment %}   <a class="item" href="/finance/projectselection?next=incomes/adjudicated_sales&menu=ventas">
+    Recaudos ventas adjudicadas
+  </a> {% endcomment %}
+  <a class="item" href="/finance/projectselection?next=incomes/list&menu=ventas">
+    Lista de recaudos
+  </a>
+  <a class="item" href="/finance/projectselection?next=availablecash&menu=admin">
+    Disponibilidad
+  </a>
+</div>
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='comercial-sub-sidebar'>
+  <a class="item" href="/finance/projectselection?next=comissions/advances&menu=comercial">
+    Liquidar anticipos
+  </a>
+  <a class="item" href="/finance/projectselection?next=comissions/liquidate&menu=comercial">
+    Liquidar comisiones
+  </a>
+  <a class="item" href="/finance/projectselection?next=comissions/list&menu=comercial">
+    Consultar comisiones
+  </a>
+  <a class="item" href="/finance/projectselection?next=comissions/parameters&menu=comercial">
+    Parámetros de comisiones
+  </a>
+  <a class="item" href="/finance/projectselection?next=pmt&menu=comercial">
+    PMT
+  </a>
+  <a class="item" href="/finance/projectselection?next=commercialbudget&menu=comercial">
+    Presupuestos
+  </a>
+  <!-- <a class="item" href="/sales/projectselection?next=graphs&menu=comercial">
+    Graficos
+  </a> -->
+</div>
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='admin-sub-sidebar'>
+  <a class="item" href="/sales/projectselection?next=properties&menu=admin">
+    Inventario
+  </a>
+  <a class="item" href="/finance/projectselection?next=expenses&menu=admin">
+    Gastos
+  </a>
+  <a class="item" href="/usersadmin">
+    Usuarios
+  </a>
+  <a class="item" href="/roles/nuevo">
+    Roles y permisos
+  </a>
+</div>
+<!-- --- -->
+<div class="ui left vertical inverted sidebar small menu subsidebar" 
+  id='cartera-sub-sidebar'>
+  <a class="item" href="/finance/projectselection?next=solicitudes/&menu=admin">
+    Solicitudes de recibos
+  </a>
+  <a class="item" href="/finance/projectselection?next=collectionbudget/comercial&menu=admin">
+    Cartera Comercial
+  </a>
+  <a class="item" href="/finance/projectselection?next=collectionbudget/administrativa&menu=admin">
+    Cartera Administrativa
+  </a>
+  <a class="item" href="/finance/projectselection?next=comisiones/&menu=admin">
+    Comisiones
+  </a>
+  <a class="item" href="/finance/projectselection?next=abonos_capital/&menu=admin">
+    Abonos a capital
+  </a>
+  <a class="item" href="/finance/projectselection?next=parametros&menu=admin">
+    Parámetros
+  </a>
+</div>
+

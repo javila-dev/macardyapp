@@ -1,0 +1,413 @@
+{% extends "site_base.html" %}{% load humanize %}{% load static %} 
+{% block title %}Cartera | Comisiones{% endblock %}
+{% block submenu %}
+<div class='header item'>Cartera</div>
+<div class='header item'>
+  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/administrativa">Cartera Administrativa</a>
+<a class='item submenu' href="/finance/{{project.name}}/comisiones/">Comisiones</a>
+<a class='item active submenu' href="{% url 'abonos_capital_periodo' project=project.name %}">Abonos a capital</a>
+<a class='item submenu' href="/finance/{{project.name}}/parametros">Parámetros</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui dividing header">Abonos a capital</h2>
+<div class="ui segment">
+  <form class="ui form" id="form-periodo">
+    <div class="fields">
+      <div class="field">
+        <label>Año</label>
+        <select id="anio" name="anio">
+          {% for y in anios %}
+            <option value="{{ y }}" {% if y == anio %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Mes</label>
+        <select id="mes" name="mes">
+          {% for m in meses %}
+            <option value="{{ m.0 }}" {% if m.0 == mes %}selected{% endif %}>{{ m.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Gestor</label>
+        <select id="gestor" name="gestor">
+          <option value="">Todos</option>
+          {% for g in gestores %}
+            <option value="{{ g.usuario.id }}">{{ g.usuario.get_full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Tipo Cartera</label>
+        <select id="tipo_cartera" name="tipo_cartera">
+          <option value="">Todos</option>
+          <option value="comercial">Comercial</option>
+          <option value="administrativa">Administrativa</option>
+        </select>
+      </div>
+      <div class="field" style="padding-top: 23px;">
+        <button class="ui primary button" type="button" id="btn-filtrar">Filtrar</button>
+      </div>
+    </div>
+  </form>
+</div>
+  <div id="tabla-abonos"></div>
+<div id="modal-pago-comision" class="ui small modal">
+  <div class="header">Registrar pago de comisión</div>
+  <div class="content">
+  <form class="ui form" id="form-pago-comision">
+    <input type="hidden" name="abono_id" id="abono_id">
+    <div class="two fields">
+      <div class="field">
+        <label>Asesor a pagar</label>
+        <select name="pagado_a" id="pagado_a" class="ui dropdown">
+          {% for g in gestores %}
+            <option value="{{ g.usuario.id }}">{{ g.usuario.get_full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Valor abono</label>
+        <input type="text" id="valor_abono" class="text-center" readonly>
+      </div>
+    </div>
+    <div class="three fields">
+      <div class="field">
+        <label>Fecha de pago</label>
+        <input type="date" name="fecha_pago" id="fecha_pago">
+      </div>
+      <div class="field">
+        <label>% Catch Out</label>
+        <input type="text" id="porcentaje_comision" name="porcentaje_comision" class="text-center" readonly>
+      </div>
+      <div class="field">
+        <label>Valor Catch Out</label>
+        <input type="text" name="valor_comision" class="text-center money" id="valor_comision" min="0" step="0.01">
+      </div>
+    </div>
+    </form>
+  </div>
+  <div class="actions">
+    <button class="ui button" id="btn-cancelar-pago">Cancelar</button>
+    <button class="ui primary button" id="btn-confirmar-pago">Confirmar pago</button>
+  </div>
+</div>
+
+<!-- Modal de Reversión de Abono a Capital -->
+<div id="modal-reversion-abono" class="ui modal">
+  <div class="header">
+    <i class="warning sign icon"></i>
+    Revertir Abono a Capital
+  </div>
+  <div class="content" id="modal-reversion-content">
+    <div class="ui active centered inline loader"></div>
+    <p class="center aligned">Cargando información...</p>
+  </div>
+  <div class="actions" id="modal-reversion-actions" style="display:none;">
+    <button class="ui button" id="btn-cancelar-reversion">Cancelar</button>
+    <button class="ui red button" id="btn-confirmar-reversion">
+      <i class="undo icon"></i> Confirmar Reversión
+    </button>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+fetch("{% url 'get_rangos_comision' project.name %}")
+  .then(r=>r.json()).then(rangos=>localStorage.setItem('rangos_comision', JSON.stringify(rangos)));
+</script>
+<script>
+  $('.money').mask('#,##0', { reverse: true });
+  $(('.ui.dropdown')).dropdown({
+    clearable: true,
+  });
+function cargarTabla() {
+  let anio = $('#anio').val();
+  let mes = $('#mes').val();
+  let gestor = $('#gestor').val();
+  let tipo_cartera = $('#tipo_cartera').val();
+  $.get("{% url 'ajax_abonos_capital' project.name %}", {anio, mes, gestor, tipo_cartera}, function(html){
+    $('#tabla-abonos').html(html);
+  });
+}
+$('#btn-filtrar').click(cargarTabla);
+$(document).ready(cargarTabla);
+
+$(document).on('click', 'tr[data-abono-id]', function(e) {
+  if (!$(e.target).hasClass('btn-pagar-comision')) {
+    let valor = $(this).data('valor');
+    if (valor) {
+      $('body').toast({class:'info', message:'Este abono ya tiene pago de comisión registrado.'});
+      return;
+    }
+    let id = $(this).data('abono-id');
+    let asesor = $(this).data('asesor');
+    let abono = $(this).find('td').eq(5).text().replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, '');
+    abono = parseFloat(abono) || 0;
+    let rangos = [];
+    try { rangos = JSON.parse(localStorage.getItem('rangos_comision') || '[]'); } catch(e){}
+    let min = rangos.length ? rangos[0].min : null;
+    if (min && abono < min) {
+      $('body').toast({class:'error', message:'El valor es inferior al mínimo para pago de catch out'});
+      return;
+    }
+    let porc = '', comision = '';
+    if(rangos.length && abono) {
+      let r = rangos.find(r => abono >= (r.min||0) && (r.max==null || abono <= r.max));
+      if(r) {
+        porc = r.porc;
+        p = (parseFloat(r.porc) || 0) / 100;
+        comision = new Intl.NumberFormat('es-CO').format(Math.round(abono * p));
+      }
+    }
+    $('#abono_id').val(id);
+    $('#valor_comision').val(comision || valor || '').trigger('input');
+    $('#pagado_a').closest('.dropdown').dropdown('set selected', asesor);
+    $('#valor_abono').val(abono ? abono.toLocaleString('es-CO') : '');
+    $('#porcentaje_comision').val(porc);
+    $('.money').mask('#,##0', { reverse: true });
+    $('#modal-pago-comision').modal('show');
+  }
+});
+
+
+$('#btn-cancelar-pago').click(function() {
+  $('#modal-pago-comision').modal('hide');
+});
+$('#btn-confirmar-pago').click(function() {
+  let f = $('#form-pago-comision');
+  if (!$('#pagado_a').val() || !$('#valor_comision').val() || !$('#fecha_pago').val()) {
+    $('body').toast({class:'error', message:'Todos los campos son obligatorios'});
+    return;
+  }
+  let btn = $(this);
+  btn.addClass('loading');
+  let data = f.serialize() + '&csrfmiddlewaretoken={{ csrf_token }}';
+  $.post("{% url 'pagar_comision_abono' project.name %}", data, function(resp){
+    btn.removeClass('loading');
+    if(resp.status == 'ok') {
+      $('#modal-pago-comision').modal('hide');
+      cargarTabla();
+    } else {
+      $('body').toast({class:'error', message: resp.msg || 'Error'});
+    }
+  }, 'json').fail(function() {
+    btn.removeClass('loading');
+    $('body').toast({class:'error', message:'Error de red'});
+  });
+});
+function exportReceipt(abonoId) {
+    window.open(`/finance/{{project.name}}/abono_capital/${abonoId}/export_receipt/`, '_blank');
+}
+
+// ========== FUNCIONALIDAD DE REVERSIÓN DE ABONOS A CAPITAL ==========
+
+let currentAbonoId = null;
+let currentSaleId = null;
+
+// Evento click en botón revertir desde tabla de abonos
+$(document).on('click', '.btn-revertir-abono', function(e) {
+  e.stopPropagation();
+  const abonoId = $(this).data('abono-id');
+  const saleId = $(this).data('sale-id');
+  abrirModalReversion(abonoId, saleId);
+});
+
+function abrirModalReversion(abonoId, saleId) {
+  currentAbonoId = abonoId;
+  currentSaleId = saleId;
+
+  // Resetear modal
+  $('#modal-reversion-content').html(`
+    <div class="ui active centered inline loader"></div>
+    <p class="center aligned">Cargando información...</p>
+  `);
+  $('#modal-reversion-actions').hide();
+
+  // Abrir modal
+  $('#modal-reversion-abono').modal('show');
+
+  // Cargar preview
+  $.get(`/finance/ajax/{{project.name}}/abono_capital/${abonoId}/preview_reversion/`, function(data) {
+    if (!data.can_revert) {
+      mostrarErrorReversion(data.reason, data.error_type);
+    } else {
+      mostrarPreviewReversion(data);
+    }
+  }).fail(function() {
+    mostrarErrorReversion('Error al cargar la información');
+  });
+}
+
+function mostrarErrorReversion(mensaje, tipo) {
+  let icon = 'exclamation triangle';
+  if (tipo === 'no_backup') icon = 'database';
+  if (tipo === 'comision_pagada') icon = 'dollar sign';
+
+  $('#modal-reversion-content').html(`
+    <div class="ui error message">
+      <div class="header">
+        <i class="${icon} icon"></i> No se puede revertir
+      </div>
+      <p>${mensaje}</p>
+    </div>
+  `);
+  $('#modal-reversion-actions').html(`
+    <button class="ui button" onclick="$('#modal-reversion-abono').modal('hide')">Cerrar</button>
+  `).show();
+}
+
+function mostrarPreviewReversion(data) {
+  const tiposBackup = Object.entries(data.backup.tipos).map(([tipo, cant]) => `${tipo}: ${cant}`).join(' | ');
+  const tiposActual = Object.entries(data.actual.tipos).map(([tipo, cant]) => `${tipo}: ${cant}`).join(' | ');
+
+  let advertenciaPosterior = '';
+  if (data.abonos_posteriores > 0 || data.recibos_posteriores > 0) {
+    advertenciaPosterior = `
+      <div class="ui warning message">
+        <div class="header">
+          <i class="info circle icon"></i> Se re-aplicarán automáticamente:
+        </div>
+        <ul class="list">
+          ${data.abonos_posteriores > 0 ? `<li>${data.abonos_posteriores} abono(s) a capital posterior(es)</li>` : ''}
+          ${data.recibos_posteriores > 0 ? `<li>${data.recibos_posteriores} recibo(s) posterior(es)</li>` : ''}
+        </ul>
+      </div>
+    `;
+  }
+
+  const html = `
+    <div class="ui segment">
+      <h4 class="ui header">
+        <i class="info circle icon"></i>
+        Información del Abono
+      </h4>
+      <div class="ui small two column grid">
+        <div class="column">
+          <p><strong>Cliente:</strong> ${data.abono.cliente}</p>
+          <p><strong>Contrato:</strong> CTR${data.abono.contrato}</p>
+          <p><strong>Recibo:</strong> ${data.abono.recibo}</p>
+        </div>
+        <div class="column">
+          <p><strong>Fecha:</strong> ${data.abono.fecha}</p>
+          <p><strong>Valor:</strong> $${data.abono.valor.toLocaleString('es-CO')}</p>
+          <p><strong>Tipo:</strong> ${data.abono.tipo}</p>
+        </div>
+      </div>
+    </div>
+
+    <h4 class="ui dividing header">
+      <i class="exchange icon"></i>
+      Comparación de Planes de Pago
+    </h4>
+
+    <div class="ui two column stackable grid">
+      <div class="column">
+        <div class="ui blue segment">
+          <h5 class="ui header">
+            <i class="history icon"></i>
+            Plan ANTES (Backup)
+          </h5>
+          <p><small>Fecha: ${data.backup.fecha}</small></p>
+          <div class="ui list">
+            <div class="item"><strong>Total cuotas:</strong> ${data.backup.total_cuotas}</div>
+            <div class="item"><strong>Cuotas pendientes:</strong> ${data.backup.cuotas_pendientes}</div>
+            <div class="item"><strong>Saldo:</strong> $${data.backup.saldo.toLocaleString('es-CO')}</div>
+            <div class="item"><small>${tiposBackup}</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="column">
+        <div class="ui teal segment">
+          <h5 class="ui header">
+            <i class="calendar check icon"></i>
+            Plan ACTUAL
+          </h5>
+          <p><small>(Con abono aplicado)</small></p>
+          <div class="ui list">
+            <div class="item"><strong>Total cuotas:</strong> ${data.actual.total_cuotas}</div>
+            <div class="item"><strong>Cuotas pendientes:</strong> ${data.actual.cuotas_pendientes}</div>
+            <div class="item"><strong>Saldo:</strong> $${data.actual.saldo.toLocaleString('es-CO')}</div>
+            <div class="item"><small>${tiposActual}</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${advertenciaPosterior}
+
+    <div class="ui form">
+      <div class="field required">
+        <label>Motivo de reversión</label>
+        <textarea id="motivo-reversion" rows="2" placeholder="Ej: Cliente solicitó reversión por error en el monto"></textarea>
+      </div>
+    </div>
+
+    <div class="ui warning message">
+      <p><strong>⚠️ Advertencia:</strong> Esta acción no se puede deshacer. El plan de pagos volverá al estado del backup.</p>
+    </div>
+  `;
+
+  $('#modal-reversion-content').html(html);
+  $('#modal-reversion-actions').show();
+}
+
+$('#btn-cancelar-reversion').click(function() {
+  $('#modal-reversion-abono').modal('hide');
+});
+
+$('#btn-confirmar-reversion').click(function() {
+  const motivo = $('#motivo-reversion').val().trim();
+
+  if (!motivo) {
+    $('body').toast({class:'error', message:'El motivo es obligatorio'});
+    return;
+  }
+
+  const btn = $(this);
+  btn.addClass('loading disabled');
+  $('#btn-cancelar-reversion').addClass('disabled');
+
+  $.ajax({
+    type: 'POST',
+    url: `/finance/ajax/{{project.name}}/abono_capital/${currentAbonoId}/revertir/`,
+    data: {
+      'motivo': motivo,
+      'csrfmiddlewaretoken': '{{ csrf_token }}'
+    },
+    success: function(resp) {
+      btn.removeClass('loading disabled');
+      $('#btn-cancelar-reversion').removeClass('disabled');
+
+      if (resp.status === 'ok') {
+        $('body').toast({
+          class:'success',
+          message: resp.message || 'Abono revertido correctamente'
+        });
+        $('#modal-reversion-abono').modal('hide');
+        setTimeout(() => {
+          cargarTabla();
+        }, 500);
+      } else {
+        $('body').toast({
+          class:'error',
+          message: resp.message || 'Error al revertir'
+        });
+      }
+    },
+    error: function() {
+      btn.removeClass('loading disabled');
+      $('#btn-cancelar-reversion').removeClass('disabled');
+      $('body').toast({class:'error', message:'Error de red'});
+    }
+  });
+});
+
+</script>
+{% endblock %}

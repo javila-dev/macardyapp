@@ -1,0 +1,263 @@
+{% extends "site_base.html" %}{% load humanize %}
+{% block title %}Cartera | Comisiones{% endblock %}
+{% block submenu %}
+<div class='header item'>Cartera</div>
+<div class='header item'>
+  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/administrativa">Cartera Administrativa</a>
+<a class='item active submenu' href="/finance/{{project.name}}/comisiones/">Comisiones</a>
+<a class='item submenu' href="{% url 'abonos_capital_periodo' project=project.name %}">Abonos a capital</a>
+<a class='item submenu' href="/finance/{{project.name}}/parametros">Parámetros</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui dividing header">Comisiones de Gestores</h2>
+<div class="ui segment">
+  <form class="ui form" id="form-periodo">
+    <div class="fields">
+      <div class="field">
+        <label>Año</label>
+        <select id="anio" name="anio">
+          {% for y in anios %}
+            <option value="{{ y }}" {% if y == anio %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Mes</label>
+        <select id="mes" name="mes">
+          {% for m in meses %}
+            <option value="{{ m.0 }}" {% if m.0 == mes %}selected{% endif %}>{{ m.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Gestor</label>
+        <select id="gestor" name="gestor">
+          <option value="">Todos</option>
+          {% for g in gestores %}
+            <option value="{{ g.usuario.id }}">{{ g.usuario.get_full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Tipo Cartera</label>
+        <select id="tipo_cartera" name="tipo_cartera">
+          <option value="">Todos</option>
+          <option value="comercial">Comercial</option>
+          <option value="administrativa">Administrativa</option>
+        </select>
+      </div>
+      <div class="field" style="padding-top: 23px;">
+        <button class="ui primary button" type="button" id="btn-filtrar">Filtrar</button>
+        <button class="ui green button" type="button" id="btn-imprimir">
+          <i class="download icon"></i>Imprimir PDF
+        </button>
+      </div>
+    </div>
+  </form>
+  <div id="tabla-comisiones"></div>
+</div>
+
+<!-- Modal para mostrar detalle de recaudos -->
+<div class="ui modal" id="modal-detalle-recaudos">
+  <div class="header">
+    <i class="eye icon"></i>
+    Detalle de Recaudos
+  </div>
+  <div class="content">
+    <div class="ui segment">
+      <h4 class="ui header">
+        <span id="modal-gestor-nombre"></span>
+        <div class="sub header">
+          <span id="modal-tipo-cartera"></span> - 
+          <span id="modal-periodo"></span>
+        </div>
+      </h4>
+    </div>
+    <div class="ui loading segment" id="modal-loading">
+      <div class="ui active centered inline loader"></div>
+      <p>Cargando detalle de recaudos...</p>
+    </div>
+    <div id="modal-detalle-contenido" style="display: none;">
+      <div style="max-height: 400px; overflow-y: auto;">
+        <table class="ui celled compact small table" id="tabla-principal-detalle">
+          <thead>
+            <tr style="font-size: 11px;">
+              <th>Contrato</th>
+              <th>Cliente</th>
+              <th>Fecha</th>
+              <th>Recibo</th>
+              <th>Capital</th>
+              <th>Interés</th>
+              <th>Otros</th>
+              <th>Mora</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-detalle-recaudos" style="font-size: 11px;">
+          </tbody>
+          <tfoot>
+            <tr class="positive" style="font-size: 11px; font-weight: bold;">
+              <th colspan="4">TOTALES</th>
+              <th id="total-capital" class="right aligned">$0</th>
+              <th id="total-interes" class="right aligned">$0</th>
+              <th id="total-otros" class="right aligned">$0</th>
+              <th id="total-mora" class="right aligned">$0</th>
+              <th id="total-general" class="right aligned">$0</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="ui cancel button">Cerrar</div>
+  </div>
+</div>
+
+{% endblock %}
+{% block script %}
+<script>
+function cargarTabla() {
+  let anio = $('#anio').val();
+  let mes = $('#mes').val();
+  let gestor = $('#gestor').val();
+  let tipo_cartera = $('#tipo_cartera').val();
+  $.get("{% url 'ajax_comisiones_cartera' project.name %}", {anio, mes, gestor, tipo_cartera}, function(html){
+    $('#tabla-comisiones').html(html);
+  });
+}
+
+function imprimirPDF() {
+  let anio = $('#anio').val();
+  let mes = $('#mes').val();
+  let gestor = $('#gestor').val();
+  let tipo_cartera = $('#tipo_cartera').val();
+  
+  $('#btn-imprimir').addClass('loading');
+  
+  $.get("{% url 'ajax_print_comisiones_cartera' project.name %}", {anio, mes, gestor, tipo_cartera})
+    .done(function(response){
+      if(response.type === 'success') {
+        const link = document.createElement('a');
+        link.href = response.pdf_url;
+        link.target = '_blank';
+        link.download = response.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showMessage('success', response.title, 'El archivo se ha descargado correctamente.');
+      } else {
+        showMessage('error', 'Error', response.msj || 'Ocurrió un error al generar el PDF');
+      }
+    })
+    .fail(function(){
+      showMessage('error', 'Error', 'No se pudo generar el PDF. Intenta nuevamente.');
+    })
+    .always(function(){
+      $('#btn-imprimir').removeClass('loading');
+    });
+}
+
+function mostrarDetalleRecaudos(gestorId, tipoCartera, nombreGestor) {
+  let anio = $('#anio').val();
+  let mes = $('#mes').val();
+  let mesNombre = $('#mes option:selected').text();
+  
+  $('#modal-gestor-nombre').text(nombreGestor);
+  $('#modal-tipo-cartera').text(tipoCartera.charAt(0).toUpperCase() + tipoCartera.slice(1));
+  $('#modal-periodo').text(mesNombre + ' ' + anio);
+  
+  $('#modal-detalle-recaudos').modal('show');
+  $('#modal-loading').show();
+  $('#modal-detalle-contenido').hide();
+  
+  $.get("{% url 'ajax_detalle_recaudos_gestor' project.name %}", {
+    anio: anio,
+    mes: mes,
+    gestor: gestorId,
+    tipo_cartera: tipoCartera
+  })
+  .done(function(response) {
+    construirTablaDetalle(response.recaudos);
+    $('#modal-loading').hide();
+    $('#modal-detalle-contenido').show();
+  })
+  .fail(function() {
+    showMessage('error', 'Error', 'No se pudo cargar el detalle de recaudos.');
+    $('#modal-detalle-recaudos').modal('hide');
+  });
+}
+
+function construirTablaDetalle(recaudos) {
+  let tbody = $('#tabla-detalle-recaudos');
+  tbody.empty();
+  
+  let totales = {
+    capital: 0,
+    interes: 0,
+    otros: 0,
+    mora: 0,
+    total: 0
+  };
+  
+  recaudos.forEach(function(recaudo) {
+    // Determinar si es abono a capital
+    let esAbonoCapital = recaudo.es_abono_capital || false;
+    let claseRow = esAbonoCapital ? 'style="background-color: #e3f2fd; color: #1976d2;"' : '';
+    
+    let fila = `
+      <tr ${claseRow}>
+        <td style="font-size: 10px;">${recaudo.contrato}</td>
+        <td style="font-size: 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${recaudo.cliente}">${recaudo.cliente}</td>
+        <td style="font-size: 10px;">${recaudo.fecha_pago}</td>
+        <td style="font-size: 10px;">${recaudo.recibo}</td>
+        <td class="right aligned" style="font-size: 10px;">$${recaudo.capital.toLocaleString()}</td>
+        <td class="right aligned" style="font-size: 10px;">$${recaudo.interes.toLocaleString()}</td>
+        <td class="right aligned" style="font-size: 10px;">$${recaudo.otros.toLocaleString()}</td>
+        <td class="right aligned" style="font-size: 10px;">$${recaudo.mora.toLocaleString()}</td>
+        <td class="right aligned" style="font-size: 10px; font-weight: bold;">$${recaudo.total.toLocaleString()}</td>
+      </tr>
+    `;
+    tbody.append(fila);
+    
+    totales.capital += recaudo.capital;
+    totales.interes += recaudo.interes;
+    totales.otros += recaudo.otros;
+    totales.mora += recaudo.mora;
+    totales.total += recaudo.total;
+  });
+  
+  $('#total-capital').text('$' + totales.capital.toLocaleString());
+  $('#total-interes').text('$' + totales.interes.toLocaleString());
+  $('#total-otros').text('$' + totales.otros.toLocaleString());
+  $('#total-mora').text('$' + totales.mora.toLocaleString());
+  $('#total-general').text('$' + totales.total.toLocaleString());
+}
+
+function showMessage(type, title, message) {
+  $('body').toast({
+    class: type === 'success' ? 'success' : 'error',
+    title: title,
+    message: message,
+    showProgress: 'bottom'
+  });
+}
+
+$('#btn-filtrar').click(cargarTabla);
+$('#btn-imprimir').click(imprimirPDF);
+$(document).ready(cargarTabla);
+
+// Event delegation para hacer click en toda la fila
+$(document).on('click', '.clickable-row', function() {
+  let gestorId = $(this).data('gestor-id');
+  let tipoCartera = $(this).data('tipo-cartera');
+  let nombreGestor = $(this).data('nombre-gestor');
+  mostrarDetalleRecaudos(gestorId, tipoCartera, nombreGestor);
+});
+</script>
+{% endblock %}

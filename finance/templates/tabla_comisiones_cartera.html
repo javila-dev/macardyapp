@@ -1,0 +1,46 @@
+{% load humanize %}
+<table class="ui celled compact small structured selectable table">
+  <thead>
+    <tr style="text-align:center;">
+      <th>Gestor</th>
+      <th>Tipo</th>
+      <th>Presupuesto</th>
+      <th>Recaudo</th>
+      <th>Abonos a capital<br>bonificados</th>
+      <th>Base comision</th>
+      <th>Comisión (%)</th>
+      <th>Comisión total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for usuario_id, filas in gestores.items %}
+      {% for fila in filas %}
+        <tr class="clickable-row" 
+            data-gestor-id="{{ usuario_id }}"
+            data-tipo-cartera="{{ fila.tipo_cartera }}"
+            data-nombre-gestor="{{ fila.nombre }}"
+            style="cursor: pointer;">
+          {% if forloop.first %}
+            <td rowspan="{{ filas|length }}">{{ fila.nombre.upper }}</td>
+          {% endif %}
+          <td>{{ fila.tipo_cartera|title }}</td>
+          <td style="text-align: right;">${{ fila.presupuesto|floatformat:0|intcomma }}</td>
+          <td style="text-align: right;">${{ fila.cobrado|floatformat:0|intcomma }}</td>
+          <td style="text-align: right;">{%if fila.abonos_capital > 0 %}<span class="ui text error"> (-) ${{ fila.abonos_capital|floatformat:0|intcomma }}</span>{%else%}$0{%endif%}</td>
+          <td style="text-align: right;">${{ fila.base_comision|floatformat:0|intcomma }}</td>
+          <td style="text-align: center;">{{ fila.porcentaje_comision|floatformat:2 }}%</td>
+          <td style="text-align: right;">${{ fila.comision_total|floatformat:0|intcomma }}</td>
+        </tr>
+      {% endfor %}
+    {% empty %}
+      <tr><td colspan="8" style="text-align:center;">No hay datos disponibles.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<style>
+.clickable-row:hover {
+  background-color: #f5f5f5 !important;
+  transition: background-color 0.2s;
+}
+</style>

@@ -1,0 +1,92 @@
+{% extends 'site_base.html' %}{% load static %}{% load crispy_forms_tags %}{% load l10n %}{% load finance_extras %}
+{% block title %}Admin | Gastos{% endblock %}
+{%block submenu%}
+<div class='header item'>
+    Administración
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/properties">Inventario</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget">Cartera</a>
+<a class='item active submenu' href="/finance/{{project.name}}/expenses">Gastos</a>
+{% endblock %}
+{% block content %}
+<div class='ui segment'>
+    <div class='ui basic center aligned segment'>
+        <h2 class="ui icon dividing header" id="page-header">
+            <i class="hand holding usd circular colored teal icon"></i>
+            <div class="content">
+                Gastos asociados
+            </div>
+        </h2>
+    </div>
+    <div class="ui center aligned basic segment">
+        <button type="button" class="ui circular green button" id="btn-add-expense">Agregar</button>
+        <button type="button" class="ui circular red disabled button" id="btn-remove-expense">Eliminar</button>
+        <div class="ui container mt-2">
+            <div class="ui input">
+                <div class="ui calendar" id="calendar_date_from">
+                    <label>Fecha desde</label>
+                    <div class="ui input left icon">
+                        <i class="calendar icon"></i>
+                        <input type="text" id="date-from" onkeydown="return false;">
+                    </div>
+                </div>
+            </div>
+            <div class="ui input" style="margin-left: 1rem;">
+                <div class="ui calendar" id="calendar_date_to">
+                    <label>Fecha Hasta</label>
+                    <div class="ui input left icon">
+                        <i class="calendar icon"></i>
+                        <input type="text" id="date-to">
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="ui circular icon teal button" style="margin-left: 1rem;"
+                id="btn-search-by-date">
+                <i class="search icon"></i>
+            </button>
+            <button type="button" class="ui circular icon red button" style="margin-left: 0.5rem;" id="btn-remove-search">
+                <i class="close icon"></i>
+            </button>
+        </div>
+    </div>
+    <div class="ui basic segment" id="div-table-expenses">
+
+        <table class="ui compact selectable table" id="table-expenses" style="width:100%">
+            <thead>
+                <tr class="text-center">
+                    <th>Fecha</th>
+                    <th>Descripción</th>
+                    <th>Centro de costo</th>
+                    <th>Valor</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+</div>
+</div>
+<div class="ui tiny modal" id="modal-new-expense">
+    <i class="close icon"></i>
+    <div class="header">
+        <i class="plus teal icon"></i>
+        Registrar Gasto {{project.name_to_show}}</div>
+    <div class="content">
+        {% crispy form %}
+    </div>
+</div>
+{% endblock %}
+{% block script %}
+{% include 'datatables.html' %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"
+    integrity="sha512-qTXRIMyZIFb8iQcfjXWCO8+M5Tbc38Qi5WzdPOYZHIlZpzBHG3L3by84BBBOiRGiEb7KKtAOAs5qYdUiZiQNNQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.datatables.net/plug-ins/1.11.5/dataRender/datetime.js"></script>
+<script src="{% static 'js/jquery.mask.js' %}"></script>
+<script>
+    const project = "{{ project.name }}"
+</script>
+<script src="{% static 'js/expenses.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Graficos{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item active submenu' href="/sales/{{project.name}}/graphs">Graficos</a>
+{%endblock%}
+{%block content%}
+<div class='ui center aligned segment'>
+    <div class='ui container' id='div_sale'>
+      <h2 class="ui icon dividing header" id="page-header">
+        <i class="chart line circular teal icon"></i>
+        <div class="content">
+            Analisis Grafico
+        </div>
+      </h2>
+    </div>
+    <div class="ui basic segment">
+        <div class="ui form">
+            <div class="fields">
+                <div class="field">
+                <label>Desde</label>
+                <div class="ui calendar" id="calendar_from">
+                    <div class="ui input left icon">
+                    <i class="calendar icon"></i>
+                    <input type="text" id="id_date_from" name="date_from">
+                    </div>        
+                </div>
+                </div>
+                <div class="field">
+                    <label>Hasta</label>
+                    <div class="ui calendar" id="calendar_to">
+                    <div class="ui input left icon">
+                        <i class="calendar icon"></i>
+                        <input type="text" id="id_date_to" name="date_to">
+                    </div>        
+                    </div>
+                </div> 
+                <div class="field middle align">
+                    <button type="button" class="ui circular teal icon button" 
+                    id="btn-search" style="margin-top:60%">
+                    <i class="search icon"></i>
+                </button>
+                </div>
+                
+            </div>
+          </div>
+        
+      </div>
+      <div class="ui basic segment">
+        <canvas id="SalesChart"></canvas>
+
+      </div>
+</div>
+{%endblock%}
+{%block script%}
+<script>
+    const project = '{{project.name}}' 
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{%static 'js/moment.js'%}"></script>
+<script>
+    $(document).ready(function(){
+        $('#calendar_from').calendar({
+            type: 'month',
+            text: calendar_spanish(),
+            endCalendar: $('#calendar_to')
+        })
+
+        $('#calendar_to').calendar({
+            type: 'month',
+            text: calendar_spanish(),
+            startCalendar: $('#calendar_from')
+        })
+        
+        const cfg = {
+            type: 'bar',
+            data: ''
+        }
+
+        $('#btn-search').click(function(){
+            $(this).addClass('disabled loading')
+            getsalesdata()
+            $(this).removeClass('disabled loading')
+        })
+
+        function getsalesdata(){
+            var data = null;
+            let from_date = $('#calendar_from').calendar('get date')
+            let f_from_date = moment(from_date).format('YYYY-MM-DD')
+            let to_date = $('#calendar_to').calendar('get date')
+            let f_to_date = moment(to_date).endOf('month').format('YYYY-MM-DD')
+            $.ajax({
+                type:'GET',
+                url: '/sales/'+project+'/graphs',
+                data:{
+                    'date_from':f_from_date,
+                    'date_to':f_to_date
+                },
+                success: (xhr) => {
+                    data = xhr.data
+                }
+            });
+            return data
+        }
+    })
+</script>
+{%endblock%}

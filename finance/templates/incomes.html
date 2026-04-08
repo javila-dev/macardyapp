@@ -1,0 +1,420 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Recaudos{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | Recaudos
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<!-- ⚠️ DEPRECADO: Ahora se usa el sistema de solicitudes -->
+<!-- <a class='item submenu' href="/finance/{{project.name}}/incomes/new_sales">Ventas nuevas</a> -->
+<a class='item submenu' href="/finance/{{project.name}}/incomes/list">Listados</a>
+<a class='item submenu' href="/finance/{{project.name}}/availablecash">Disponibilidad</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='income-segment' {% if validacion_solicitud %}data-validacion-solicitud="1"{% endif %}>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="hand holding usd circular teal icon"></i>
+          <div class="content">
+            Recaudo de ventas adjudicadas
+          </div>
+        </h2>
+      </div>
+      {% if validacion_solicitud %}
+      <!-- Modal de confirmación de cambio de fecha -->
+      <div class="ui small modal" id="modal-confirmar-fecha">
+        <div class="header">
+          <i class="warning sign yellow icon"></i>
+          Cambio de fecha detectado
+        </div>
+        <div class="content">
+          <div class="ui warning message">
+            <p>La fecha de pago que estás ingresando es diferente a la fecha de la solicitud original.</p>
+          </div>
+          <table class="ui very basic table">
+            <tbody>
+              <tr>
+                <td><strong>Fecha en la solicitud:</strong></td>
+                <td><span id="fecha-solicitud-modal"></span></td>
+              </tr>
+              <tr>
+                <td><strong>Fecha que estás ingresando:</strong></td>
+                <td><span id="fecha-nueva-modal"></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p><strong>¿Deseas continuar con esta fecha diferente?</strong></p>
+        </div>
+        <div class="actions">
+          <div class="ui red deny button">
+            <i class="times icon"></i>
+            Cancelar y corregir
+          </div>
+          <div class="ui green approve button">
+            <i class="checkmark icon"></i>
+            Sí, continuar con esta fecha
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <div class='ui segment'>
+        {%crispy form%}
+      </div>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    th,td{
+        font-size: small;
+    }
+</style>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+{%include 'datejs.html'%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    const project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        const esValidacionSolicitud = $('#income-segment').is('[data-validacion-solicitud]');
+        var tableRcdosVentas = $('#tableRcdosVentas').DataTable({
+            info:false,
+            ordering:false,
+            searching:false,
+            paging:false,
+            processing:true,
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            ajax:{
+                url:'/finance/'+project+'/incomes/adjudicated_sales',
+                dataSrc: function(json) {
+
+                    if (json.data.length > 0 && json.data[json.data.length - 1].nota){
+                        $('body').toast({
+                            class: 'info',
+                            message: json.data[json.data.length - 1].nota,
+                            showIcon: 'exclamation circle'
+                        });
+                    }
+                    else if(json.data.error){
+                        $('body').toast({
+                            class: 'error',
+                            message: json.data.error,
+                            showIcon: 'exclamation circle'
+                        });
+                        $('#submit-id-btnregistrar').addClass('disabled');
+                        return [];
+                    }
+                    $('#submit-id-btnregistrar').removeClass('disabled');
+                    return json.data;
+                }
+            },
+            columns:[
+                {'data':'date'},
+                {'data':'quota'},
+                {'data':'capital',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'interest',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'arrears',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'arrears_days'},
+                {'data':'total',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'paid_capital',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'paid_interest',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'paid_arrears',render: $.fn.dataTable.render.number( ',', '.', 0)},
+                {'data':'paid_total',render: $.fn.dataTable.render.number( ',', '.', 0)},
+            ],
+            columnDefs: [
+                {targets:[2,3,4,6,7,8,9,10],className:'right aligned'},
+                {targets:[0,1,5],className: 'center aligned'},
+
+            ]
+        })
+        $('.money').mask('#,##0', {reverse: true});
+        $('.ui.dropdown').dropdown({
+            clearable: true,
+            ignoreDiacritics: true,
+            sortSelect: true,
+            fullTextSearch:'exact',
+        });
+        if (!esValidacionSolicitud){
+            $('#div_id_add_date').calendar({
+                type: 'date',
+                text: calendar_spanish(),
+            })
+            $('#id_add_date').on('change',function(){
+                let add_date = $('#div_id_add_date').calendar('get date')
+                $('#div_id_payment_day').calendar({
+                    type: 'date',
+                    text: calendar_spanish(),
+                    maxDate: add_date,
+                })
+            })
+        } else {
+            $('#div_id_add_date').addClass('disabled');
+            $('#id_add_date').attr('readonly', true);
+        }
+
+        $('#div_id_payment_day').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+            maxDate: new Date(),
+        })
+        $('.value').on('focusout', function () {
+            $('#income-segment').addClass('loading')
+            try {
+                let val = 0
+                $('.value').each(function (_, el) {
+                    val += $(el).val().replace(/[\$,]/g, '') * 1
+                })
+                let sale = $('#id_sale').val()
+                let condonate = $('#id_arrears_condonate').val()
+                let paid_date = $('#id_payment_day').val()
+                let value = val
+                let abono_capital = $('#id_capital_payment').is(':checked')
+                let tipo_abono = $('#id_tipo_abono_capital').val()
+                if (paid_date == '') {
+                    new_message('warning', '¡Falta algo!', 'Debes ingresar una fecha de pago')
+                    $('#income-segment').removeClass('loading')
+                    return
+                }
+                let url = `/finance/${project}/incomes/adjudicated_sales?sale=${sale}&condonate=${condonate}&paid_day=${paid_date}&total_income=${value}`
+                if (abono_capital) url += `&abono_capital=1&tipo_abono=${tipo_abono}`
+                tableRcdosVentas.ajax.url(url).load()
+                $('#income-segment').removeClass('loading')
+                $('#submit-id-btnregistrar').removeClass('disabled')
+            } catch (error) {
+                console.error(error)
+                $('#income-segment').removeClass('loading')
+            }
+        })
+
+        $('#form-new-income').on('submit',function(e){
+            $(this).addClass('loading')
+            let sale = $('#id_sale').val()
+            if (sale == ''){
+                e.preventDefault()
+                new_message('error','Encontramos un problema','Debes escoger un cliente')
+            }
+        })
+        function toggleTipoAbono(){
+            let $tipo = $('#id_tipo_abono_capital').closest('.field');
+            if($('#id_capital_payment').is(':checked')){
+                $tipo.show();
+            }else{
+                $tipo.hide();
+                $('#id_tipo_abono_capital').val('');
+            }
+        }
+        toggleTipoAbono();
+        $('#id_capital_payment').change(toggleTipoAbono);
+        if (esValidacionSolicitud) {
+            setTimeout(function(){
+                $('#id_sale').parent().addClass('disabled');
+                $('.value').first().trigger('focusout');
+            }, 300);
+        }
+
+        // Sistema de confirmación de cambio de fecha (solo en validación de solicitud)
+        {% if validacion_solicitud and solicitud %}
+        setTimeout(function() {
+            console.log('Sistema de confirmación de fecha iniciado');
+            const fechaOriginal = '{{ solicitud.payment_date|date:"Y-m-d" }}';
+            console.log('Fecha original:', fechaOriginal);
+
+            const $inputFecha = $('#id_payment_day');
+            const $form = $('#form-new-income');
+            const $modal = $('#modal-confirmar-fecha');
+
+            console.log('Input fecha encontrado:', $inputFecha.length);
+            console.log('Form encontrado:', $form.length);
+            console.log('Modal encontrado:', $modal.length);
+
+            if ($inputFecha.length === 0 || $form.length === 0 || $modal.length === 0) {
+                console.error('Elementos no encontrados, abortando inicialización');
+                return;
+            }
+
+            let fechaConfirmada = false;
+
+            // Normalizar fecha a formato ISO (YYYY-MM-DD)
+            function normalizarFecha(fechaStr) {
+                if (!fechaStr) return '';
+
+                // Limpiar espacios
+                fechaStr = fechaStr.trim();
+
+                // Si ya está en formato ISO (YYYY-MM-DD)
+                if (/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
+                    return fechaStr;
+                }
+
+                // Si está en formato DD/MM/YYYY
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
+                    const partes = fechaStr.split('/');
+                    return partes[2] + '-' + partes[1] + '-' + partes[0];
+                }
+
+                // Si está en formato D/M/YYYY (sin ceros)
+                if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaStr)) {
+                    const partes = fechaStr.split('/');
+                    const dia = partes[0].padStart(2, '0');
+                    const mes = partes[1].padStart(2, '0');
+                    return partes[2] + '-' + mes + '-' + dia;
+                }
+
+                // Si está en formato "Mes DD, YYYY" o "Mes D, YYYY" (ej: "Enero 6, 2026")
+                const mesesEspanol = {
+                    'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+                    'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+                    'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+                };
+                const regexMesEspanol = /^(\w+)\s+(\d{1,2}),?\s+(\d{4})$/i;
+                const matchEspanol = fechaStr.match(regexMesEspanol);
+                if (matchEspanol) {
+                    const mes = mesesEspanol[matchEspanol[1].toLowerCase()];
+                    if (mes) {
+                        const dia = matchEspanol[2].padStart(2, '0');
+                        const año = matchEspanol[3];
+                        return año + '-' + mes + '-' + dia;
+                    }
+                }
+
+                // Intentar parsear como fecha y convertir a ISO
+                try {
+                    const fecha = new Date(fechaStr);
+                    if (!isNaN(fecha.getTime())) {
+                        const año = fecha.getFullYear();
+                        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                        const dia = String(fecha.getDate()).padStart(2, '0');
+                        return año + '-' + mes + '-' + dia;
+                    }
+                } catch(e) {
+                    console.error('Error parseando fecha:', e);
+                }
+
+                return fechaStr;
+            }
+
+            // Formatear fecha para mostrar (DD/MM/YYYY)
+            function formatearFecha(fechaISO) {
+                if (!fechaISO) return '';
+
+                // Normalizar primero
+                const fechaNormalizada = normalizarFecha(fechaISO);
+
+                // Si está en formato ISO
+                if (/^\d{4}-\d{2}-\d{2}$/.test(fechaNormalizada)) {
+                    const partes = fechaNormalizada.split('-');
+                    return partes[2] + '/' + partes[1] + '/' + partes[0];
+                }
+
+                return fechaISO;
+            }
+
+            // Verificar si hay diferencia de fechas
+            function hayDiferenciaFecha() {
+                const fechaNuevaRaw = $inputFecha.val();
+
+                if (!fechaNuevaRaw || !fechaOriginal) {
+                    return false;
+                }
+
+                const fechaNuevaNormalizada = normalizarFecha(fechaNuevaRaw);
+                const fechaOriginalNormalizada = normalizarFecha(fechaOriginal);
+
+                console.log('Comparación de fechas:');
+                console.log('  Raw nueva:', fechaNuevaRaw);
+                console.log('  Normalizada nueva:', fechaNuevaNormalizada);
+                console.log('  Original:', fechaOriginal);
+                console.log('  Normalizada original:', fechaOriginalNormalizada);
+                console.log('  Son diferentes:', fechaNuevaNormalizada !== fechaOriginalNormalizada);
+
+                return fechaNuevaNormalizada !== fechaOriginalNormalizada;
+            }
+
+            // Interceptar el submit del formulario (ANTES que otros listeners)
+            if ($form[0]) {
+                $form[0].addEventListener('submit', function(e) {
+                    console.log('Submit interceptado, fechaConfirmada:', fechaConfirmada);
+                    console.log('Hay diferencia:', hayDiferenciaFecha());
+
+                    // Si la fecha ya fue confirmada o no hay diferencia, dejar continuar
+                    if (fechaConfirmada || !hayDiferenciaFecha()) {
+                        return true;
+                    }
+
+                    // Prevenir el submit y mostrar modal de confirmación
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const fechaNuevaRaw = $inputFecha.val();
+
+                    // Actualizar contenido del modal
+                    $('#fecha-solicitud-modal').text(formatearFecha(fechaOriginal));
+                    $('#fecha-nueva-modal').text(formatearFecha(fechaNuevaRaw));
+
+                    // Mostrar modal
+                    $modal.modal({
+                        closable: false,
+                        onApprove: function() {
+                            // Usuario confirmó el cambio de fecha
+                            console.log('Usuario aprobó el cambio de fecha');
+                            fechaConfirmada = true;
+                            // Reenviar el formulario
+                            $form.trigger('submit');
+                            return true;
+                        },
+                        onDeny: function() {
+                            // Usuario canceló, enfocar el campo de fecha
+                            console.log('Usuario canceló');
+                            $inputFecha.focus();
+                            return true;
+                        }
+                    }).modal('show');
+
+                    return false;
+                }, true); // true = captura en fase de captura (se ejecuta primero)
+
+                console.log('Listener de submit agregado exitosamente');
+            }
+
+            // Resetear la confirmación si el usuario cambia la fecha de nuevo
+            $inputFecha.on('change', function() {
+                fechaConfirmada = false;
+                console.log('Fecha cambiada, reseteando confirmación');
+            });
+
+            console.log('Sistema de confirmación de fecha configurado exitosamente');
+        }, 500);
+        {% endif %}
+
+    })
+    function abono_capital(){
+        if (!$('#id_capital_payment').is(':checked')) return;
+        const monto = parseInt($('#id_value_1').val().replace(/\D/g, '')) || 0;
+        const saleId = $('#id_sale').val();
+    
+        if (!saleId || monto <= 0) {
+            alert("Selecciona un cliente y un monto válido.");
+            return;
+        }
+    
+        $.post('/ajax/simular_abono_capital/', {
+            sale_id: saleId,
+            monto: monto,
+            csrfmiddlewaretoken: getCookie('csrftoken')
+        }, function (response) {
+            if (response.status === 'ok') {
+                console.log(response.data);
+            } else {
+                alert(response.msg);
+            }
+        });
+    }
+</script>
+{%endblock%}

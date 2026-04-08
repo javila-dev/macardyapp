@@ -1,0 +1,564 @@
+{% extends "site_base.html" %}{%load static%}{% load humanize %}{% load perm_filters %}
+{% block title %}Cartera | Solicitudes de Recibo{% endblock %}
+{%block submenu%}
+<div class='header item'>
+  Cartera
+</div>
+<div class='header item'>
+  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item active submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/administrativa">Cartera Administrativa</a>
+<a class='item submenu' href="/finance/{{project.name}}/comisiones/">Comisiones</a>
+<a class='item submenu' href="{% url 'abonos_capital_periodo' project=project.name %}">Abonos a capital</a>
+<a class='item submenu' href="/finance/{{project.name}}/parametros">Parámetros</a>
+{%endblock%}
+{% block content %}
+<h2 class="ui dividing header">Solicitudes de Recibo</h2>
+
+<form class="ui form" id="form-filtros-fecha" method="get" style="margin-bottom:1em;">
+  <div class="fields">
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" name="desde" value="{{ request.GET.desde|default:fecha_desde }}">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" name="hasta" value="{{ request.GET.hasta|default:fecha_hasta }}">
+    </div>
+    <div class="field" style="padding-top:23px;">
+      <button class="ui button primary" type="submit">Filtrar</button>
+    </div>
+  </div>
+</form>
+
+<table class="ui very compact selectable table" style="width: 100%;font-size: small;text-align: center;"
+  id="table-solicitudes">
+  <thead>
+    <tr style="text-align: center;">
+      <th>Cliente</th>
+      <th>Valor</th>
+      <th>Fecha de Pago</th>
+      <th>Fecha de Solicitud</th>
+      <th>Solicitado por</th>
+      <th>Estado</th>
+      <th>Verificado por</th>
+      <th class="center aligned">Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for solicitud in solicitudes %}
+    <tr data-id="{{ solicitud.id }}">
+      <td style="text-align: left;">
+        {{ solicitud.sale }} 
+          {% if solicitud.arrears_condonate and not solicitud.condonacion_autorizada %}
+            <span class="ui tiny orange basic label" 
+                title="Condonación por autorizar">Condonación pendiente ({{solicitud.arrears_condonate}}%)</span>
+          {% elif solicitud.condonacion_autorizada %}
+            <span class="ui tiny green basic label" 
+              data-tooltip="Condonación autorizada por {{solicitud.condonacion_autorizada_por.get_full_name}}" 
+                title="Condonación autorizada">Condonación autorizada ({{solicitud.arrears_condonate}}%)</span>
+          {% endif %}
+          {% if solicitud.capital_payment %}
+            <span class="ui tiny blue basic label" title="Abono a capital">Abono a capital</span>
+      {% endif %}</td>
+      <td>${{ solicitud.total_solicitud|floatformat:"0"|intcomma }}</td>
+      <td>{{ solicitud.payment_date|date:"d/m/Y" }}</td>
+      <td>{{ solicitud.add_date|date:"d/m/Y" }}</td>
+      <td>{{ solicitud.creado_por.get_full_name|default:solicitud.creado_por.username }}</td>
+      <td>
+        {% if solicitud.estado == 'pendiente' %}
+        <div class="ui yellow label">Pendiente</div>
+        {% elif solicitud.estado == 'aprobado' %}
+        <div class="ui green label">Aprobado</div>
+        {% elif solicitud.estado == 'rechazado' %}
+        <div class="ui red label">Rechazado</div>
+        {% elif solicitud.estado == 'ajuste' %}
+        <div class="ui orange label">Requiere ajuste</div>
+        {% else %}
+        <div class="ui grey label">{{ solicitud.estado }}</div>
+        {% endif %}
+      </td>
+      <td>
+        {% if solicitud.revisado_por %}
+        {{ solicitud.revisado_por.get_full_name|default:solicitud.revisado_por.username }}
+        {% else %}
+        —
+        {% endif %}
+      </td>
+      <td class="center aligned">
+        <a href="{{ solicitud.soporte.url }}" target="_blank" class="ui icon blue small button" data-tooltip="Ver soporte">
+          <i class="eye icon"></i>
+        </a>
+        {% if solicitud.estado == 'aprobado' and solicitud.recibo_generado %}
+        <a href="{% url 'reprint_receipt' project=solicitud.project.name %}?receipt_number={{ solicitud.recibo_generado.receipt }}"
+          target="_blank" class="ui icon teal small button" data-tooltip="Descargar recibo PDF">
+          <i class="file pdf outline icon"></i>
+        </a>
+        {% endif %}
+        
+        {% if solicitud.estado == 'pendiente' %}
+        
+        <a data-url="{% url 'editar_solicitud_recibo' project=project.name pk=solicitud.id %}?modal=1"
+          class="ui icon blue small button btn-editar-solicitud" data-tooltip="Editar">
+          <i class="edit icon"></i>
+        </a>
+        
+        <a href="{% url 'validar_solicitud_recibo' project=project.name pk=solicitud.id %}" class="ui icon green small button"
+          data-tooltip="Validar">
+          <i class="check icon"></i>
+        </a>
+        
+        <a href="{% url 'eliminar_solicitud_recibo' project=project.name pk=solicitud.id %}" class="ui icon small red button"
+          data-tooltip="Eliminar">
+          <i class="trash icon"></i>
+        </a>
+        {% endif %}
+        {% if solicitud.arrears_condonate > 0 and not solicitud.condonacion_autorizada %}
+        {% if request.user.user_profile|has_perm:"autorizar condonacion de mora" %}
+        <a href="{% url 'autorizar_condonacion' project=solicitud.project.name pk=solicitud.pk %}"
+          class="ui icon orange small button" data-tooltip="Autorizar condonación">
+          <i class="percent icon"></i>
+        </a>
+        {% else %}
+        <span class="text-warning">Pendiente autorización</span>
+        {% endif %}
+        {% elif solicitud.condonacion > 0 %}
+        <span class="text-success">Autorizada</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+
+<div class="ui longer modal" id="modal-solicitud">
+  <i class="close icon"></i>
+  <div class="header">
+    Nueva Solicitud de Recibo
+  </div>
+  <div class="scrolling content" id="modal-solicitud-content">
+    <div class="ui active centered inline loader"></div>
+    <!-- Aquí se inyectará el formulario vía AJAX -->
+  </div>
+</div>
+
+{% endblock %}
+{%block script%}
+<script>
+  const PROJECT = "{{ project.name }}";
+  {% if solicitud.condonacion_autorizada %}
+    document.addEventListener('DOMContentLoaded', function() {
+      var field = document.getElementById("id_arrears_condonate");
+      if(field) field.setAttribute("readonly", "readonly");
+    });
+  {% endif %}
+</script>
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+{%include 'datatables.html'%}
+<script>
+  $(document).ready(function () {
+    $('.money').mask('#,##0', { reverse: true });
+    $('.ui.dropdown').dropdown({
+      clearable: true,
+    })
+    const $modal = $('#modal-solicitud');
+    const $modalContent = $('#modal-solicitud-content');
+
+    // Abrir modal con form de nueva solicitud
+    function nuevasolicitud() {
+      const url = `/finance/${PROJECT}/solicitudes/nueva/?modal=1`;
+
+      $modalContent.html('<div class="ui active centered inline loader"></div>');
+      $modal.find('.header').text('Nueva solicitud de recibo');
+      $modal.modal({
+        autofocus: false,
+        onApprove: false
+      }).modal('show');
+
+      $.get(url, function (data) {
+        $modalContent.html(data);
+
+        $('.ui.dropdown').dropdown({
+          clearable: true,
+        });
+        $('.money').mask('#,##0', { reverse: true });
+        
+        // Calcular mora después de que el DOM esté completamente cargado
+        setTimeout(function() {
+          const saleValue = $('#id_sale').val();
+          console.log('Sale value al cargar:', saleValue);
+          if (saleValue) {
+            calcularMoraFormulario(saleValue);
+          }
+        }, 100);
+      });
+    }
+    $(document).on('click', '.btn-editar-solicitud', function (e) {
+      e.preventDefault();
+      const url = $(this).data('url');
+      $modal.find('.header').text('Editar solicitud de recibo');
+      $modalContent.html('<div class="ui active centered inline loader"></div>');
+      $modal.modal({
+        autofocus: false,
+        onApprove: false
+      }).modal('show');
+      console.log(url);
+      $.get(url, function (data) {
+        $modalContent.html(data);
+        
+        $('.ui.dropdown').dropdown({
+          clearable: true,
+        });
+        $('.money').mask('#,##0', { reverse: true });
+        
+        // Calcular mora después de que el DOM esté completamente cargado
+        setTimeout(function() {
+          const saleValue = $('#id_sale').val();
+          console.log('Sale value al editar:', saleValue);
+          if (saleValue) {
+            calcularMoraFormulario(saleValue);
+          }
+        }, 100);
+      });
+    });
+    // Delegar envío del formulario (AJAX POST)
+    $(document).on('submit', '#form-solicitud-recibo', function (e) {
+      let error = false;
+      $modalContent.find('.ui.negative.message').remove();
+      
+      const isEdit = $modalContent.find('label[for="soporte-clear_id"]').length > 0;
+      const hasSoporte = $('#id_soporte').val();
+      
+      if (!isEdit && !hasSoporte) error = 'Debes adjuntar el soporte.';
+      if (!$('#id_sale').val()) error = 'Debes seleccionar un cliente.';
+      if (!$('#id_value1').val()) error = 'Debes ingresar un valor.';
+      if (!$('#id_payment_date').val()) error = 'Debes ingresar la fecha de pago.';
+
+      if (error) {
+        $modalContent.prepend(`<div class="ui negative message">${error}</div>`);
+        e.preventDefault();
+        return false;
+      }
+
+      e.preventDefault();
+      const $form = $(this);
+      const url = $form.attr('action');
+      const formData = new FormData(this);
+      $form.addClass('loading')
+      $.ajax({
+        url: url,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function (response) {
+          // Si es JSON con result: ok → cerrar modal
+          if (response.result === 'ok') {
+            $modal.modal('hide');
+            location.reload(); // o recargar tabla dinámicamente después
+          } else {
+            // Si es HTML (form con errores), volver a renderizar
+            $modalContent.html(response);
+          }
+
+        },
+        error: function (xhr) {
+          console.error('Error en el envío del formulario:', xhr);
+          $modalContent.html('<div class="ui negative message">Error al enviar. Intenta nuevamente.</div>');
+        },
+        complete: function () {
+          $form.removeClass('disabled')
+        }
+      });
+    });
+    $('#table-solicitudes').DataTable({
+      ordering: false,
+      searching: true,
+      paging: true,
+      language: { url: '/ajax/datatable_spanish' },
+      dom: '<"ui stackable grid"<"four wide column"l><"eight wide column text-center"B><"four wide column"f>>' +
+          '<"ui stackable grid"<"sixteen wide column"t>>' +
+          '<"ui stackable grid"<"eight wide column"i><"eight wide column"p>>',
+
+
+      buttons: [
+        {
+          text: '<i class="plus icon"></i> Nueva Solicitud',
+          className: 'ui primary button',
+          action: function () {
+            nuevasolicitud()
+          }
+        }
+      ],
+      rowCallback: function(row, data) {
+        if (data.condonacion_autorizada_por) {
+          $(row).attr('title', `Condonación autorizada por ${data.condonacion_autorizada_por} el ${data.fecha_autorizacion}`);
+          $(row).popup({position: 'top left', hoverable: true});
+        }
+      }
+    });
+
+    $(document).on('click', 'a[data-tooltip="Eliminar"]', function(e) {
+      e.preventDefault();
+      const url = $(this).attr('href');
+      $('body').append(`
+        <div class="ui basic modal" id="modal-confirm-delete">
+          <div class="ui icon header"><i class="trash icon"></i> Confirmar eliminación</div>
+          <div class="content">
+            <p>¿Estás seguro de eliminar esta solicitud?</p>
+          </div>
+          <div class="actions">
+            <div class="ui red basic cancel inverted button">
+              <i class="remove icon"></i> Cancelar
+            </div>
+            <div class="ui green ok inverted button">
+              <i class="checkmark icon"></i> Eliminar
+            </div>
+          </div>
+        </div>
+      `);
+      $('#modal-confirm-delete')
+        .modal({
+          closable: false,
+          onApprove: function() {
+            window.location.href = url;
+          },
+          onHidden: function() {
+            $(this).remove();
+          }
+        })
+        .modal('show');
+    });
+  });
+</script>
+<script>
+$(function() {
+  $('#form-filtros-fecha').submit(function(e) {
+    const desde = $('input[name="desde"]').val();
+    const hasta = $('input[name="hasta"]').val();
+    if (!desde || !hasta) {
+      e.preventDefault();
+      $('body').toast({ class: 'error', message: 'Debes seleccionar ambas fechas.' });
+      return false;
+    }
+    if (desde > hasta) {
+      e.preventDefault();
+      $('body').toast({ class: 'error', message: 'La fecha "Desde" no puede ser mayor que "Hasta".' });
+      return false;
+    }
+  });
+});
+</script>
+
+<script>
+let moraActualData = {
+    mora_total: 0,
+    cuotas: []
+};
+
+// Remover esta parte ya que no se necesita en la tabla
+// $(document).ready(function() {
+//   $('.mora-actual, .valor-condonacion').each(function() {
+//     const element = $(this);
+//     const solicitudId = element.data('solicitud');
+//     
+//     if (solicitudId) {
+//       calcularMoraSolicitud(solicitudId, element);
+//     }
+//   });
+// });
+
+function calcularMoraFormulario(saleId = null) {
+    const sale = saleId || $('#id_sale').val();
+    const fechaPago = $('#id_payment_date').val() || new Date().toISOString().split('T')[0];
+    
+    console.log('Sale ID:', sale);
+    console.log('Fecha pago:', fechaPago);
+    
+    if (!sale) {
+        $('#info-mora-container').hide();
+        return;
+    }
+    
+    const url = `/finance/ajax/${PROJECT}/calcular_mora_actual/`;
+    console.log('URL llamada:', url);
+    
+    $.get(url, {
+        sale_id: sale,
+        fecha_pago: fechaPago
+    })
+    .done(function(data) {
+        console.log('Respuesta recibida:', data);
+        moraActualData = data;
+        mostrarInfoMora(data);
+        calcularCondonacion();
+    })
+    .fail(function(xhr) {
+        console.error('Error calculando mora:', xhr.status, xhr.responseText);
+        $('#info-mora-container').hide();
+    });
+}
+
+function mostrarInfoMora(data) {
+    let container = $('#info-mora-container');
+    
+    // Si el contenedor no existe, crearlo después del campo de condonación
+    if (container.length === 0) {
+        const condonacionField = $('#id_arrears_condonate').closest('.field');
+        if (condonacionField.length > 0) {
+            // Crear el contenedor después del field completo
+            condonacionField.closest('.fields').after('<div id="info-mora-container" style="margin: 15px 0; display: block !important; visibility: visible !important;"></div>');
+            container = $('#info-mora-container');
+        } else {
+            // Si no encuentra el campo, buscar el formulario y agregarlo al principio
+            const form = $('#form-solicitud-recibo');
+            if (form.length > 0) {
+                form.prepend('<div id="info-mora-container" style="margin: 15px 0; display: block !important; visibility: visible !important;"></div>');
+                container = $('#info-mora-container');
+            }
+        }
+    }
+    
+    if (data.mora_actual > 0) {
+        let html = `
+            <div class="ui info message" style="display: block !important;">
+                <div class="header">💰 Información de Mora</div>
+                <div class="ui grid" style="margin-bottom: -1.2em;">
+                    <div class="eight wide column">
+                        <p><strong>Mora Actual:</strong> <span id="mora-actual-valor">${data.mora_formateada}</span></p>
+                        <p><strong>Cuotas con Mora:</strong> ${data.total_cuotas_mora}</p>
+                    </div>
+                    <div class="eight wide column" id="resumen-condonacion" style="display: none;">
+                        <p><strong>Valor Condonación:</strong> <span id="valor-condonacion">$0</span></p>
+                        <p><strong>Mora Después:</strong> <span id="mora-despues">${data.mora_formateada}</span></p>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.html(html).css({
+            'display': 'block',
+            'visibility': 'visible',
+            'opacity': '1'
+        }).show();
+        
+        console.log('Container creado:', container.length);
+        console.log('Container visible:', container.is(':visible'));
+        console.log('Container HTML:', container.html());
+        console.log('Container position:', container.offset());
+        
+    } else {
+        // Si no hay mora, mostrar mensaje informativo
+        let html = `
+            <div class="ui message" style="display: block !important;">
+                <div class="header">ℹ️ Sin Mora</div>
+                <p>Este cliente no tiene mora pendiente.</p>
+            </div>
+        `;
+        container.html(html).show();
+    }
+}
+
+function calcularCondonacion() {
+    const porcentaje = parseFloat($('#id_arrears_condonate').val()) || 0;
+    const moraActual = moraActualData.mora_actual || 0;
+    
+    if (porcentaje > 0 && moraActual > 0) {
+        const valorCondonacion = moraActual * (porcentaje / 100);
+        const moraDespues = moraActual - valorCondonacion;
+        
+        $('#valor-condonacion').text(`$${valorCondonacion.toLocaleString('es-CO', {maximumFractionDigits: 0})}`);
+        $('#mora-despues').text(`$${moraDespues.toLocaleString('es-CO', {maximumFractionDigits: 0})}`);
+        
+        $('#resumen-condonacion').show();
+    } else {
+        $('#valor-condonacion').text('$0');
+        $('#mora-despues').text($('#mora-actual-valor').text());
+        $('#resumen-condonacion').hide();
+    }
+}
+
+// ✅ Función para ocultar/mostrar campos según el status de la venta
+function toggleCamposSegunStatus(saleId) {
+    if (!saleId) return;
+
+    // Obtener información de la venta vía AJAX
+    $.get(`/finance/ajax/${PROJECT}/sale_status/${saleId}/`, function(data) {
+        const status = data.status;
+
+        console.log('Status de la venta:', status);
+
+        if (status === 'Pendiente' || status === 'Aprobado') {
+            // ⚠️ Ventas NO adjudicadas: Ocultar campos de mora y abono a capital
+            console.log('Venta NO adjudicada - ocultando campos');
+
+            // Ocultar condonación de mora
+            $('#id_arrears_condonate').val(0).closest('.field').hide();
+            $('#info-mora-container').hide();
+
+            // Ocultar checkbox de abono a capital
+            $('#id_capital_payment').prop('checked', false).closest('.field').hide();
+
+            // Ocultar tipo de abono
+            $('#id_tipo_abono_capital').val('').closest('.field').hide();
+
+            // Opcional: Mostrar mensaje informativo
+            if ($('#msg-venta-no-adjudicada').length === 0) {
+                $('#id_sale').closest('.field').after(`
+                    <div class="ui info message" id="msg-venta-no-adjudicada" style="margin-top: 10px;">
+                        <i class="info circle icon"></i>
+                        Esta venta está en estado <strong>${status}</strong>.
+                        No requiere cálculo de mora ni abono a capital.
+                    </div>
+                `);
+            }
+        } else {
+            // ✅ Ventas adjudicadas: Mostrar todos los campos
+            console.log('Venta adjudicada - mostrando campos');
+
+            // Mostrar condonación de mora
+            $('#id_arrears_condonate').closest('.field').show();
+
+            // Mostrar checkbox de abono a capital
+            $('#id_capital_payment').closest('.field').show();
+
+            // El tipo de abono se muestra/oculta dinámicamente con el checkbox
+            // (eso ya lo maneja el código existente en otro lado)
+
+            // Remover mensaje informativo si existe
+            $('#msg-venta-no-adjudicada').remove();
+
+            // Calcular mora para ventas adjudicadas
+            calcularMoraFormulario(saleId);
+        }
+    }).fail(function() {
+        console.error('Error obteniendo status de la venta');
+        // En caso de error, mostrar todos los campos por seguridad
+        $('#id_arrears_condonate').closest('.field').show();
+        $('#id_capital_payment').closest('.field').show();
+    });
+}
+
+// Delegar el evento change del select de venta cargado vía AJAX
+$(document).on('change', '#id_sale', function() {
+    const saleId = $(this).val();
+
+    // ✅ NUEVO: Primero verificar el status y ocultar/mostrar campos
+    toggleCamposSegunStatus(saleId);
+
+    // ORIGINAL: Luego calcular mora (solo si es adjudicada, pero toggleCamposSegunStatus ya lo maneja)
+    // calcularMoraFormulario(saleId); // Ya se llama dentro de toggleCamposSegunStatus si es adjudicada
+});
+
+$(document).on('input', '#id_arrears_condonate', function() {
+    calcularCondonacion();
+});
+</script>
+
+{%endblock%}

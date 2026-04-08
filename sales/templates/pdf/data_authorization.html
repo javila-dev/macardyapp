@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+{% for titular in titulares %}
+<div style="page-break-after: always; font-family: Arial, sans-serif; font-size: 15px; margin: 40px 60px 40px 60px;">
+    <div style="width: 100%; margin-bottom: 30px;margin-top: 30px;"><br><br>
+        <span style="float: left;"><b>{{ ciudad }}</b></span>,
+        <span style="float: right;">{{ fecha }}</span>
+    </div>
+    <div style="clear: both;"></div>
+    <p>Señores<br>
+    <strong>{% if sale.project.name == "altoscovenas" %}Grupo Gibraltar S.A.S.{% else %}Constructora Macardy S.A.S.{% endif %}</strong><br>
+    {% if sale.project.name == "altoscovenas" %}900.779.254 -2{% else %}901036029-7{% endif %}<br>
+    Calle 27a # 79 - 95<br>
+    Medellín.</p><br>
+    <p style="font-weight: bold; text-decoration: underline;">
+        Ref. Autorización para el tratamiento y uso de datos personales.
+    </p>
+    <p style="text-align: justify;">
+        De conformidad con lo previsto en la Ley 1581 de 2012 <i>“por la cual se dictan las disposiciones generales para la protección de datos personales”</i> y el Decreto 1377 de 2013, que la reglamentan parcialmente, manifiesto que otorgo mi autorización expresa y clara para que la <strong>{% if sale.project.name == "altoscovenas" %}Grupo Gibraltar S.A.S.{% else %}Constructora Macardy S.A.S.{% endif %}</strong>, pueda hacer tratamiento y uso de mis datos personales, los cuales estarán reportados en la base de datos de la que es responsable dicha organización y que han sido recolectados en las relaciones contractuales que ésta realiza en desarrollo de su objeto social.
+    </p>
+    <p style="text-align: justify;">
+        De acuerdo a la normatividad citada, la <strong>{% if sale.project.name == "altoscovenas" %}Grupo Gibraltar S.A.S.{% else %}Constructora Macardy S.A.S.{% endif %}</strong>, queda autorizada de manera expresa e inequívoca para mantener y manejar la información suministrada, solo para aquellas finalidades para las que se encuentra facultado y respetando en todo caso, la normatividad vigente sobre protección de datos personales.
+    </p>
+    <p style="text-align: justify;">
+        No obstante la presente autorización, me reservo el derecho a ejercer en cualquier momento la posibilidad de conocer, actualizar, rectificar y solicitar la supresión de mis datos personales en la base de datos de la organización, cuando así lo estime conveniente.
+    </p>
+    <p>Atentamente,</p>
+    <br>
+    <p><strong>Firma:</strong> ____________________________</p>
+    <p><strong>Nombre:</strong> {{ titular.nombre }}</p>
+    <p><strong>C.C.:</strong> {{ titular.cc }}</p>
+    
+</div>
+{% endfor %}
+{% endblock %}

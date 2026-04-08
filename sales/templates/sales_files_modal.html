@@ -1,0 +1,62 @@
+<!-- filepath: /code/sales/templates/includes/sales_files_modal.html -->
+<div id="sales-files-modal" class="ui modal fullscreen">
+    <i class="close icon"></i>
+    <div class="header">
+        Documentos asociados al contrato {{ contract_number }}
+    </div>
+    <div class="content">
+        <div class="ui stackable grid" style="height: calc(100vh - 11em)">
+            <!-- Columna izquierda: Formulario -->
+            <div class="six wide column">
+                <form id="add-file-form" class="ui form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" id="contract-number" name="contract_number">
+                    <input type="hidden" id="project" name="project">
+                    <h4 class="ui dividing header" style="margin-top:0">Agregar nuevo archivo</h4>
+                    <div class="field">
+                        <label for="file-description">Descripción</label>
+                        <input type="text" id="file-description" name="description" placeholder="Descripción del archivo" required>
+                    </div>
+                    <div class="field">
+                        <label for="file-type">Tipo de archivo</label>
+                        <input type="text" id="file-type" name="file_type" placeholder="Tipo de archivo (ej. Contrato, Factura)" required>
+                    </div>
+                    <div class="field">
+                        <label for="file">Archivo</label>
+                        <input type="file" id="file" name="file" accept=".pdf" required>
+                    </div>
+                    <div class="field">
+                        <label for="file-observations">Observaciones</label>
+                        <textarea id="file-observations" name="observations" placeholder="Observaciones adicionales"></textarea>
+                    </div>
+                    <button type="submit" class="ui primary button">Subir archivo</button>
+                </form>
+            </div>
+
+            <!-- Columna derecha: Archivos -->
+            <div class="ten wide column">
+                <div class="ui grid">
+                    <div class="row">
+                        <div class="eight wide column">
+                            <h4 class="ui dividing header">Archivos cargados</h4>
+                        </div>
+                        <div class="eight wide column right aligned">
+                            <div class="ui icon input">
+                                <input type="text" id="search-files" placeholder="Buscar documentos...">
+                                <i class="search icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="files-list-container" class="ui raised segment" style="max-height: 500px; overflow-y: auto;">
+                    <div id="files-list" class="ui three stackable cards">
+                        <!-- Las tarjetas de archivos se cargarán aquí dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="actions">
+        <div class="ui cancel button">Cerrar</div>
+    </div>
+</div>

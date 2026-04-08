@@ -1,0 +1,458 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Lista comisiones{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item active submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/parameters">Parámetros de cargos</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='comission-segment'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="calendar alternate circular teal icon"></i>
+          <div class="content">
+            Lista de comisiones
+          </div>
+        </h2>
+      </div>
+    <form class="ui form" method="get" id="comission-filters">
+        <div class="fields">
+            <div class="field">
+                <label>Desde</label>
+                <input type="date" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="field">
+                <label>Hasta</label>
+                <input type="date" name="end_date" value="{{ end_date }}">
+            </div>
+            <div class="field" style="padding-top: 23px;">
+                <button type="submit" class="ui teal button"><i class="filter icon"></i>Filtrar</button>
+                {% if start_date or end_date %}
+                <a class="ui basic button" href="/finance/{{ project.name }}/comissions/list">
+                    Limpiar
+                </a>
+                {% endif %}
+            </div>
+            <div class="field" style="padding-top: 23px;">
+                <button type="button" class="ui basic green button" id="export-comissions">
+                    <i class="file excel icon"></i>Exportar Excel
+                </button>
+            </div>
+        </div>
+    </form>
+    <table class="ui compact selectable table" id="tableComissions">
+        <thead>
+            <tr class="center aligned">
+                <th>Fecha de pago</th>
+                <th>Nº Contratos</th>
+                <th>Usuario</th>
+                <th>Total comision</th>
+                <th>Total provision</th>
+                <th>Total neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for sale in paid_comissions%}<tr class="center aligned">
+                <td>{{sale.pay_date|date:"Y/m/d"}}</td>
+                <td>{{sale.nro_sales}}</td>
+                <td>{{sale.user__username}}</td>
+                <td>{{sale.total_comission|format_number}}</td>
+                <td>{{sale.total_provission|format_number}}</td>
+                <td>{{sale.total_net|format_number}}</td>
+            </tr>{%endfor%}
+        </tbody>
+    </table>
+</div>
+<!-- modal -->
+<div class="ui modal" id="modalComissionDetail" style="max-height: 50vh;">
+    <i class="close icon"></i>
+    <div class="header"></div>
+    <div class="content">
+        <div class="ui top attached tabular icon menu" id="tab-comission-detail">
+            <div class="active item" data-tab="tab-per-user"><i class="user tie icon"></i>&nbsp; Por gestor</div>
+            <div class="item" data-tab="tab-per-sale"><i class="folder icon"></i>&nbsp; Por contrato</div>
+        </div>
+        <div class="ui bottom active attached tab segment" data-tab="tab-per-user"
+        style="max-height: 450px;overflow: auto;">
+            <table class="ui celled table" id="tablecomissiondetail" style="width:100%">
+                <thead>
+                    <tr class="center aligned">
+                        <th></th>
+                        <th></th>
+                        <th>Gestor</th>
+                        <th>Id</th>
+                        <th>Comision</th>
+                        <th>Provision</th>
+                        <th>Neto</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+        <div class="ui bottom attached tab segment" data-tab="tab-per-sale">
+            <table class="ui celled table" id="tablecomissiondetailsale" style="width:100%">
+                <thead>
+                    <tr class="center aligned">
+                        <th>Contrato</th>
+                        <th>Cliente</th>
+                        <th>Metodo</th>
+                        <th>Comision</th>
+                        <th>Provision</th>
+                        <th>Neto</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+    <div class="actions">
+        <div class="ui approve icon red button" data-tooltip="Eliminar comision"><i class="trash alternate outline icon"></i></div> 
+        <div class="ui blue icon button" id="printcomission" data-tooltip="Pdf resumen comision"><i class="file pdf outline icon"></i></div> 
+        <button id="filetobank" class="ui yellow icon button" data-tooltip="Exportar bancolombia"
+        ><i class="file alternate icon"></i></button>
+    </div>
+  </div>
+  <div class="ui mini modal" id="modal-filetobank">
+    <i class="close icon"></i>
+    <h1 class="ui icon header">
+       <i class="file alternate circular yellow icon"></i>
+       <div class="content">
+           Generar archivo para bancolombia
+       </div>
+    </h1>
+    <div class="content center aligned">
+        <div class="ui selection dropdown">
+            <input type="hidden" name="pay-account" id="pay-account">
+            <i class="dropdown icon"></i>
+            <div class="default text">Cuenta de pago</div>
+            <div class="scrollhint menu">{%for account in pay_accounts%}
+                <div class="item" data-value="{{account.pk}}">{{account.account_number}}</div>
+            {%endfor%}</div>
+        </div>
+    </div>
+    <div class="actions">
+        <button class="ui ok green button" id="btn-get-filetobank">Generar</button>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script>
+    const project = '{{project.name}}' 
+    const csrftoken = getCookie('csrftoken')
+</script>
+<script>
+    $(document).ready(function(){
+        $('.ui.dropdown').dropdown();
+        $('#tab-comission-detail .item').tab()
+        function format ( d ) {
+        // `d` is the original data object for the row
+            let subtable = '<table cellpadding="2" cellspacing="0" border="0" style="padding-left:50px;font-size:small">'+
+                '<tr class="center aligned">'+
+                    '<th>Contrato</th>'+
+                    '<th>Cliente</th>'+
+                    '<th>Cargo</th>'+
+                    '<th>%</th>'+
+                    '<th>Comision</th>'+
+                    '<th>Provision</th>'+
+                    '<th>Neto</th>'+
+                    '<th>Tipo</th>'+
+                '</tr>'
+            for (i in d){
+                comission = new Intl.NumberFormat('en-EN').format(d[i].comission * 1)
+                provision = new Intl.NumberFormat('en-EN').format(d[i].provision * 1)
+                net_pay = new Intl.NumberFormat('en-EN').format(d[i].net_payment * 1)
+                subtable += `
+                <tr>
+                    <td>${d[i].assign_paid.sale.contract_number}</td>
+                    <td>${d[i].assign_paid.sale.first_owner.first_name} ${d[i].assign_paid.sale.first_owner.last_name}</td>
+                    <td>${d[i].assign_paid.position.name}</td>
+                    <td>${d[i].assign_paid.comission}</td>
+                    <td>${comission}</td>
+                    <td>${provision}</td>
+                    <td>${net_pay}</td>
+                    <td>${d[i].type_of_payment}</td>
+                </tr>
+                `
+            }
+            subtable += '</table>'
+
+            return subtable
+        }
+        var tableComissions = $('#tableComissions').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            order:[[0,'desc'],[2,'desc']],
+            columnDefs:[
+                {targets:2,type:'date-uk'}
+            ]
+        })
+        var tablecomissiondetail = $('#tablecomissiondetail').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            info: false,
+            searching: false,
+            sorting: false,
+            paging: false,
+            ajax:{
+                url:'/finance/ajax/'+project+'/comissions/detailsandactions?aggrupation=seller',
+                dataSrc: "data"
+            },
+            columns:[
+                {
+                    "className":      'dt-buttons center aligned',
+                    "orderable":      false,
+                    "data":           null,
+                    "defaultContent": '<button class="circular ui icon tiny green button"><i class="plus icon"></i></button>'
+                },
+                {
+                    "className":      'dt-print center aligned',
+                    "orderable":      false,
+                    "data":           null,
+                    "defaultContent": '<button class="circular ui icon tiny teal button"><i class="file alternate icon"></i></button>'
+                },
+                {'data':'seller_name'},
+                {'data':'assign_paid__seller'},
+                {'data':'total_comission',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+                {'data':'total_provision',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+                {'data':'total_net',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+            ],
+            "columnDefs": [
+                { className: "right aligned", "targets": [ 4,5,6 ] },
+                { className: "center aligned", "targets": [ 2,3 ] }
+            ]
+        })
+        var tablecomissiondetailsale = $('#tablecomissiondetailsale').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            info: false,
+            searching: false,
+            paging: false,
+            order:[[1,'asc']],
+            ajax:{
+                url:'/finance/ajax/'+project+'/comissions/detailsandactions?aggrupation=sale',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'contract_number'},
+                {'data':'first_owner'},
+                {'data':'method'},
+                {'data':'total_comission',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+                {'data':'total_provision',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+                {'data':'total_net',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+            ],
+            "columnDefs": [
+                { className: "right aligned", "targets": [ 3,4,5 ] },
+                { className: "center aligned", "targets": [ 0,1,2 ] }
+            ]
+        })
+        
+        $('#tableComissions tbody').on('click','tr',function(){
+            let row = tableComissions.row(this).data()
+            $('#tableComissions tbody tr').removeClass('active')
+            $(this).addClass('active')
+            let url = `/finance/ajax/${project}/comissions/detailsandactions?aggrupation=seller&date=${row[0]}&user=${row[2]}`
+            let url_sale = `/finance/ajax/${project}/comissions/detailsandactions?aggrupation=sale&date=${row[0]}&user=${row[2]}`
+            tablecomissiondetail.ajax.url(url).load()
+            tablecomissiondetailsale.ajax.url(url_sale).load()
+            
+            $('#modalComissionDetail .header').text('Comision pagada el '+row[0]+' por '+row[2])
+            $('#modalComissionDetail').modal('show').modal({
+                closeIcon: true,
+                centered: false,
+                onApprove:function(){
+                    $('body').modal({
+                        title: 'Confirmar',
+                        class: 'basic mini',
+                        closeIcon: false,
+                        closable: false,
+                        content: '¿Estas seguro que deseas eliminar este pago de comisiones?',
+                        actions: [{
+                            text: 'Si',
+                            class: 'green approve',
+                            click: function(){
+                                return false
+                            }
+                            },
+                            {
+                                text: 'No',
+                                class: 'red decline'
+                            },
+                        ],
+                        onApprove: function(){
+                            $('.ui.modal.visible.front button').addClass('disabled')
+                            $('.ui.modal.visible.front button.approve').addClass('loading')
+                            $.ajax({
+                                type:'POST',
+                                url:`/finance/ajax/${project}/comissions/detailsandactions`,
+                                data:{
+                                    'csrfmiddlewaretoken':csrftoken,
+                                    'date':row[0],
+                                    'username':row[2],
+                                    'action':'delete'
+                                },
+                                success:function(xhr){
+                                    window.location.reload()
+                                },
+                                complete: function(xhr){
+                                    $('.ui.modal.visible.front button').removeClass('disabled')
+                                    $('.ui.modal.visible.front button.approve').removeClass('loading')
+                                }
+                                
+                            })
+                            return false;
+                        }
+                    }).modal('show');
+                    return false;  
+                }
+                
+            })
+            $('#printcomission').click(function(){
+                new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        ' generando el documento')
+                $.ajax({
+                    type:'GET',
+                    url:'/finance/ajax/'+project+'/comissions/print',
+                    data:{
+                        'date':row[0],
+                        'user':row[2]
+                    },
+                    success:function(xhr){
+                        new_message(xhr.type,xhr.title,xhr.msj,true)
+                    },
+                    error:function(xhr){
+                        new_message('error','Error',
+                        'Ha ocurrido un error por favor notifica al administrador del sistema',
+                        true)
+                    }
+                })
+            })
+        })
+
+        $('#tablecomissiondetail tbody').on('click', 'td.dt-buttons', function () {
+            
+            var tr = $(this).closest('tr');
+            var row = tablecomissiondetail.row( tr );
+            
+            
+           
+
+            if ( row.child.isShown() ) {
+                // This row is already open - close it
+                row.child.hide();
+                tr.removeClass('shown');
+                $(this).find('button').removeClass('red').addClass('green')
+                $(this).find('i').removeClass('minus').addClass('plus')
+                
+            }
+            else {
+                // Open this row
+                var selected_paid_row = tableComissions.row($('tr.active')).data()
+                let button = $(this)
+                $(this).find('button').removeClass('green').addClass('red')
+                $(this).find('i').removeClass('plus').addClass('minus')
+
+                $.ajax({
+                    type:'GET',
+                    url:'/finance/ajax/'+project+'/comissions/detailsandactions',
+                    data:{
+                        'aggrupation':'sale_by_seller',
+                        'seller':row.data().assign_paid__seller,
+                        'date':selected_paid_row[0],
+                        'user':selected_paid_row[2]
+                    },
+                    success:function(xhr){
+                        row.child( format(xhr.data) ).show();
+                        tr.addClass('shown');
+                        button.html('<button class="ui circular icon tiny red button"><i class="minus icon"></i></button>')
+                    }
+                })
+                
+            }
+        } )
+        $('#tablecomissiondetail tbody').on('click', 'td.dt-print', function () {
+            
+            var tr = $(this).closest('tr');
+            var row = tablecomissiondetail.row( tr ).data();
+            console.log(row)
+            var selected_paid_row = tableComissions.row($('tr.active')).data()
+
+            button = $(this).find('button')
+            button.addClass('loading disabled')
+
+            $.ajax({
+                url:'/finance/ajax/'+project+'/printdocsupport',
+                type:'GET',
+                data:{
+                    'user':selected_paid_row[2],
+                    'date':selected_paid_row[0],
+                    'seller':row.assign_paid__seller
+                },
+                success: function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj,true)
+                },
+                complete: function(xhr){
+                    button.removeClass('loading disabled')
+                }
+            })
+            
+        } )
+        
+        $('#filetobank').click(function(){
+            $('#modal-filetobank')
+            .modal({
+                onApprove: function(){
+                    new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    let pay_account = $('#pay-account').val()
+                    let row = tableComissions.row($('#tableComissions tbody tr.active')).data()
+                    $.ajax({
+                        type:'GET',
+                        url:'/finance/ajax/'+project+'/printfilebank',
+                        data:{
+                            'type_of':'comission',
+                            'pay_account':pay_account,
+                            'comission_date':row[0],
+                            'user_pay':row[2]
+                        },
+                        success: (xhr) => {
+                            new_message(xhr.type,xhr.title,xhr.msj,true)
+                        },
+                        error: (xhr) => {
+                            error_message(xhr)
+                        },
+                    })
+                }
+            })
+            .modal('show')
+        })
+
+        $('#export-comissions').click(function(){
+            const start = $('input[name="start_date"]').val()
+            const end = $('input[name="end_date"]').val()
+            const params = new URLSearchParams()
+            if (start) { params.append('start_date', start) }
+            if (end) { params.append('end_date', end) }
+            const query = params.toString()
+            const url = `/finance/${project}/comissions/export${query ? '?' + query : ''}`
+            window.open(url, '_blank')
+        })
+    })
+</script>
+{%endblock%}

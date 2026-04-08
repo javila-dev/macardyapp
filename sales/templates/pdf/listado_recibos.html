@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+{%extends 'base.html'%}{%load static%}{%load humanize%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th><img src='/media/{{project.logo_empresa}}'></th>
+            <th><h1 style="margin:1px">Listado de Recibos de Pago</h1>
+                <small class='text-muted'>
+                    Generado el {{now|date:"d/m/Y H:i"}}
+                </small>
+            </th>
+            <th><img src='/media/{{project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+
+<div id="footer_content">(c) - página <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.get_full_name|default:user.username}}
+</div>
+
+<div>
+    <table>
+        <tr>
+            <td>
+                <h2>Información del Cliente:</h2>
+                <strong>Titular:</strong> {{sale.first_owner.full_name}}<br>
+                {%if sale.second_owner.full_name != " "%}<strong>Cotitular:</strong> {{sale.second_owner.full_name}}<br>{%endif%}
+                <strong>Contrato No.:</strong> CTR{{sale.contract_number}}<br>
+                <strong>Inmueble:</strong> {{sale.property_sold.description}}<br>
+            </td>
+            <td>
+                <h2>Información del Contrato:</h2>
+                <strong>Fecha de contrato:</strong> {{sale.add_date|date:"d/m/Y"}}<br>
+                <strong>Valor total:</strong> ${{sale.value|format_number}}<br>
+                <strong>Total pagado:</strong> ${{totals.total_ingresos|format_number}}<br>
+                <strong>Proyecto:</strong> {{project.name_to_show}}<br>
+            </td>
+        </tr>
+    </table>
+    <br>
+
+    <!-- Tabla de Recibos de Pago -->
+    <table style="border: solid 0.5px;border-color: gray;padding-top: 3px;" id="table-detail">
+        <thead>
+            <tr>
+                <th colspan="5" style="background-color: lightblue;"><h2>Recibos de Pago</h2></th>
+            </tr>
+            <tr style="text-align: center;vertical-align: middle;">
+                <th>Recibo</th>
+                <th>Fecha Recibo</th>
+                <th>Fecha Pago</th>
+                <th>Forma de Pago</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for income in incomes %}
+            <tr style="text-align: center;">
+                <td>{{ income.receipt }}</td>
+                <td>{{ income.add_date|date:"d/m/Y" }}</td>
+                <td>{{ income.payment_date|date:"d/m/Y" }}</td>
+                <td>{{ income.payment_method.name }}</td>
+                <td style="text-align: right;">${{ income.value|format_number }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="4" style="text-align: right;padding-right: 10px;">TOTAL PAGADO</th>
+                <th style="text-align: right;">${{totals.total_ingresos|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{%endblock%}
+
+{%block css%}
+<style>
+@page {
+    size: a4 portrait;
+    @frame header_frame {
+        -pdf-frame-content: header_content;
+        left: 50pt; width: 512pt; top: 30pt; height: 70pt;
+    }
+    @frame content_frame {
+        left: 50pt; width: 512pt; top: 100pt; height: 632pt;
+    }
+    @frame footer_frame {
+        -pdf-frame-content: footer_content;
+        left: 50pt; width: 512pt; top: 772pt; height: 20pt;
+    }
+}
+#table-detail {
+    border-collapse: collapse;
+    width: 100%;
+}
+#table-detail th, #table-detail td {
+    border: 1px solid gray;
+    padding: 5px;
+    font-size: 10px;
+}
+#table-detail th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
+</style>
+{%endblock%}

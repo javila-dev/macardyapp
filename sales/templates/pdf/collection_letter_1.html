@@ -1,0 +1,73 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th><img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140"></th>
+            <th></th>
+            <th><img src='/media/{{sale.project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+<h2>
+    CARTA No 1
+</h2><br><br>
+<p>
+    Sr(a): <strong>{{sale.first_owner.full_name}}</strong><br>
+    {{sale.first_owner.adress}}<br>
+    {{sale.first_owner.email}}
+</p>
+<br>
+<p>
+    <strong>Ref. REQUERIMIENTO DE PAGO</strong><br>
+    Respetado(a) señor(a): La presente es para recordarle que el contrato N° {{sale.contract_number}} de fecha {{sale.add_date}}, sobre el lote {{sale.property_sold.location}} de la manzana {{sale.property_sold.block}}
+    de la vereda El Ocaso de la PARCELACIÓN LAS NUTRIAS & ECOPARQUE CLUB, el plazo del pago de las cuotas pactadas se encuentra vencido, así mismo, le informamos que el incumplimiento en el pago de las cuotas acordadas le está generando intereses de mora y causal de terminación de contrato. 
+    Por lo anterior los invitamos para que, a más tardar en los próximos 10 días, realice el pago de su obligación vencida por cualquiera de los medios autorizados: Transferencia, consignación o directamente en nuestras oficinas.
+    {%if total_ci > 0%}<br>TOTAL, VENCIDO DE LA CUOTA INICIAL: {{total_ci|numbers_to_letters}} (${{total_ci|format_number}}).{%endif%}
+    {%if total_s > 0%}<br>TOTAL, VENCIDO DEL SALDO: {{total_s|numbers_to_letters}} (${{total_s|format_number}}).{%endif%}
+</p>
+
+<p>Anexo forma de pago del contrato:</p>
+
+<ul>
+    <li>{%for q in plan.ci_form%}
+        {{q.quanty}} cuota{{q.quanty|pluralize}} {{q.quanty|pluralize:"mensuales"}} de ${{q.value}} {{q.quanty|pluralize:"el, a partir del"}} {{q.initial_date}};
+        {%endfor%}
+    </li>
+    <li>
+        {{plan.scr_form.ctas_scr_q}} cuota{{plan.scr_form.ctas_scr_q|pluralize}} mensual{{plan.scr_form.ctas_scr_q|pluralize:"es"}} de ${{plan.scr_form.value_scr}} a partir del {{plan.scr_form.initial_date}}
+        {%if plan.sce_form.ctas_sce_q != ''%}, y {{plan.sce_form.ctas_sce_q}} cuota{{plan.sce_form.ctas_sce_q|pluralize}} extraordinarias {{plan.sce_form.periodicity}}{{plan.sce_form.ctas_sce_q|pluralize:"es"}} 
+        de ${{plan.sce_form.value_sce}} a partir del {{plan.sce_form.initial_date}}{%endif%}
+    </li>
+</ul>
+<p>
+Nuestras oficinas y todo nuestro personal se encuentran disponibles para atender sus inquietudes. Si al momento de recibir este comunicado usted ya ha realizado los pagos respectivos por favor hacer caso omiso a este oficio.
+Medellín, {{today}}.
+</p><br><br><br>
+<p>
+Atentamente,<br><br><br><br>
+
+<strong>Keila Terán</strong><br>
+Jefe De Cartera Comercial- Constructora Macardy S.A.S.<br>
+Cel: 318.712.7520
+</p>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 20px; 
+            height: 850pt;
+        }
+    }
+
+
+    p,ul {
+        font-size: 9.3pt;
+        text-align: justify;
+    }
+</style>
+{%endblock%}

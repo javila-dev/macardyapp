@@ -1,0 +1,442 @@
+{% extends 'site_base.html' %}
+{% load static %}
+{% load finance_extras %}
+{% block title %}Comercial | Parámetros de comisiones{% endblock %}
+{% block submenu %}
+<div class='header item'>
+    Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu active' href="/finance/{{project.name}}/comissions/parameters">Parámetros de cargos</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui dividing header">
+    <i class="cogs teal icon"></i>
+    <div class="content">
+        Parámetros de cargos comisionables
+        <div class="sub header">Administra los cargos disponibles para las liquidaciones comerciales.</div>
+    </div>
+</h2>
+
+<div class="ui raised segment">
+    <h4 class="ui header">Método de liquidación</h4>
+    <p>Elige cómo se libera el pago de comisiones:</p>
+    <div class="ui form" id="form-liquidation-method">
+        <div class="grouped fields">
+            <div class="field">
+                <div class="ui radio checkbox">
+                    <input type="radio" name="method" value="0" {% if method_value == 0 %}checked{% endif %}>
+                    <label>
+                        <strong>Fracciones clásicas</strong><br>
+                        <small>
+                            Se paga 30% de la comisión cuando el cliente completa el 30% de la cuota inicial (1/3).<br>
+                            Al llegar al 50% de la cuota inicial se paga el 50% (1/2).<br>
+                            Con el 100% de la cuota inicial o mayor recaudo, se libera el 100%.<br>
+                            Si ya se pagó una fracción, la siguiente se habilita automáticamente cuando el recaudo supera el umbral correspondiente.
+                        </small>
+                    </label>
+                </div>
+            </div>
+            <div class="field">
+                <div class="ui radio checkbox">
+                    <input type="radio" name="method" value="1" {% if method_value == 1 %}checked{% endif %}>
+                    <label>
+                        <strong>Mínimo de recaudo + % de avance</strong><br>
+                        <small>
+                            Primero exige el valor mínimo configurado. A partir de ese punto, la comisión se libera de forma proporcional al porcentaje de avance que indiques (ej. 30%); cuando el recaudo iguala ese porcentaje del valor del contrato, se paga el 100%.
+                        </small>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="fields" id="advance-percentage-wrapper" {% if method_value != 1 %}style="display:none;"{% endif %}>
+            <div class="field">
+                <label>Valor mínimo para iniciar comisiones</label>
+                <div class="ui right labeled input">
+                    <div class="ui label">$</div>
+                    <input type="text" inputmode="numeric" id="input-min-commission" value="{{ min_commission_value|floatformat:0 }}">
+                </div>
+                <div class="ui tiny basic label" id="min-commission-label" style="margin-top:0.5rem;">
+                    Valor actual: ${{ min_commission_value|format_number }}
+                </div>
+            </div>
+            <div class="field">
+                <label>Porcenta de Cuota Inicial Interno</label>
+                <div class="ui right labeled input">
+                    <input type="number" min="1" step="0.1" id="input-advance-percentage" value="">
+                    <div class="ui label">%</div>
+                </div>
+            </div>
+        </div>
+        <div class="field">
+            <label>&nbsp;</label>
+            <button class="ui primary button" type="button" id="btn-save-method">Guardar método</button>
+        </div>
+    </div>
+</div>
+<div class="ui segment" id="positions-segment">
+    <div class="ui clearing basic segment" style="padding:0 0 1rem;">
+        <div class="ui info message small">
+    <p>Los cargos listados aquí aplican únicamente para <strong>{{project.name_to_show}}</strong>. Si este proyecto no tiene cargos propios se usarán los cargos globales como respaldo.</p>
+    <div class="ui relaxed list">
+        <div class="item">
+            <strong>Grupo:</strong> define si el cargo es visible para el módulo Comercial (<em>Público</em>) o si se usa internamente en la escala (<em>Privado</em>).
+        </div>
+        <div class="item">
+            <strong>Anticipo:</strong> valor fijo que se pagará cuando se liquide un anticipo para ese cargo (si la regla de negocio lo permite).
+        </div>
+        <div class="item">
+            <strong>Asesor por defecto:</strong> quien se asignará automáticamente cuando se genere una escala si el cargo pertenece al grupo Privado.
+        </div>
+        <div class="item">
+            <strong>Incluir por defecto:</strong> si está activo, el cargo (y su asesor por defecto) se agrega automáticamente a cada nueva escala del proyecto.
+        </div>
+        <div class="item">
+            <strong>Activo/Inactivo:</strong> solo los cargos activos aparecen para crear o modificar escalas; los inactivos quedan registrados para histórico pero no se ofrecen en los cargos disponibles.
+        </div>
+    </div>
+</div>
+        <button class="ui primary button right floated" id="btn-open-form">
+            <i class="plus icon"></i>Agregar cargo
+        </button>
+    </div>
+    <table class="ui celled compact table" style="width:100%;">
+        <thead>
+            <tr class="center aligned">
+                <th>Cargo</th>
+                <th>Grupo</th>
+                <th>%</th>
+                <th>Anticipo</th>
+                <th>Asesor por defecto</th>
+                <th>Incluye por defecto</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="positions-body">
+            <tr>
+                <td colspan="8" class="center aligned">Cargando cargos...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="ui wide flyout" id="position-flyout" data-position="right" data-type="overlay">
+    <div class="header">
+        <div class="ui grid">
+            <div class="twelve wide column">
+                <h4 class="ui header" id="form-title" style="margin:0;">Crear cargo</h4>
+            </div>
+            <div class="four wide column right aligned">
+                <button class="ui circular icon button" id="btn-close-form">
+                    <i class="close icon"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="content">
+        <form class="ui form" id="position-form">
+            {% csrf_token %}
+            <input type="hidden" name="pk" id="field-pk">
+            <div class="field">
+                <label>Nombre</label>
+                <input type="text" name="name" id="field-name" maxlength="255" required>
+            </div>
+            <div class="two fields">
+                <div class="field">
+                    <label>Grupo</label>
+                    <select name="group" id="field-group" class="ui dropdown" required>
+                        <option value="">Selecciona...</option>
+                        {% for value,label in group_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label>% Comisión</label>
+                    <div class="ui right labeled input">
+                        <input type="number" step="0.01" min="0" name="rate" id="field-rate" required>
+                        <div class="ui label">%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="two fields">
+                <div class="field">
+                    <label>Anticipo</label>
+                    <div class="ui right labeled input">
+                        <div class="ui label">$</div>
+                        <input type="number" min="0" name="advance_bonus" id="field-advance-bonus" value="0">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Asesor por defecto</label>
+                    <select name="default" id="field-default" class="ui search dropdown">
+                        <option value="">— Ninguno —</option>
+                        {% for seller in sellers %}
+                        <option value="{{ seller.pk }}">{{ seller.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="fields">
+                <div class="field">
+                    <div class="ui checkbox">
+                        <input type="checkbox" name="include_default" id="field-include-default" checked>
+                        <label>Incluir asesor por defecto en la escala</label>
+                    </div>
+                </div>
+            </div>
+            <div class="fields">
+                <div class="field">
+                    <div class="ui toggle checkbox">
+                        <input type="checkbox" name="is_active" id="field-is-active" checked>
+                        <label>Cargo activo</label>
+                    </div>
+                </div>
+            </div>
+            <div id="form-errors" class="ui red message" style="display:none;"></div>
+            <div class="ui divider"></div>
+            <div class="ui right aligned basic segment" style="padding:0;">
+                <button class="ui button" type="button" id="btn-reset-form">Limpiar</button>
+                <button class="ui primary button" type="submit" id="btn-submit">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+const urls = {
+    list: "{% url 'ajax_comission_positions' project.name %}",
+    save: "{% url 'ajax_save_comission_position' project.name %}",
+    toggle: "{% url 'ajax_toggle_comission_position' project.name %}",
+    minValue: "{% url 'ajax_set_min_comission_value' project.name %}",
+    method: "{% url 'ajax_set_liquidation_method' project.name %}",
+};
+let positions = [];
+const flyout = $('#position-flyout');
+const currencyFormatter = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0 });
+
+function normalizeCurrencyInput($input) {
+    const raw = ($input.val() || '').replace(/[^\d]/g, '');
+    if (!raw) {
+        $input.val('');
+        return '';
+    }
+    const formatted = Number(raw).toLocaleString('en-US');
+    $input.val(formatted);
+    return raw;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text ?? '';
+    return div.innerHTML;
+}
+
+function resetForm() {
+    $('#position-form')[0].reset();
+    $('#field-pk').val('');
+    $('#field-group').dropdown('clear');
+    $('#field-default').dropdown('clear');
+    $('#field-include-default').prop('checked', true);
+    $('#field-is-active').prop('checked', true);
+    $('.ui.checkbox').checkbox('refresh');
+    $('#form-title').text('Crear cargo');
+    $('#btn-submit').text('Crear');
+    $('#form-errors').hide().empty();
+}
+
+function renderPositions() {
+    if (!positions.length) {
+        $('#positions-body').html('<tr><td colspan="8" class="center aligned">No hay cargos registrados</td></tr>');
+        return;
+    }
+    const rows = positions.map(pos => {
+        const badge = pos.is_active ? '<span class="ui green label">Activo</span>' : '<span class="ui grey label">Inactivo</span>';
+        const include = pos.include_default ? '<i class="check green icon"></i>' : '<i class="times red icon"></i>';
+        return `
+        <tr>
+            <td>${escapeHtml(pos.name)}</td>
+            <td class="center aligned">${escapeHtml(pos.group_label)}</td>
+            <td class="center aligned">${pos.rate_display}%</td>
+            <td class="right aligned">$${currencyFormatter.format(pos.advance_bonus || 0)}</td>
+            <td>${escapeHtml(pos.default_name || '—')}</td>
+            <td class="center aligned">${include}</td>
+            <td class="center aligned">${badge}</td>
+            <td class="center aligned collapsing">
+                <button class="ui tiny teal button btn-edit" data-id="${pos.id}">
+                    <i class="edit icon"></i>
+                </button>
+                <button class="ui tiny ${pos.is_active ? 'orange' : 'green'} button btn-toggle" data-id="${pos.id}">
+                    ${pos.is_active ? 'Inactivar' : 'Activar'}
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    $('#positions-body').html(rows);
+}
+
+function fetchPositions() {
+    $('#positions-segment').addClass('loading');
+    $.get(urls.list)
+        .done(resp => {
+            positions = resp.positions || [];
+            renderPositions();
+        })
+        .fail(() => {
+            $('#positions-body').html('<tr><td colspan="8" class="center aligned">No fue posible cargar los cargos.</td></tr>');
+            $('body').toast({class:'error', message:'No fue posible cargar los cargos.'});
+        })
+        .always(() => $('#positions-segment').removeClass('loading'));
+}
+
+$('#position-form').on('submit', function(e){
+    e.preventDefault();
+    $('#form-errors').hide().empty();
+    $('#btn-submit').addClass('loading');
+    $.post(urls.save, $(this).serialize())
+        .done(resp => {
+            $('body').toast({class:'success', message: resp.msg || 'Cargo guardado'});
+            resetForm();
+            fetchPositions();
+    flyout.flyout('hide');
+        })
+        .fail(xhr => {
+            const errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+            const list = Object.keys(errors).map(field => `<li><strong>${field}:</strong> ${errors[field].join(', ')}</li>`).join('');
+            $('#form-errors').html(`<ul>${list}</ul>`).show();
+        })
+        .always(() => $('#btn-submit').removeClass('loading'));
+});
+
+$('#btn-reset-form').click(() => resetForm());
+
+$(document).on('click', '.btn-edit', function(){
+    const id = Number($(this).data('id'));
+    const pos = positions.find(p => p.id === id);
+    if (!pos) return;
+    $('#field-pk').val(pos.id);
+    $('#field-name').val(pos.name);
+    $('#field-rate').val(pos.rate_display);
+    $('#field-advance-bonus').val(pos.advance_bonus || 0);
+    $('#field-include-default').prop('checked', !!pos.include_default);
+    $('#field-is-active').prop('checked', !!pos.is_active);
+    $('#field-group').dropdown('set selected', pos.group);
+    if (pos.default_id) {
+        $('#field-default').dropdown('set selected', pos.default_id);
+    } else {
+        $('#field-default').dropdown('clear');
+    }
+    $('.ui.checkbox').checkbox('refresh');
+    $('#form-title').text('Editar cargo');
+    $('#btn-submit').text('Actualizar');
+    flyout.flyout('show');
+});
+
+$(document).on('click', '.btn-toggle', function(){
+    const id = $(this).data('id');
+    const $btn = $(this).addClass('loading');
+    $.post(urls.toggle, { pk: id, csrfmiddlewaretoken: getCookie('csrftoken') })
+        .done(resp => {
+            $('body').toast({class:'success', message: resp.is_active ? 'Cargo activado' : 'Cargo inactivado'});
+            fetchPositions();
+        })
+        .fail(() => $('body').toast({class:'error', message:'No se pudo actualizar el estado del cargo'}))
+        .always(() => $btn.removeClass('loading'));
+});
+
+$(document).ready(function(){
+    $('.ui.dropdown').dropdown({clearable: true});
+    $('.ui.checkbox').checkbox();
+    flyout.flyout({position: 'right', type: 'overlay'});
+    $('#btn-open-form').click(() => {
+        resetForm();
+        flyout.flyout('show');
+    });
+    $('#btn-close-form').click(() => flyout.flyout('hide'));
+    $('#input-min-commission').on('input', function(){
+        normalizeCurrencyInput($(this));
+    }).each(function(){
+        normalizeCurrencyInput($(this));
+    });
+    (() => {
+        let pct = '{{ advance_percentage|default_if_none:"" }}';
+        if (pct && pct.indexOf(',') !== -1) {
+            pct = pct.replace(',', '.');
+        }
+        $('#input-advance-percentage').val(pct);
+    })();
+    $('#btn-save-min-commission').click(function(){
+        const btn = $(this);
+        const raw = normalizeCurrencyInput($('#input-min-commission'));
+        if (raw === '' || isNaN(raw)) {
+            $('body').toast({class:'error', message:'Ingresa un valor válido'});
+            return;
+        }
+        btn.addClass('loading');
+        $.post(urls.minValue, {valor: raw, csrfmiddlewaretoken: getCookie('csrftoken')})
+            .done(resp => {
+                $('body').toast({class:'success', message:'Valor mínimo actualizado'});
+                $('#min-commission-label').text(`Valor actual: $${currencyFormatter.format(resp.value || 0)}`);
+            })
+            .fail(xhr => {
+                const msg = (xhr.responseJSON && xhr.responseJSON.msg) || 'No se pudo actualizar el valor mínimo';
+                $('body').toast({class:'error', message: msg});
+            })
+            .always(() => btn.removeClass('loading'));
+    });
+    $('input[name="method"]').change(function(){
+        if ($(this).val() === '1') {
+            $('#advance-percentage-wrapper').slideDown();
+            $('#min-commission-segment').slideDown();
+        }else{
+            $('#advance-percentage-wrapper').slideUp();
+            $('#min-commission-segment').slideUp();
+        }
+    });
+    $('#btn-save-method').click(function(){
+        const btn = $(this).addClass('loading');
+        const method = $('input[name="method"]:checked').val();
+        let advance = $('#input-advance-percentage').val();
+        let minValue = normalizeCurrencyInput($('#input-min-commission'));
+        if (method === '1') {
+            if (minValue === '' || isNaN(minValue)) {
+                $('body').toast({class:'error', message:'Debes ingresar un valor mínimo válido'});
+                btn.removeClass('loading');
+                return;
+            }
+            if (!advance || isNaN(advance) || Number(advance) <= 0) {
+                $('body').toast({class:'error', message:'Debes ingresar un porcentaje de avance válido'});
+                btn.removeClass('loading');
+                return;
+            }
+        } else {
+            minValue = '';
+            advance = advance || 30;
+        }
+        $.post(urls.method, {
+            method,
+            advance,
+            min_value: minValue,
+            csrfmiddlewaretoken: getCookie('csrftoken')
+        })
+        .done(() => $('body').toast({class:'success', message:'Método actualizado'}))
+        .fail(xhr => {
+            const msg = (xhr.responseJSON && xhr.responseJSON.msg) || 'No se pudo actualizar el método';
+            $('body').toast({class:'error', message: msg});
+        })
+        .always(() => btn.removeClass('loading'));
+    });
+    fetchPositions();
+});
+</script>
+{% endblock %}

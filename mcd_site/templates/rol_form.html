@@ -1,0 +1,110 @@
+{%extends 'site_base.html'%}{%load static%}
+{%block title%}Admin | Roles{%endblock%}
+{%block submenu%}
+<div class='header item'>Roles</div>
+<div class='header item'>
+    <img class='avatar image' src="{% static 'img/Macardy PNG.png'%}">
+</div>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+  <h3 class="ui header">
+    <i class="user shield circular colored teal icon"></i>
+    <div class="content">Gestión de roles</div>
+  </h3>
+  
+  <div class="ui basic segment">
+    <button class="ui green labeled icon button" id="btn-nuevo-rol">
+      <i class="plus icon"></i>Nuevo
+    </button>
+    <table class="ui selectable compact table">
+      <thead>
+        <tr class="center aligned">
+          <th>ID</th>
+          <th style="width: 20%;">Descripción</th>
+          <th>Permisos</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in roles %}
+        <tr data-id="{{r.pk}}" style="cursor:pointer">
+          <td>{{r.pk}}</td>
+          <td>{{r.descripcion}}</td>
+          <td style="max-height: 60px; overflow-y: auto;">
+            {% for p in r.permisos.all %}
+              <span class="ui label"><small>{{p.descripcion}}</small></span>
+            {% empty %}
+              <span class="ui grey label">Sin permisos</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="ui modal" id="rolModal">
+  <div class="header">
+    <i class="user shield icon"></i>
+    <span id="modal-title">Nuevo Rol</span>
+  </div>
+  <div class="content">
+    <form class="ui form" method="post" id="form-rol">
+      {% csrf_token %}
+      <div class="field">
+        <label>Descripción</label>
+        <input type="text" name="descripcion" id="id_descripcion" required>
+      </div>
+      <div class="field">
+        <label>Permisos</label>
+        <select name="permisos" id="id_permisos" class="ui fluid search dropdown" multiple="">
+          {% for p in permisos %}
+            <option value="{{p.pk}}">{{p.descripcion}}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="ui primary button" type="submit">Guardar</button>
+    </form>
+  </div>
+</div>
+{%endblock%}
+
+{%block script%}
+<script>
+$(document).ready(function(){
+  $('.ui.dropdown').dropdown();
+  
+  let editingId = null;
+  
+  $('#btn-nuevo-rol').click(function(){
+    editingId = null;
+    $('#modal-title').text('Nuevo Rol');
+    $('#form-rol')[0].reset();
+    $('#id_permisos').dropdown('clear');
+    $('#rolModal').modal('show');
+  });
+  
+  $('tbody tr').click(function(){
+    editingId = $(this).data('id');
+    $('#modal-title').text('Editar Rol');
+    
+    $.get('/ajax/rol/' + editingId, function(data){
+      $('#id_descripcion').val(data.descripcion);
+      $('#id_permisos').dropdown('clear');
+      $('#id_permisos').dropdown('set selected', data.permisos);
+      $('#rolModal').modal('show');
+    });
+  });
+  
+  $('#form-rol').submit(function(e){
+    e.preventDefault();
+    let url = editingId ? '{% url "rol_form" 0 %}'.replace('0', editingId) : '{% url "rol_nuevo" %}';
+    
+    $.post(url, $(this).serialize(), function(){
+      location.reload();
+    });
+  });
+});
+</script>
+{%endblock%}

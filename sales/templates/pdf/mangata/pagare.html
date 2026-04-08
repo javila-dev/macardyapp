@@ -1,0 +1,267 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}
+{%block content%}
+<div>
+    <table>
+        <tr>
+            <td>
+                <img src='{%static "img/Macardy-PNG.png"%}' width="80" height="80">
+            </td>
+        </tr>
+    </table>
+</div>
+<div>
+    <p style='text-align:center;'><strong>PAGARÉ</strong></p>
+    <p>
+        <b>Pagaré No.</b> _________ C-</b> ______<br>
+        <b>Fecha de suscripción:</b> __________________________<br>
+        <b>Fecha de Vencimiento:</b> __________________________<br>
+        <b>Lugar de Cumplimiento de la Obligación:</b> __________________________<br>
+        <b>Valor de la Obligación:</b> ________________________<br>
+        <b>Lugar y Fecha de Celebración del Contrato:</b> ________________________<br>
+        <b>Yo (Nosotros):</b><br>
+    <ol>
+        <li><u>{{sale.first_owner.full_name.upper}}</u></li>
+        {%if sale.second_owner.full_name != ' '%}
+        <li><u>{{sale.second_owner.full_name.upper}}</u></li>
+        {%endif%}
+        {%if sale.third_owner.full_name != ' '%}
+        <li><u>{{sale.third_owner.full_name.upper}}</u></li>
+        {%endif%}
+        {%if sale.fourth_owner.full_name != ' '%}
+        <li><u>{{sale.fourth_owner.full_name.upper}}</u></li>
+        {%endif%}
+    </ol>
+    </p>
+
+    <p style="text-align:Justify;">Identificado(s) como aparece al pie de mi(nuestra) firma y actuando en nombre propio
+        y representación; <strong>DECLARO:
+            Primero. Objeto.</strong> Que por virtud del presente título valor pagaré incondicionalmente, a la orden de
+        <strong>CONSTRUCTORA
+            MACARDY S.A.S</strong> o a quien represente sus derechos, en la ciudad de Medellín y dirección indicados, la
+        suma de ___________________________________________________
+        ($_____________________________) más los intereses señalados en la cláusula segunda de este documento.<br>
+        <strong>Segundo. Intereses.</strong> Que sobre la suma debida reconoceré intereses equivalentes al DTF más 4
+        puntos sobre el capital
+        o su saldo insoluto. En caso de mora reconoceré interesesa a la tasa máxima legal vigente estipulada por la
+        Superintendencia Financiera. <br>
+        <strong>Tercero.</strong> Serán a mi cargo, el valor de honorarios profesionales, por la cobranza judicial y
+        extrajudicial, los cuales en
+        ningún caso pueden ser inferiores al diez por ciento (10%) de la suma total adeudada, al igual que todos los
+        demás
+        gastos en que incurra <strong>CONSTRUCTORA MACARDY S.A.S,</strong> o a quien represente sus derechos o el
+        tenedor legítimo de
+        este título por motivo de la cobranza. Sobre las sumas que tenga que sufragar el tenedor para hacer efectivo el
+        recaudo
+        de esta obligación reconoceré y pagaré intereses a la tasa legal vigente más alta prevista, de conformidad con
+        certificación de la Superintendencia Financiera o de quien haga sus veces. Acepto desde ahora cualquier cesión,
+        endoso
+        o traspaso que de este título valor hiciere el acreedor a cualquier persona natural o jurídica, haciendo
+        declaración expresa
+        de que el acreedor queda con el derecho a dirigirse indistintamente contra cualquiera de los obligados por el
+        presente
+        instrumento sin necesidad de recurrir a mas notificaciones y que la solidaridad subsiste en caso de extensión
+        del plazo.<br>
+        <strong>Cuarto.</strong> El impuesto de timbre a que haya lugar cuando el título sea llenado, correrá por cuenta
+        mía, su monto puede ser
+        cobrado junto con las demás obligaciones incorporando la suma pagada dentro del presente pagaré.
+    </p>
+    <p><strong>DEUDORES:</strong></p><br><br><br>
+    <table>
+        <tr>
+            <td style="vertical-align:top;">
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.first_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.first_owner.pk}}
+            </td>
+            <td style="vertical-align:top;">{%if sale.second_owner.full_name != " "%}
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.second_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.second_owner.pk}}
+                {%endif%}
+            </td>
+            <td style="vertical-align:top;">{%if sale.third_owner.full_name != " "%}
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.third_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.third_owner.pk}}
+                {%endif%}
+            </td>
+        </tr>
+    </table>
+    <p><strong>ACREEDOR:</strong></p><br><br>
+    <table>
+        <tr>
+            <td style="width: 100%;"><strong>
+                    FIRMA: <u>___________________________________________ </u><br>
+                    RAZON SOCIAL: CONSTRUCTORA MACARDY S.A.S<br>
+                    NIT: 901.036.029-7
+                </strong>
+            </td>
+        </tr>
+    </table>
+</div>
+<pdf:nextpage />
+<div>
+    <table>
+        <tr>
+            <td>
+                <img src='{%static "img/Macardy-PNG.png"%}' width="80" height="80">
+            </td>
+        </tr>
+    </table>
+</div>
+<div style="padding-top: 20px;">
+    <p style='text-align:right;'><strong>Medellín, <u></u></strong></p>
+    <p>
+        <b>Señores</b><br>
+        <b>CONSTRUCTORA MACARDY S.A.S</b><br>
+        <b>Carta de instrucciones para diligenciar Pagaré No. <u>__________</u> C-<u>______</u></b><br>
+        Cordial saludo.<br>
+    <ol>
+        <li><u>{{sale.first_owner.full_name.upper}}</u></li>
+        {%if sale.second_owner.full_name != ' '%}
+        <li><u>{{sale.second_owner.full_name.upper}}</u></li>
+        {%endif%}
+        {%if sale.third_owner.full_name != ' '%}
+        <li><u>{{sale.third_owner.full_name.upper}}</u></li>
+        {%endif%}
+    </ol>
+    </p>
+    <p style="text-align:justify;">
+        Identificado(s) como aparece al pie de mi firma y actuando en nombre propio y representación_, por medio de la
+        presente
+        e y de conformidad con Io establecido en el Articulo 622 del Código de Comercio, autorizo expresa, permanente e
+        irrevocablemente a <b>CONSTRUCTORA MACARDY S.A.S</b>, ó a quien represente sus intereses o al tenedor legítimo
+        de
+        este instrumento para diligenciar y llenar los espacios en blanco en el PAGARE N° <u>_________</u> — C <u>______</u> sin
+        necesidad de
+        requerimiento alguno de acuerdo con siguientes instrucciones:
+    </p>
+    <p style="text-align: justify;">
+        <b>1.</b> La cuantía igual al monto de todas las Sumas que por cualquier concepto adeude a <b>CONSTRUCTORA
+            MACARDY S.A.S</b>
+        persona jurídica con Nit.901036.029-7 0 a quien represente sus derechos o al tenedor legítimo de este
+        instrumento,
+        el día que sea diligenciado el pagaré. Dichas sumas serán las que resultaren de aplicar los cargos por concepto
+        de cuotas
+        financiadas en el contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, saldos de capital
+        adeudado según lo expresado en el
+        contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, multas, clausulas penales, intereses de
+        plazo, moratorios y demás sumas
+        de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>.
+    </p>
+    <p style="text-align: justify;">
+        <b>2. </b>La fecha de vencimiento será el día en que se diligencien los espacios dejados en blanco en el pagaré.
+        <b>3. </b>Este pagaré
+        solo podrá ser llenado y utilizado cambiariamente, en el evento en que el obligado incurra en el no pago de
+        cuotas
+        financiadas en el contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, saldos de capital
+        adeudado según la expresado en el
+        contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, multas, clausulas penales, intereses de
+        plazo, moratorios y demás
+        sumas de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u> y
+        que se le adeude a
+        <b>CONSTRUCTORA MACARDY S.A.S. </b>En ningún caso, los beneficiarios del pagaré podrán colocar como valor
+        del mismo, sumas que correspondan a acreencias o compensaciones derivadas de contratos o negocios jurídicos
+        diferentes
+        al enunciado en el numeral 1° de esta carta. <b>4. </b>El impuesto de timbre a que haya lugar cuando el titulo
+        sea llenado,
+        correrá por cuenta mía, su monto puede ser cobrado junto con las demás obligaciones Incorporando la suma pagada
+        dentro
+        del presente pagaré.
+    </p>
+    <p><strong>Atentamente,</strong></p><br><br><br>
+    <table>
+        <tr>
+            <td style="vertical-align:top;">
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.first_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.first_owner.pk}}
+            </td>
+            <td style="vertical-align:top;">{%if sale.second_owner.full_name != " "%}
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.second_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.second_owner.pk}}
+                {%endif%}
+            </td>
+            <td style="vertical-align:top;">{%if sale.third_owner.full_name != " "%}
+                <strong>
+                    <u>________________________</u>
+                    NOMBRE:</strong>{{sale.third_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.third_owner.pk}}
+                {%endif%}
+            </td>
+        </tr>
+    </table>
+</div>
+{% endblock %}
+{%block css%}
+<style>
+    @page {
+        size: legal;
+
+        @frame header_frame {
+            /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt;
+            width: 530pt;
+            top: 5px;
+            height: 150px;
+        }
+
+        @frame content_frame {
+            /* Content Frame */
+            left: 50pt;
+            width: 512pt;
+            top: 20px;
+            height: 950pt;
+        }
+    }
+
+    p,
+    ol {
+        font-size: 10pt
+    }
+
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10pt
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+
+    .square {
+        width: 10px;
+        height: 10px;
+        border: 3px solid #555;
+        border-radius: 3px;
+    }
+</style>
+{%endblock%}

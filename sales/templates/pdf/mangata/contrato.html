@@ -1,0 +1,387 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th><img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140"></th>
+            <th>Cra 76 # 32 - 55 Piso 201(Medellín) <br> Tel.: 4792193 <br> Nit: 901 036029-7</th>
+            <th><img src='/media/{{sale.project.logo}}' width="150" height="120"><br>
+        </tr>
+    </table>
+</div>
+<div>
+    <p style='text-align:justify'><strong>OFERTA COMERCIAL No. <span
+                style="color:rgb(239, 95, 103)">{{sale.contract_number}}</span> DE ADQUISICIÓN DE BIEN INMUEBLE
+            UBICADO EN EL MUNICIPIO DE COVEÑAS. <br><br> BLOQUE N° {{sale.property_sold.block}},
+            LOTE N° {{sale.property_sold.location}}, UNIDAD CAMPESTRE "MANGATA"</strong>
+    </p>
+
+    <p style='text-align: justify;'>
+        <strong>Consideraciones Previas de la Oferta Comercial:</strong> <br>
+        Por medio de la presente oferta comercial, me permito proporcionar
+        en los términos del artículo 845 del Código de Comercio, los elementos
+        esenciales para la celebración de un negocio jurídico, que se perfeccionará
+        mediante su aceptación, comunicada por escrito, en los términos que se señalan más adelante
+    </p>
+
+    <p style='text-align: justify;'>
+        <strong>I. IDENTIFICACIÓN DE LAS PARTES: </strong>
+        <strong>MARILYN CARDONA RAVE</strong>, identificada con cédula de cudadanía <strong>N°1.037.604.548</strong>,
+        mayor
+        de edad y vecina de la ciudad de Medellín, actuando en calidad de representante legal de la sociedad
+        <strong>CONSTRUCTORA MACARDY S.A.S</strong>, con domicilio en la ciudad de Medellín en la
+        Carrera 76 #32-55 Edificio Ofix 76 - oficina 201- piso 2 e identificada con <strong>NIT</strong>: 901.036.029-7,
+        sociedad inscrita en la cámara de comercio de Medellín con la matrícula 21-576357-12 quien se denominará como
+        <strong>PROPONENTE DE LA OFERTA COMERCIAL</strong> y por otra parte el(los)
+        ciudadano(s)<strong> <u>{{sale.first_owner.full_name.upper}} </u>
+            {%if sale.second_owner.full_name != ' '%}, {{sale.second_owner.full_name.upper}}{%endif%}
+            {%if sale.third_owner.full_name != ' '%}, {{sale.third_owner.full_name.upper}}{%endif%}</strong>(s)
+        mayor(es) de edad, quien(es) en adelante y. ara efectos del presente contrato se denominará(n) el(los)
+        <strong>DESTINATARIO(S) DE LA OFERTA
+            COMERCIAL</strong> identifcados como:
+    </p>
+
+
+    <table>
+        <tr>
+            <td style="width: 45%;">1.&nbsp;&nbsp;&nbsp;<u>{{sale.first_owner.full_name.upper}}</u></td>
+            <td>Cédula:&nbsp;&nbsp;&nbsp; <u>{{sale.first_owner.client_document}}</u></td>
+            <td>E. Civil:&nbsp;&nbsp;&nbsp; <u>{{sale.first_owner.marital_status}}</u></td>
+        </tr>
+        {%if sale.second_owner.full_name != ' '%}
+        <tr>
+            <td>2.&nbsp;&nbsp;&nbsp;<u>{{sale.second_owner.full_name.upper}}</u></td>
+            <td>Cédula:&nbsp;&nbsp;&nbsp;<u>{{sale.second_owner.client_document}}</u></td>
+            <td>E. Civil:&nbsp;&nbsp;&nbsp;<u>{{sale.second_owner.marital_status}}</u></td>
+        </tr>
+        {%endif%}
+        {%if sale.third_owner.full_name != ' '%}
+        <tr>
+            <td>3.&nbsp;&nbsp;&nbsp;<u>{{sale.third_owner.full_name.upper}}</u></td>
+            <td>Cédula:&nbsp;&nbsp;&nbsp;<u>{{sale.third_owner.client_document}}</u></td>
+            <td>E. Civil:&nbsp;&nbsp;&nbsp;<u>{{sale.third_owner.marital_status}}</u></td>
+        </tr>
+        {%endif%}
+        {% if sale.fourth_owner.full_name != " " %}
+        <tr>
+            <td>4.&nbsp;&nbsp;&nbsp;<u>{{ sale.fourth_owner.full_name.upper }}</u></td>
+            <td>Cédula:&nbsp;&nbsp;&nbsp;<u>{{ sale.fourth_owner.client_document }}</u></td>
+            <td>E. Civil:&nbsp;&nbsp;&nbsp;<u>{{ sale.fourth_owner.marital_status }}</u></td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <p style='text-align: justify;'>
+        <strong>DOMICILIO DEL TITULAR</strong> (Dirección de correspondencia)
+    <table>
+        <tr>
+            <td colspan="2">Residencia: <u>{{sale.first_owner.address|default_if_none:" "}}</u></td>
+            <td>Ciudad/Municipio:<u>{{sale.first_owner.city|countries:"city"}},
+                    {{sale.first_owner.state|countries:"state"}}</u></td>
+        </tr>
+        <tr>
+            <td colspan="2">Oficina: <u>{{sale.first_owner.office|default_if_none:" "}}</u></td>
+            <td>Ciudad/Municipio: <u>{{sale.first_owner.city|countries:"city"}},
+                    {{sale.first_owner.state|countries:"state"}}</u></td>
+        </tr>
+        <tr>
+            <td>Teléfono de residencia: <u>{{sale.first_owner.house_phone|default_if_none:" "}}</u></td>
+            <td>Teléfono de oficina: <u>{{sale.first_owner.phone_office|default_if_none:" "}}</u></td>
+            <td>Celular: <u>{{sale.first_owner.phone|default_if_none:" "}}</u></td>
+        </tr>
+        <tr>
+            <td colspan="3">Correo: <u>{{sale.first_owner.email}}</u></td>
+        </tr>
+    </table>
+    </p>
+
+    <p style='text-align: justify;'>
+        <strong>II. PRESENTACIÓN DE LA OFERTA COMERCIAL </strong>
+        El negocio ofertado consiste en la intención que el (los) destinatario(s) lo acepte(n) por medio de la presente
+        oferta
+        comercial, realizada sobre bien inmueble que a continuación se detalla
+    </p>
+
+    <p style='text-align: justify;'>
+    <ul>
+        <li style='text-align: justify;'>
+            <p>
+                Lote de terreno número: <u>{{sale.property_sold.location}}</u> con una extensión de
+                <u>{{sale.property_sold.area}}m2</u>,
+                ubicado en la <strong> UNIDAD CAMPESTRE "MANGATA"</strong>, localizado
+                en el Municipio
+                de Coveñas (Sucre), vereda los Algarrobos ETAPA <u>{{sale.property_sold.stage}}</u>, BLOQUE
+                <u>{{sale.property_sold.block}}</u>
+            </p>
+            <p>
+                Identificado con matrícula inmobiliaria No. <u>{{sale.property_sold.prop_registry}}</u>, de la
+                Oficina
+                de
+                Registro de Instrumentos Públicos de Sincelejo.
+            </p>
+        </li>
+    </ul>
+
+    <p style="text-align: justify;">
+        Para que el destinatario adquiera el mismo y se obligue a suscribir contrato de promesa de compraventa de
+        bien inmuble en el
+        cual se detalla el inmueble anteriormente ofrecido y cumpliendo con los requisitos legales del contrato de
+        promesa de compraventa.
+    </p>
+    <p style="text-align: justify;">
+        Que la presente oferta comercial sobre bien inmueble tiene como valor la suma de
+        <u>{{sale.value|numbers_to_letters}}</u> M/L
+        (<u>${{sale.value|format_number}}</u>), los cuales podrá ser cancelados por el
+        destinatario de la oferta de la siguiente manera:
+
+    <table>
+        <tr>
+            <td><strong>1. CUOTA INICIAL $<u>{{plan.total_initial_payment|format_number}}</u></strong></td>
+            <td><strong>2. SALDO $ <u>{{plan.total_to_finance|format_number}}</u></strong></td>
+        </tr>
+        <tr></tr>
+        <tr>
+            <td colspan="2" style='text-align: left;'><strong>FORMA DE PAGO</strong></td>
+        </tr>
+        <tr>
+            <td>
+                <strong>Cuota Inicial</strong>
+            </td>
+            <td>
+                <strong>Saldo a pagar</strong>
+            </td>
+        </tr>
+        <tr>
+            <td style='text-align: justify; vertical-align: top; padding-right: 6px;'>
+                <u>
+                    {%for q in plan.ci_form%}
+                    {{q.quanty}} cuota{{q.quanty|pluralize}} {{q.quanty|pluralize:"mensuales"}} de ${{q.value}}
+                    {{q.quanty|pluralize:"el, a partir del"}} {{q.initial_date}};
+                    {%endfor%}
+                </u>
+            </td>
+            <td style='text-align: justify; vertical-align: top'>
+                <u>{%if plan.scr_form.ctas_scr_q > 0%}
+                    {{plan.scr_form.ctas_scr_q}} cuota{{plan.scr_form.ctas_scr_q|pluralize}}
+                    mensual{{plan.scr_form.ctas_scr_q|pluralize:"es"}} de ${{plan.scr_form.value_scr}} a partir
+                    del
+                    {{plan.scr_form.initial_date}}
+                    {%if plan.sce_form.ctas_sce_q != ''%}, y {{plan.sce_form.ctas_sce_q}}
+                    cuota{{plan.sce_form.ctas_sce_q|pluralize}} extraordinarias
+                    {{plan.sce_form.periodicity}}{{plan.sce_form.ctas_sce_q|pluralize:"es"}} de
+                    ${{plan.sce_form.value_sce}} a partir del {{plan.sce_form.initial_date}}{%endif%}
+                    {%else%}
+                    No aplica
+                    {%endif%}</u>
+            </td>
+        </tr>
+    </table>
+    {%if sale.observations != "" %}<p style="text-align: justify;"><b>Observaciones:
+        </b><u>{{sale.observations.capitalize}}</u></p>{%endif%}
+    </p>
+    </p>
+    <p style='text-align:justify'><strong>III. ELEMENTOS GENERALES ESENCIALES DEL NEGOCIO</strong><br>
+        El negocio ofertado cuenta con los siguientes elementos esenciales:
+    </p>
+
+    <p style='text-align: justify;'>
+        <strong>1. </strong> Mediante la aceptación de esta oferta, el(los) aceptante(s) y/o destinatario(s) se
+        obliga(n) a suscribir
+        el contrato de promesa de compraventa dentro de {{plan.sce_form.initial_date}} siguiente(s), con el cual se
+        perfecciona el negocio jurídico
+        ofrecido por el proponente en la presente oferta.<br>
+        <strong>2. </strong> El precio fijado en el contrato de promesa de compraventa será el valor de:
+        {{sale.value|numbers_to_letters}} M/L (${{sale.value|format_number}}),
+        pagadero de la forma indicada por el proponente en la presente oferta comercial por el(los) destinatario(s) y/o
+        aceptante(s)
+        de la oferta.<br>
+        <strong>3. </strong> Que el proponente fijará en contrato de promesa de compraventa de bien inmuble, cláusulas,
+        como intereses
+        moratorios, intereses corrientes, cláusula penal, formas de pago, fecha de entrega, fecha de firma de escrituras
+        y las demás
+        concernientes para cumplir con los requisitos de ley para la existencia y validez del negocio jurídico promesa
+        de compraventa de bien inmueble.<br>
+        <strong>4. </strong> Las demás condiciones, términos y elementos del negocio, serán determinados en el contrato
+        de promesa de compraventa.
+    </p>
+
+    <p style='text-align:justify'>
+
+    </p>
+
+    <p style='text-align:justify'><strong>IV. VIGENCIA DE LA OFERTA COMERCIAL</strong><br>
+        Al haberse realizado esta oferta de manera presencial por parte del proponente y habiéndose mostrado el proyecto
+        <strong>UNIDAD CAMPESTRE "MANGATA"
+            Condominium y Spa, </strong> ETAPA {{sale.property_sold.stage}}, jurisdicción del Municipio de Coveñas
+        (Sucre), vereda Los Algarrobos el(los) destinatarios(s) de la oferta comercial, se fija como plazo de la misma
+        manera
+        inmediata, es decir, a la fecha de exhibición del presente documento lo anterior con fundamento en el artículo
+        853 del Código de Comercio.
+    </p>
+    <p style='text-align:justify'><strong>V. ACEPTACIÓN DE LA OFERTA COMERCIAL</strong></p>
+    <table>
+        <tr>
+            <td><strong>1. </strong>Yo, <u>{{sale.first_owner.full_name.upper}}</u> ciudadano(a) de
+                <u>{{sale.first_owner.country.upper}}</u>, mayor de edad, identificado(A) con C.C:
+                <u>{{sale.first_owner.client_document}}</u>.
+            </td>
+        </tr>
+        <tr>
+            <td><strong>2. </strong>Yo, <u>{{sale.second_owner.full_name.upper}}</u> ciudadano(a) de
+                <u>{{sale.second_owner.country.upper}}</u>, mayor de edad, identificado(A) con C.C:
+                <u>{{sale.second_owner.client_document}}</u>.
+            </td>
+        </tr>
+        {%if sale.third_owner.full_name != ''%}
+        <tr>
+            <td><strong>3. </strong>Yo, <u>{{sale.third_owner.full_name.upper}}</u> ciudadano(a) de
+                <u>{{sale.third_owner.country.upper}}</u>, mayor de edad, identificado(A) con C.C:
+                <u>{{sale.third_owner.client_document}}</u>.
+            </td>
+        </tr>
+        {%endif%}
+    </table>
+
+    <p style='text-align:justify'>
+        Actuando en calidad de destinatario(s) de la oferta comercial, por medio del presente manifiesto que
+        <strong>SI</strong> acepto de manera irrevocable la oferta
+        comercial acá detallada y la de celebrar el negocio jurídico contrato de promesa de compraventa de bien
+        inmueble, realizada por el proponente, aceptación que realizo
+        de manera libre, consiente y voluntaria, constando esta aceptación con mi correspondiente firma y huella, para
+        lo cual a la fecha de suscripción de la presente oferta
+        y aceptación de la misma realizaré un abono en dinero que corresponde a la aceptación del negocio jurídico por
+        valor de:
+        <u>{{sale.value|numbers_to_letters}}</u> M/L ($<u>{{sale.value|format_number}}</u>).
+    </p>
+    <p style='text-align:justify'><strong>VI. CLAUSULA PENAL</strong><br>
+        El incumplimiento por inejecución, ejecución parcial de la totalidad o de alguna o algunas de las obligaciones
+        derivadas
+        de la presente oferta comercial por cualquiera de las partes, dará derecho a aquél que hubiere incumplido o se
+        hubiere
+        allanado a cumplir las obligaciones a su cargo, para exigir del que no cumplió o no se allanó a cumplir las que
+        le
+        corresponden A TITULO DE PENA o SANCIÓN, el 30% del valor total del negocio jurídico. La parte que hubiere
+        cumplido
+        o se hubiere allanado a cumplir sus obligaciones, podrá demandar en el caso que el otro no cumpla o se allane a
+        cumplir
+        las que le corresponden, bien el cumplimiento o la resolución del mismo por vía ordinaria. El pacto de la
+        presente cláusula
+        penal, no extingue la obligación principal, ni la posibilidad de cobro de la indemnización de prejuicios
+        causados con el
+        incumplimiento. En ambos casos con el incumplimiento o la resolución tendrá derecho el contratante cumplido a
+        pedir el pago
+        de la pena de indemnización de los pre pertinentes tal como lo permiten los Artículos 870 del Código de Comercio
+        y
+        1546 y 1600 del Código Civil Colombiano.
+    </p>
+    <p>
+        Para constancia se firma, en dos (2) ejemplares del mismo tenor, en <u>__________________</u>, el día
+        {{sale.add_date.day}} del mes de {{sale.add_date.month}} del año {{sale.add_date.year}}.
+    </p>
+    <table>
+        <tr>
+            <td style="width: 40%">
+                El Proponente de la Oferta,<br><br>
+            </td>
+            <td style="width: 40%; vertical-align:top">
+                Destinatario(a) de la Oferta,<br><br><br>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <strong>
+                    <u>_______________________________</u><br>
+                    CONSTRUCTORA MACARDY S.A.S<br>
+                    NIT. 901.036.039-7<br>
+                    Representada legalmente por:<br>
+                    MARILYN CARDONA RAVE<br>
+                    C.C. 1.037.604.548
+                </strong>
+            </td>
+            <td style="vertical-align:top;">
+                <strong>
+                    <u>_______________________________</u><br>
+                    NOMBRE:</strong>{{sale.first_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.first_owner.pk}}
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 40%;">{%if sale.second_owner.full_name != " "%}
+                <br>Destinatario(a) de la Oferta,<br><br><br>
+                <strong>
+                    <u>_______________________________</u><br>
+                    NOMBRE:</strong>{{sale.second_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.second_owner.pk}}
+                {%endif%}
+            </td>
+            <td style="width: 40%;">{%if sale.third_owner.full_name != " "%}
+                <br>Destinatario(a) de la Oferta,<br><br><br>
+                <strong>
+                    <u>_______________________________</u><br>
+                    NOMBRE:</strong>{{sale.third_owner.full_name}}<br>
+                <strong>CC.</strong> {{sale.third_owner.pk}}
+                {%endif%}
+            </td>
+        </tr>
+    </table>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: legal;
+
+        @frame header_frame {
+            /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt;
+            width: 530pt;
+            top: 10px;
+            height: 150px;
+        }
+
+        @frame content_frame {
+            /* Content Frame */
+            left: 50pt;
+            width: 512pt;
+            top: 155px;
+            height: 860pt;
+        }
+    }
+
+
+    p {
+        font-size: 9.3pt
+    }
+
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.3pt
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

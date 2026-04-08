@@ -1,0 +1,1030 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}
+{%block title%}Partners{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Partners
+</div>
+<a class='item {{class_clients}} submenu' data-tab='tab-clientes'>Clientes</a>
+<a class='item submenu {{class_sellers}}' data-tab='tab-gestores'>Gestores</a>
+{%endblock%}
+{%block content%}
+
+<div class='ui tab basic segment active' data-tab='tab-clientes'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="users circular teal icon"></i>
+          <div class="content">
+            Gestion de clientes
+          </div>
+        </h2>
+      </div>
+    <div class="ui two steps">
+        <a class="active step" data-tab='step-new-client' id="div-tab-step-new-client">
+            <i class="plus circle icon"></i>
+            <div class="content">
+                <div class="title">Crear/Modificar</div>
+                <div class="description">Crea o modifica un nuevo cliente</div>
+            </div>
+        </a>
+        <a class="step" data-tab='step-manage-client' id="div-step-manage-client">
+            <i class="address book outline icon"></i>
+            <div class="content">
+                <div class="title">Gestionar</div>
+                <div class="description">Administrar la información de tus clientes</div>
+            </div>
+        </a>
+    </div>
+    <div class="ui tab segment active" data-tab="step-new-client">
+        {% crispy form_clientes %}
+    </div>
+    <div class="ui tab segment" data-tab="step-manage-client">
+        <div class="ui basic segment">
+            <div class="ui labeled input" style="margin-bottom: 1.5rem;">
+                <div class="ui label">Proyecto</div>
+                <select id="id-project-to-filter-clients" class="ui selection dropdown">
+                    <option value="Todos">Todos</option>
+                    {%for project in projects%}
+                    <option value="{{project.pk}}">{{project.pk.capitalize}}</option>
+                    {%endfor%}
+                </select>
+            </div>
+            <table id='table_clients' class="ui display celled table" style='width: 100%;'>
+                <thead>
+                    <tr>
+                        <th>Documento</th>
+                        <th style="width: 35%;">Nombre</th>
+                        <th style="width: 25%;">Email</th>
+                        <th>Telefono</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+<div class='ui tab basic segment' data-tab='tab-gestores' style='margin-top:0px'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="user tie circular teal icon"></i>
+          <div class="content">
+            Gestion de asesores
+          </div>
+        </h2>
+      </div>
+    <div class="ui two steps" id='tab-content-gestores'>
+        <a class="active step" data-tab='step-create-sellers'>
+            <i class="plus circle icon"></i>
+            <div class="content">
+                <div class="title">Crear</div>
+                <div class="description">Crea un nuevo gestor</div>
+            </div>
+        </a>
+        <a class="step" data-tab='step-manage-sellers'>
+            <i class="address book outline icon"></i>
+            <div class="content">
+                <div class="title">Gestionar</div>
+                <div class="description">Administrar la información de los gestores</div>
+            </div>
+        </a>
+    </div>
+    <div class="ui tab segment active" data-tab="step-create-sellers">
+        {% crispy form_gestores %}
+    </div>
+    <div class="ui tab segment" data-tab="step-manage-sellers">
+        <table id='table_sellers' class="ui compact small celled table" style='width: 100%;'>
+            <thead>
+                <th>Documento</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Telefono</th>
+                <th>Estado</th>
+                <th>Equipo</th>
+            </thead>
+            <tfoot>
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+<div class="ui modal" id='modalSellers'>
+    <div class="header"></div>
+    <i class="close icon"></i>
+    <div class="content">
+        <div class="ui stackable grid">
+            <div class="two wide column">
+                <div class="ui compact vertical pointing labeled icon menu" id='sellers-info-menu'>
+                    <a class="item active" data-tab='sellers-data-tab'>
+                        <i class="info icon"></i>
+                        Datos
+                    </a>
+                    <a class="item" data-tab='sellers-statics-tab'>
+                        <i class="chart bar outline icon"></i>
+                        Estadisticas
+                    </a>
+                    <a class="item" data-tab='sellers-docs-tab'>
+                        <i class="file pdf outline icon"></i>
+                        Documentos
+                    </a>
+                </div>
+            </div>
+            <div class="fourteen wide column">
+                <div class='ui basic segment' style='padding-top:0px'>
+                    <div class='ui tab active' data-tab='sellers-data-tab'>
+                        <div class="ui two column grid">
+                            <div class="column">
+                                <div class="ui blue card" id='seller-info-card'>
+                                    <div class="content">
+                                        <h4 class="ui sub header">Datos personales</h4>
+                                        <div class="ui small feed">
+                                            <div class="event">
+                                                <div class="content">
+                                                    <div class="summary" id='seller-card-name'>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="event">
+                                                <div class="content">
+                                                    <div class="summary" id="bancary-info">
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="event">
+                                                <div class="content">
+                                                    <div class="summary" id='important-dates'>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="event">
+                                            <div class="content">
+                                                <div class='ui form'>
+                                                    <div class='inline fields'>
+                                                        <label><a>Estado</a></label>
+                                                        <select class="ui select dropdown" id='id_manage_seller_state'
+                                                            name='manage_seller_state'>
+                                                            {%for state in sellers_states%}
+                                                            <option value="{{state.0}}">{{state.1}}</option>
+                                                            {%endfor%}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <div class="ui blue card" id='seller-projects-card'>
+                                    <div class="content">
+                                        <h4 class="ui sub header">Proyectos a los que pertenece</h4>
+                                        <div class="ui middle aligned animated celled list" id="seller-project-list">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ui blue card" id='seller-projects-card'>
+                                    <div class="content">
+                                        <h4 class="ui sub header">Equipo de ventas</h4>
+                                        <div class='ui form'>
+                                                <div class='field'>
+                                                    <select class="ui select dropdown" id='id_manage_seller_group'
+                                                        name='manage_seller_state'>
+                                                        {%for group in sellers_groups%}
+                                                        <option value="{{group.pk}}">{{group}}</option>
+                                                        {%endfor%}
+                                                    </select>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='ui tab' data-tab='sellers-statics-tab'>
+                        <h3 class="ui dividing teal header">
+                            Ultimos 7 dias
+                          </h3>
+                        <div class="ui stackable mini statistics">
+                            <div class="statistic" id="7days-clientsperseller">
+                                <div class="value">
+                                    <i class="user tie icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Clientes captados
+                                </div>
+                            </div>
+                            <div class="statistic" id="7days-salesperseller">
+                                <div class="value">
+                                    <i class="handshake outline icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Ventas realizadas
+                                </div>
+                            </div>
+                            <div class="statistic" id="7days-staticperseller">
+                                <div class="value">
+                                    <span class='ui grey text'>0</span>&nbsp;<i class="percent icon"></i> 
+                                </div>
+                                <div class="label">
+                                    Efectividad
+                                </div>
+                            </div>
+                        </div>
+                        <h3 class="ui dividing teal header">
+                            Ultimo mes
+                          </h3>
+                        <div class="ui stackable mini statistics">
+                            <div class="statistic" id="monthago-clientsperseller">
+                                <div class="value">
+                                    <i class="user tie icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Clientes captados
+                                </div>
+                            </div>
+                            <div class="statistic" id="monthago-salesperseller">
+                                <div class="value">
+                                    <i class="handshake outline icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Ventas realizadas
+                                </div>
+                            </div>
+                            <div class="statistic" id="monthago-staticsperseller">
+                                <div class="value">
+                                    <span class='ui grey text'>0</span>&nbsp;<i class="percent icon"></i> 
+                                </div>
+                                <div class="label">
+                                    Efectividad
+                                </div>
+                            </div>
+                        </div>
+                        <h3 class="ui dividing teal header">
+                            Total
+                          </h3>
+                          <div class="ui stackable mini statistics">
+                            <div class="statistic" id="always-clientsperseller">
+                                <div class="value">
+                                    <i class="user tie icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Clientes captados
+                                </div>
+                            </div>
+                            <div class="statistic" id="always-salesperseller">
+                                <div class="value">
+                                    <i class="handshake outline icon"></i> <span class='ui grey text'>0</span>
+                                </div>
+                                <div class="label">
+                                    Ventas realizadas
+                                </div>
+                            </div>
+                            <div class="statistic" id="always-staticsperseller">
+                                <div class="value">
+                                    <span class='ui grey text'>0</span>&nbsp;<i class="percent icon"></i> 
+                                </div>
+                                <div class="label">
+                                    Efectividad
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='ui tab' data-tab='sellers-docs-tab'>
+                        <div class="ui three special cards" id="docs-cards">
+                            <div class="card">
+                                <div class="blurring dimmable image">
+                                    <div class="ui dimmer">
+                                        <div class="content">
+                                          <div class="center">
+                                            <a target="_blank" id="link-to-cv"><strong>Hoja de vida</strong></a>
+                                          </div>
+                                        </div>
+                                    </div>
+                                    <img src="{%static 'img/icons/cv.png'%}">
+                                  </div>
+                            </div>
+                            <div class="card">
+                                <div class="blurring dimmable image">
+                                    <div class="ui dimmer">
+                                        <div class="content">
+                                          <div class="center">
+                                            <a arget="_blank" id="link-to-rut"><strong>RUT</strong></a>
+                                          </div>
+                                        </div>
+                                    </div>
+                                    <img src="{%static 'img/icons/id.png'%}">
+                                  </div>
+                            </div>
+                            <div class="card">
+                                <div class="blurring dimmable image">
+                                    <div class="ui dimmer">
+                                        <div class="content">
+                                          <div class="center">
+                                            <a target="_blank" id="link-to-bankcert"><strong>Certificado bancario</strong></a>
+                                          </div>
+                                        </div>
+                                    </div>
+                                    <img src="{%static 'img/icons/certificate.png'%}">
+                                  </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="ui basic modal">
+    <div class="header"></div>
+</div>
+{%endblock%}
+{%block contextmenu%}
+<div class="ui popup bottom left " id='popup-clients' style="position: absolute; 
+    padding:0px; left: 0px;top:0px;max-width: 15rem;">
+    <div class='ui basic vertical menu'>
+        <a class="item" id='modify'>
+          Modificar
+          <i class="edit outline icon"></i>
+        </a>
+        <a class="item" id='contracts-detail'>
+          Contratos asociados
+          <i class="linkify icon"></i>
+        </a>
+    </div>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    td {
+        font-size: small;
+        text-align: center;
+    }
+    tbody {
+        cursor: pointer;
+    }
+</style>
+{%endblock%}
+{%block script%}
+
+{%include 'datatables.html'%}
+<script>
+    var csrftoken = '{{csrf_token}}'
+</script>
+<script>
+    $(document).ready(function () {
+        $('.ui.steps .step').click(function () {
+            $('.ui.steps .step').removeClass('active')
+            $(this).addClass('active')
+        })
+        $('#main-segment .menu .item').tab({
+            context: '#main-segment'
+        });
+        $('.ui.steps .step').tab();
+        $('#tab-content-gestores .step').tab();
+        $('#sellers-info-menu .item').tab();
+        $('#div_id_birth_date').calendar({
+            type: 'date',
+            text: calendar_spanish()
+        });
+        $('#div_id_seller_birth_date').calendar({
+            type: 'date',
+            text: calendar_spanish()
+        });
+        $('.special.cards .image').dimmer({
+            on: 'hover'
+        });
+        $('form select.dropdown').dropdown();
+        var table_clients = $('#table_clients').DataTable({ 
+            language: {
+                'url': '/ajax/datatable_spanish'
+            },
+            ajax: {
+                url: '/partners/ajax/clientsinfo?todo=datatable',
+                dataSrc: "data"
+            },
+            columns: [{
+                    'data': 'client_document'
+                },
+                {
+                    'data': 'full_name'
+                },
+                {
+                    'data': 'email'
+                },
+                {
+                    'data': 'phone'
+                },
+            ],
+            order: [
+                [1, "asc"]
+            ]
+        });
+        var table_sellers = $('#table_sellers').DataTable({
+            dom: 'Bfrtip',
+            buttons: [
+            'pageLength',
+            {
+                extend:    'copyHtml5',
+                text:      '<i class="copy outline icon"></i>',
+                titleAttr: 'Copiar'
+            },
+            {
+                extend:    'excelHtml5',
+                text:      '<i class="file excel outline icon"></i>',
+                titleAttr: 'Excel'
+            },
+            {
+                extend:    'pdfHtml5',
+                text:      '<i class="file pdf outline icon"></i>   ',
+                titleAttr: 'PDF'
+            },
+        ],
+            language: {
+                'url': '/ajax/datatable_spanish'
+            },
+            ajax: {
+                url: '/partners/ajax/sellersinfo',
+                dataSrc: "data"
+            },
+            columns: [{
+                    'data': 'seller_document'
+                },
+                {
+                    'data': 'full_name'
+                },
+                {
+                    'data': 'email'
+                },
+                {
+                    'data': 'phone'
+                },
+                {
+                    'data': 'seller_state'
+                },
+                {
+                    'data':'sales_group.name'
+                }
+            ],
+            order: [
+                [4, "asc"],
+                [1, "asc"]
+            ],
+            initComplete: function () {
+                this.api().columns().every( function () {
+                    var column = this;
+                    var select = $('<select><option value=""></option></select>')
+                        .appendTo( $(column.footer()).empty() )
+                        .on( 'change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex(
+                                $(this).val()
+                            );
+     
+                            column
+                                .search( val ? '^'+val+'$' : '', true, false )
+                                .draw();
+                        } );
+     
+                    column.data().unique().sort().each( function ( d, j ) {
+                        select.append( '<option value="'+d+'">'+d+'</option>' )
+                    } );
+                } );
+            }
+        });
+        $('#id-project-to-filter-clients').on('change', function(){
+            let project = $(this).val()
+            let url = `/partners/ajax/clientsinfo?todo=datatable&project=${project}`
+            table_clients.ajax.url(url).load()
+        })
+        $('#id_manage_seller_state').on('change', function () {
+            let row = table_sellers.row($('tr.active')).data()
+            let new_state = $(this).val()
+            $('body').modal({
+                title: '<i class="check double icon"></i>Confirmar',
+                class: 'basic',
+                closeIcon: false,
+                content: `¿Estas seguro que deseas cambiar el estado de <strong>${row.full_name}</strong> 
+                    a <strong>${new_state}</strong>?`,
+                actions: [{
+                        text: '<i class="checkmark icon"></i> Si',
+                        class: 'green approve inverted'
+                    },
+                    {
+                        text: '<i class="remove icon"></i> No',
+                        class: 'red basic cancel inverted'
+                    }
+                ],
+                onApprove: function () {
+                    $.ajax({
+                        type: 'POST',
+                        url: '/partners/ajax/updateseller/' + row.seller_document,
+                        data: {
+                            'csrfmiddlewaretoken': csrftoken,
+                            'type_of_change': 'state',
+                            'new_state': new_state
+                        },
+                        success: function (response) {
+                            new_message(response.type, response.title, response
+                                .msj)
+                            table_sellers.ajax.reload()
+                        }
+                    })
+                }
+            }).modal('show');
+
+        });
+        $('#table_sellers tbody').on('click', 'tr', function () {
+            let row = table_sellers.row(this).data()
+            table_sellers.$('tr.active').removeClass('active')
+            $(this).addClass('active')
+            load_seller_info(row.seller_document, project_list);
+            $.ajax({
+                type:'GET',
+                url:'/partners/ajax/seller_statics',
+                data:{
+                    'seller':row.seller_document
+                },
+                success: function(xhr){
+                    let cxs = xhr.clients_per_seller.weeksago
+                    let cxs_prom = cxs/7
+                    let sxs = xhr.sales_per_seller.weeksago
+                    let sxs_prom = sxs/7
+                    $('#7days-clientsperseller div.value span').text(cxs+` (${cxs_prom.toFixed(2)} diarios)`)
+                    $('#7days-salesperseller div.value span').text(sxs+` (${sxs_prom.toFixed(2)} diarios)`)
+                    if (xhr.clients_per_seller.weeksago == 0) static = 0
+                    else static = xhr.sales_per_seller.weeksago/xhr.clients_per_seller.weeksago
+                    $('#7days-staticperseller div.value span').text(static.toFixed(2) * 100)
+
+                    cxs = xhr.clients_per_seller.monthago
+                    cxs_prom = cxs/4.2
+                    sxs = xhr.sales_per_seller.monthago
+                    sxs_prom = sxs/4.2
+                    $('#monthago-clientsperseller div.value span').text(cxs+` (${cxs_prom.toFixed(2)} semanales)`)
+                    $('#monthago-salesperseller div.value span').text(sxs+` (${sxs_prom.toFixed(2)} semanales)`)
+                    if (xhr.clients_per_seller.monthago == 0) static = 0
+                    else static = xhr.sales_per_seller.monthago/xhr.clients_per_seller.monthago
+                    $('#monthago-staticsperseller div.value span').text(static.toFixed(2) * 100)
+
+                    $('#always-clientsperseller div.value span').text(xhr.clients_per_seller.always+` (${xhr.clients_per_seller.avg.toFixed(2)} mensuales)`)
+                    $('#always-salesperseller div.value span').text(xhr.sales_per_seller.always+` (${xhr.sales_per_seller.avg.toFixed(2)} mensuales)`)
+                    if (xhr.clients_per_seller.always == 0) static = 0
+                    else static = xhr.sales_per_seller.always/xhr.clients_per_seller.always
+                    $('#always-staticsperseller div.value span').text(static.toFixed(2) * 100)
+
+                }
+            })
+            $('#seller-card-name').html('<a>Nombre: </a>' + row.full_name)
+            $('#bancary-info').html(
+                `<a>Banco: </a>${row.bank_entity.name} <br><a>Tipo: </a>${row.account_type} <br><a>Cuenta: </a>${row.bank_account_number}`
+            )
+            $('#important-dates').html(
+                `<a>Fecha de nacimiento: </a>${row.birth_date}<br><a>Fecha de registro: </a>${row.add_date}`
+            )
+            console.log(row)
+            $('#id_manage_seller_state').val(row.seller_state)
+            $('#id_manage_seller_group').val(row.sales_group)
+            $('#link-to-cv').attr('href','/media/'+row.cv)
+            $('#link-to-rut').attr('href','/media/'+row.rut_support)
+            $('#link-to-bankcert').attr('href','/media/'+row.bank_certificate)
+            $('#modalSellers').find('.header').first().html('Datos del vendedor ' + row.full_name)
+            $('#modalSellers').modal('show').modal({
+                closeIcon: true,
+            })
+
+        });
+        
+        $('#table_clients tbody').on('contextmenu','tr',function(e){
+            table_clients.$('tr.active').removeClass('active');
+            $(this).addClass('active')
+            side = 'left'
+            position = 'bottom'
+            side_to_remove='right'
+            position_to_remove = 'top'
+            
+            var width = $(document).width()
+            var height = window.innerHeight
+            var positionX = e.pageX -20
+            let positionY = e.pageY
+            if (positionX>=width*3/4){
+                positionX -= 173
+                side = 'right'
+                side_to_remove='left'
+            }
+            if (positionY >= height*3/4){
+              positionY -= 103
+              position = 'top'
+              position_to_remove='bottom'
+            }
+            positionY += 15
+            $('#popup-clients').css({
+                'left':positionX+'px',
+                'top':positionY+'px',
+            }).addClass('transition visible')
+            .removeClass(side_to_remove)
+            .removeClass(position_to_remove)
+            .addClass(side)
+            .addClass(position)
+            return false;
+        })
+        $("#popup-clients").click(function(e){
+            let row = table_clients.row($('tr.active')).data()
+            console.log(row)
+            switch(e.target.id){
+                case "modify":
+                    $.tab('change tab', 'step-new-client');
+                    $('#div-tab-step-new-client').addClass('active')
+                    $('#div-step-manage-client').removeClass('active')
+
+                    $('#id_client_document').val(row.client_document).prop('readonly',true)
+                    $('#id_first_name').val(row.first_name)
+                    $('#id_last_name').val(row.last_name)
+                    $('#id_phone').val(row.phone)
+                    $('#id_phone_house').val(row.phone_house) // Corregido: antes estaba al revés
+                    $('#id_phone_office').val(row.phone_office) // Corregido: antes estaba al revés
+                    $('#id_email').val(row.email)
+                    $('#id_marital_status').parent('.ui.dropdown').dropdown('set selected',row.marital_status)
+                    const [year,month,day] = row.birth_date.split('-')
+                    let bd = new Date(+year,+month -1,+day)
+                    $('#div_id_birth_date').calendar('set date',bd)
+                    $('#id_country').parent('.ui.dropdown').dropdown('set selected',row.country)
+                    $.ajax({
+                        type: 'get',
+                        url: '/ajax/getdatacountries',
+                        data: {
+                            'tipo': 'states',
+                            'pais': row.country
+                        },
+                        success: function (response) {
+                            var estados = response['estados']
+                            $('#id_state').append(
+                                `<option value="">Selecciona...</option>`
+                            )
+                            for (estado in estados) {
+                                $('#id_state').append(
+                                    `<option value=${estados[estado][0]}>${estados[estado][1]}</option>`
+                                )
+                            }
+                            $('#id_state').parent('.ui.dropdown').dropdown('set selected',row.state)
+                            $.ajax({
+                                type: 'get',
+                                url: '/ajax/getdatacountries',
+                                data: {
+                                    'tipo': 'cities',
+                                    'estado': row.state
+                                },
+                                success: function (response) {
+                                    var ciudades = response['ciudades']
+                                    $('#id_city').append(
+                                        `<option value="">Selecciona...</option>`
+                                    )
+                                    for (ciudad in ciudades) {
+                                        $('#id_city').append(
+                                            `<option value=${ciudades[ciudad][0]}>${ciudades[ciudad][1]}</option>`
+                                        )
+                                    }
+                                    $('#id_city').parent('.ui.dropdown').dropdown('set selected',row.city)
+                                }
+                            })
+                        }
+                    })
+                    $('#id_address').val(row.address)
+                    $('#id_office_address').val(row.office_address)
+                    $('#id_neighborhood').val(row.neighborhood)
+                    $('#id_birth_place').val(row.birth_place)
+                    $('#id_lives_in_own_house').prop('checked', row.lives_in_own_house ? true : false)
+
+                    // Información laboral
+                    $('#id_company_name').val(row.company_name)
+                    $('#id_position').val(row.position)
+                    $('#id_profession').val(row.profession)
+                    $('#id_occupation').val(row.occupation)
+                    $('#id_monthly_salary').val(row.monthly_salary)
+                    $('#id_years_experience').val(row.years_experience)
+                    $('#id_company_city').val(row.company_city)
+                    $('#id_company_address').val(row.company_address)
+                    $('#id_company_phone').val(row.company_phone)
+                    $('#id_social_organizations').val(row.social_organizations)
+
+                    // Referencias familiares
+                    $('#id_ref_familiar_1_name').val(row.ref_familiar_1_name)
+                    $('#id_ref_familiar_1_occupation').val(row.ref_familiar_1_occupation)
+                    $('#id_ref_familiar_1_phone').val(row.ref_familiar_1_phone)
+                    $('#id_ref_familiar_2_name').val(row.ref_familiar_2_name)
+                    $('#id_ref_familiar_2_occupation').val(row.ref_familiar_2_occupation)
+                    $('#id_ref_familiar_2_phone').val(row.ref_familiar_2_phone)
+
+                    // Referencias personales
+                    $('#id_ref_personal_1_name').val(row.ref_personal_1_name)
+                    $('#id_ref_personal_1_occupation').val(row.ref_personal_1_occupation)
+                    $('#id_ref_personal_1_phone').val(row.ref_personal_1_phone)
+                    $('#id_ref_personal_2_name').val(row.ref_personal_2_name)
+                    $('#id_ref_personal_2_occupation').val(row.ref_personal_2_occupation)
+                    $('#id_ref_personal_2_phone').val(row.ref_personal_2_phone)
+
+                    // Tipo de identificación y vendedor
+                    $('#id_identification_type').parent('.ui.dropdown').dropdown('set selected', row.identification_type)
+                    $('#id_seller').parent('.ui.dropdown').dropdown('set selected', row.seller)
+
+                    // Cambia el botón a "Modificar"
+                    $('#submit-id-sbmt').val('Modificar')
+
+                    break;     
+                case "contracts-detail":
+                    $.ajax({
+                            type:'GET',
+                            url:'/partners/ajax/salesbyclient',
+                            data:{
+                                'client_id':row.client_document
+                            },
+                            success: (xhr) => {
+                                $('body').modal({
+                                    title: 'Contratos asociados a '+row.full_name,
+                                    class: 'mini',
+                                    closeIcon: false,
+                                    content: xhr.data,
+                                    actions: [{
+                                        text: 'Listo',
+                                        class: 'green'
+                                        }]
+                                }).modal('show');
+                            },
+                        })
+                    break;    
+            }
+        });
+        
+        $('#btn-reset-form-clients').click(function(){
+            $('#form-registro-cliente').trigger('reset')
+            $('#form-registro-cliente .ui.dropdown').dropdown('clear')
+            $('#submit-id-sbmt').val('Registrar')
+        })
+        $('#form-registro-cliente').on('submit', function (e) {
+            e.preventDefault()
+            $('.ui.form').addClass('loading')
+            dataform = new FormData(this)
+            $.ajax({
+                type: 'post',
+                url: '/partners/ajax/clientsinfo',
+                data: dataform,
+                contentType: false,
+                processData: false,
+                success: function (response) {
+                    new_message(response.type, response.title, response.msj)
+                    if (response.type == 'success') {
+                        $('#form-registro-cliente').trigger(
+                        'reset')
+                        $('#submit-id-sbmt').val('Registrar')
+                        $('form .ui.dropdown').dropdown('clear')
+                    }
+                    table_clients.ajax.reload()
+                },
+                complete: function (response) {
+                    $('.ui.form').removeClass('loading')
+                }
+            })
+        });
+        $('#form-registro-gestor').on('submit', function (e) {
+            e.preventDefault()
+            $('.ui.form').addClass('loading')
+            dataform = new FormData(this)
+            $.ajax({
+                type: 'post',
+                url: '/partners/ajax/sellersinfo',
+                data: dataform,
+                contentType: false,
+                processData: false,
+                success: function (response) {
+                    new_message(response.type, response.title, response.msj)
+                    if (response.type == 'success') {
+                        $('#form-registro-gestor').trigger('reset')
+                        table_sellers.ajax.reload()
+                        $('#form-registro-gestor .dropdown').dropdown('clear')
+                        $('body').toast({
+                            class: 'warning',
+                            showProgress: 'bottom',
+                            displayTime: 'auto',
+                            message: 'Recuerda que luego de crear un gestor debes activarlo y asignarle un equipo.'
+                        })
+                    }
+                },
+                complete: function (response) {
+                    $('.ui.form').removeClass('loading')
+                }
+            })
+        });
+        $('#id_manage_seller_group').on('change',function(){
+            let state = $('#id_manage_seller_state').val()
+            if (state != 'Activo'){
+                $('body').toast({
+                    class: 'warning',
+                    showProgress: 'bottom',
+                    displayTime: 'auto',
+                    message: 'No puedes cambiar de equipo a un asesor que se encuentre inactivo o retirado, para hacerlo primero debes activarlo.'
+                })
+                return;
+            }
+            let group = $(this).val()
+            let row = table_sellers.row($('tr.active')).data()
+            $('body').modal({
+                title: '<i class="check double icon"></i>Confirmar',
+                class: 'basic',
+                closeIcon: false,
+                content: `¿Estas seguro que asignar este grupo a <strong>${row.full_name}</strong>?`,
+                actions: [{
+                        text: '<i class="checkmark icon"></i> Si',
+                        class: 'green approve inverted'
+                    },
+                    {
+                        text: '<i class="remove icon"></i> No',
+                        class: 'red basic cancel inverted'
+                    }
+                ],
+                onApprove: function () {
+                    $.ajax({
+                        type: 'POST',
+                        url: '/partners/ajax/updateseller/' + row.seller_document,
+                        data: {
+                            'csrfmiddlewaretoken': csrftoken,
+                            'type_of_change': 'group',
+                            'group': group
+                        },
+                        success: function (response) {
+                            new_message(response.type, response.title, response
+                                .msj)
+                            table_sellers.ajax.reload()
+                        }
+                    })
+                }
+            }).modal('show');
+
+        })
+        loadcountries();
+        loadcountries_seller();
+
+        function load_seller_info(seller, callback) {
+            $.ajax({
+                type: 'get',
+                url: '/partners/ajax/sellersinfo',
+                data: {
+                    'seller': seller
+                },
+                success: function (response) {
+                    callback(response)
+                }
+            })
+        };
+
+        function project_list(response) {
+            $('#seller-project-list').empty()
+            let projects = response.projects_data
+            for (i in projects) {
+                let p = `
+                <div class="item">
+                    <img class="ui avatar image" src="/media/${projects[i].logo}">
+                    <div class="content">
+                        <div class="header">${projects[i].name}</div>
+                    </div>
+                </div>
+                `
+                $('#seller-project-list').append(p)
+            }
+        };
+
+        function loadcountries() {
+            $.ajax({
+                type: 'get',
+                url: '/ajax/getdatacountries',
+                data: {
+                    'tipo': 'countries',
+                },
+                success: function (response) {
+                    var paises = response['paises']
+                    for (pais in paises) {
+                        $('#id_country').append(
+                            `<option value=${paises[pais][0]}>${paises[pais][1]}</option>`
+                        )
+                    }
+                }
+            })
+            $('#id_country').on('change', function () {
+                let pais = $(this).val()
+                $('#id_state').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'states',
+                        'pais': pais
+                    },
+                    success: function (response) {
+                        var estados = response['estados']
+                        $('#id_state').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (estado in estados) {
+                            $('#id_state').append(
+                                `<option value=${estados[estado][0]}>${estados[estado][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+            $('#id_state').on('change', function () {
+                let estado = $(this).val()
+                $('#id_city').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'cities',
+                        'estado': estado
+                    },
+                    success: function (response) {
+                        var ciudades = response['ciudades']
+                        $('#id_city').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (ciudad in ciudades) {
+                            $('#id_city').append(
+                                `<option value=${ciudades[ciudad][0]}>${ciudades[ciudad][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+        };;
+
+        function loadcountries_seller() {
+            $.ajax({
+                type: 'get',
+                url: '/ajax/getdatacountries',
+                data: {
+                    'tipo': 'countries',
+                },
+                success: function (response) {
+                    var paises = response['paises']
+                    for (pais in paises) {
+                        $('#id_seller_country').append(
+                            `<option value=${paises[pais][0]}>${paises[pais][1]}</option>`
+                        )
+                    }
+                }
+            })
+            $('#id_seller_country').on('change', function () {
+                let pais = $(this).val()
+                $('#id_seller_state').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'states',
+                        'pais': pais
+                    },
+                    success: function (response) {
+                        var estados = response['estados']
+                        $('#id_seller_state').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (estado in estados) {
+                            $('#id_seller_state').append(
+                                `<option value=${estados[estado][0]}>${estados[estado][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+            $('#id_seller_state').on('change', function () {
+                let estado = $(this).val()
+                $('#id_seller_city').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'cities',
+                        'estado': estado
+                    },
+                    success: function (response) {
+                        var ciudades = response['ciudades']
+                        $('#id_seller_city').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (ciudad in ciudades) {
+                            $('#id_seller_city').append(
+                                `<option value=${ciudades[ciudad][0]}>${ciudades[ciudad][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+        };
+    });
+</script>
+
+{%endblock%}

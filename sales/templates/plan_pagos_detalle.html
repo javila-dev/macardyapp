@@ -1,0 +1,3653 @@
+{% extends 'site_base.html' %}
+{% load humanize l10n %}{% load static %}
+{%block title%}Ventas | Reestructuracion{%endblock%}
+{% block content %}
+<div class="ui container">
+    {% csrf_token %}
+    <h2 class="ui header" style="margin-top: -0.6em;">
+        Plan de pagos para {{ sale }}
+        <div class="sub header">
+            Contrato: CTR{{ sale.contract_number }} | Proyecto: {{ sale.project }}<br>
+            <span>
+                <strong>Valor total:</strong> {{ sale.value|intcomma }} &nbsp;|&nbsp;
+                <strong>Saldo pendiente:</strong> {{ saldo_total|intcomma }} &nbsp;|&nbsp;
+                <strong>Tasa MV:</strong> {{ preferred_rate }}%
+            </span>
+        </div>
+    </h2>
+    <div class="ui segment" id="historial-cambios-segment">
+        <h4 class="ui header"><i class="history icon"></i>Modificaciones realizadas</h4>
+        <div class="ui list" id="historial-cambios-list">
+            <div class="item">No hay cambios registrados.</div>
+        </div>
+    </div>
+
+    <div class="ui scrolling container" style="max-height: 28em !important;">
+            <table class="ui celled structured head foot stuck unstackable compact very relaxed small table" id="plan-pagos-table">
+        <thead style="text-align: center;">
+            <tr>
+                <th rowspan="2">Cuota</th>
+                <th rowspan="2">Tipo</th>
+                <th rowspan="2">Fecha</th>
+                <th colspan="3">Plan de pagos</th>
+                <th rowspan="2">Total</th>
+                <th rowspan="2">Saldo Credito</th>
+                <th colspan="3">Pagado</th>
+                <th rowspan="2">Pendiente</th>
+                <th rowspan="2">Acciones</th>
+            </tr>
+            <tr>
+                <th>Capital</th>
+                <th>Interés</th>
+                <th>Otros</th>
+                <th>Capital</th>
+                <th>Interés</th>
+                <th>Otros</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in cuotas %}
+            <tr class="{% if item.es_vencida %}negative{% elif item.es_pagada %}positive{% endif %}" data-tipo-cuota="{{ item.cuota.quota_type }}">
+                <td>{{ item.cuota.id_quota }}</td>
+                <td>{{ item.cuota.quota_type }}</td>
+                <td>{{ item.cuota.pay_date|date:"d/m/Y" }}</td>
+                <td class="right aligned capital-cell" data-id="{{ item.cuota.pk }}">
+                    {{ item.cuota.capital|intcomma }}
+                </td>
+                <td class="right aligned interest-cell" data-id="{{ item.cuota.pk }}">
+                    {{ item.cuota.interest|intcomma }}
+                </td>
+                <td class="right aligned others-cell" data-id="{{ item.cuota.pk }}">
+                    {{ item.cuota.others|intcomma }}
+                </td>
+                <td class="right aligned total-cell">
+                    {{ item.cuota.total_payment|intcomma }}
+                </td>
+                <td class="right aligned saldo-cell" data-id="{{ item.cuota.pk }}">
+                    {{ item.saldo_teorico|intcomma }}
+                </td>
+                <td class="right aligned">
+                    {{ item.cuota.capital_paid|intcomma }}
+                </td>
+                <td class="right aligned">
+                    {{ item.cuota.interest_paid|intcomma }}
+                </td>
+                <td class="right aligned">
+                    {{ item.cuota.others_paid|intcomma }}
+                </td>
+                <td class="right aligned pendiente-cell" data-id="{{ item.cuota.pk }}">
+                    {{ item.pendiente|intcomma }}
+                </td>
+                <td>
+                    {% if item.pendiente == 0 %}
+                    {% elif item.cuota.capital_paid > 0 or item.cuota.interest_paid > 0 or item.cuota.others_paid > 0 %}
+                        <button class="ui mini red icon button" onclick="splitCuota({{ item.cuota.pk }})" title="Separar saldo pendiente">
+                            <i class="cut icon"></i>
+                        </button>
+                    {% elif item.pendiente > 0 %}
+                        <button class="ui mini icon button" onclick="abrirModalEdicionCuota({{ item.cuota.pk }})">
+                            <i class="edit icon"></i>
+                        </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="8" class="right aligned">Saldo total:</th>
+                <th class="right aligned" id="saldo-total">{{ saldo_total|intcomma }}</th>
+                <th colspan="4"></th>
+            </tr>
+        </tfoot>
+    </table>
+    </div>
+
+
+        <!-- ...dentro del formulario o cerca de la tabla de cuotas... -->
+         <div class="ui basic right aligned segment">
+            <input type="hidden" id="sale-id" value="{{ sale.pk }}">
+            <input type="hidden" id="nuevo-valor-venta-hidden" value="{{ sale.value }}">
+            <!-- Botón de ayuda -->
+            <button class="ui circular icon button" id="btn-ayuda-plan-pagos" title="Ayuda">
+                <i class="question icon"></i>
+            </button>
+            <!-- Agregar en la zona de botones (div class="ui basic right aligned segment") -->
+            <!-- Reemplazar el botón actual de descuento -->
+            <button class="ui teal button" id="btn-descuento-global">
+                <i class="money bill alternate icon"></i> Modificar Valor Venta
+            </button>
+            <button class="ui primary button" id="btn-descargar-plantilla">
+                <i class="file excel outline icon"></i> Descargar plantilla Excel
+            </button>
+            <button class="ui positive button" id="btn-subir-excel">
+                <i class="upload icon"></i> Importar plan desde Excel
+            </button>
+            <button class="ui primary button" id="btn-guardar-reestructuracion">
+                <i class="save icon"></i> Guardar reestructuración
+            </button>
+        </div>
+
+    <!-- Modal de edición -->
+    <div class="ui tiny modal" id="edit-cuota-modal">
+        <div class="header">Editar cuota</div>
+        <div class="content">
+            <form class="ui form" id="edit-cuota-form">
+                <input type="hidden" name="cuota_id" id="cuota_id">
+                <input type="hidden" id="es-primera-cuota" value="0">
+            
+
+                <div class="two fields">
+                    <div class="field">
+                        <label>Tipos de cuota a afectar</label>
+                        <select id="edit-tipos-cuota" multiple class="ui dropdown"></select>
+                    </div>
+                    <div class="field">
+                        <label>Saldo Pendiente</label>
+                        <input type="text" id="edit-saldo-base" readonly>
+                    </div>
+                </div>    
+                
+                <div class="field" id="edit-aplicar-cambio-field">
+                    <label>¿Aplicar cambio a?</label>
+                    <select id="edit-aplicar-cambio" class="ui dropdown">
+                        <option value="solo">Solo esta cuota</option>
+                        <option value="todas">Esta y todas las siguientes</option>
+                        <option value="redistribuir">Redistribuir en cuotas</option>
+                    </select>
+                </div>
+                <div class="two fields" id="edit-extra-config" style="display: none;">
+                    <div class="field">
+                        <label>Tasa mensual (%)</label>
+                        <input type="text" id="edit-tasa" style="text-align: center;" value="{{ preferred_rate }}">
+                    </div>
+                    <div class="field">
+                        <label>¿Incluir cuotas extraordinarias?</label>
+                        <select id="edit-incluir-extra" class="ui dropdown">
+                            <option value="no" selected>No</option>
+                            <option value="si">Sí</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="three fields" id="edit-redistribuir-fields" style="display:none;">
+                    <div class="field">
+                        <label>Fecha inicial</label>
+                        <input type="date" id="edit-fecha-inicio-redistribuir">
+                    </div>
+                    <div class="field">
+                        <label>Número de cuotas</label>
+                        <input type="number" id="edit-num-cuotas" min="1" placeholder="Ej: 12">
+                    </div>
+                    <div class="field">
+                        <label>Valor cuota</label>
+                        <input type="text" id="edit-valor-cuota-redistribuir" autocomplete="off" readonly>
+                    </div>
+                </div>
+
+                <div id="edit-campos-individuales">
+                    <div class="field">
+                        <label>Fecha de cuota</label>
+                        <input type="date" name="fecha_cuota" id="edit-fecha-cuota">
+                    </div>
+                    <div class="three fields">
+                        <div class="field">
+                            <label>Valor cuota</label>
+                            <input type="text" name="valor_cuota" id="edit-valor-cuota" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label>Capital</label>
+                            <input type="text" id="edit-capital">
+                        </div>
+                        <div class="field">
+                            <label>Interés</label>
+                            <input type="text" id="edit-interes">
+                        </div>
+                    </div>  
+                </div>
+                
+                <div id="edit-extra-fields" style="display:none;">
+                    <div class="two fields">
+                        <div class="field">
+                            <label>Cantidad cuotas regulares</label>
+                            <input type="number" id="edit-cant-regular" min="1" value="12">
+                        </div>
+                        <div class="field">
+                            <label>Cantidad cuotas extraordinarias (SCE)</label>
+                            <input type="number" id="edit-cant-extra" min="1" value="2">
+                        </div>
+                    </div>
+                    <div class="two fields">
+                        <div class="field">
+                            <label>Periodicidad cuotas extraordinarias</label>
+                            <select id="edit-period-extra" class="ui dropdown">
+                                <option value="6" selected>Semestral</option>
+                                <option value="3">Trimestral</option>
+                                <option value="12">Anual</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>¿Extraordinaria sobrepone a regular?</label>
+                            <select id="edit-extra-sobreponer" class="ui dropdown">
+                                <option value="no" selected>No, reemplaza la regular</option>
+                                <option value="si">Sí, se paga junto a la regular</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="two fields">
+                        <div class="field">
+                            <label>Valor cuota regular</label>
+                            <input type="text" id="edit-valor-cuota-regular" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label>Valor cuota extraordinaria (SCE)</label>
+                            <input type="text" id="edit-valor-cuota-extra" readonly>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+        <div class="actions">
+            <div class="ui cancel button">Cancelar</div>
+            <div class="ui positive button" id="save-edit">Guardar</div>
+        </div>
+    </div>
+    <!-- Agregar después de los modales existentes -->
+<div class="ui small modal" id="subir-excel-modal">
+    <div class="header">
+        <i class="file excel outline icon"></i> Cargar Plan de Pagos desde Excel
+    </div>
+    <div class="content">
+        <div class="ui form">
+            <div class="field">
+                <label>Selecciona el archivo Excel (.xlsx)</label>
+                <div class="ui action input">
+                    <input type="text" id="excel-file-name" readonly placeholder="Ningún archivo seleccionado">
+                    <label for="excel-file-upload" class="ui icon button">
+                        <i class="file icon"></i>
+                        Explorar...
+                    </label>
+                    <input type="file" id="excel-file-upload" accept=".xlsx" style="display: none">
+                </div>
+                <div class="ui tiny pointing label">
+                    Solo se aceptan archivos con extensión .xlsx
+                </div>
+            </div>
+        </div>
+        <div class="ui hidden divider"></div>
+        <div class="ui info message">
+            <div class="header">Recuerda:</div>
+            <ul class="list">
+                <li>El plan de pagos debe sumar exactamente el saldo pendiente actual</li>
+                <li>Todos los tipos de cuota deben ser CI, SCR, SCE o ABCAP</li>
+                <li>No se aceptan valores de capital o total iguales o menores a cero</li>
+                <li>La suma de capital + interés + otros debe ser igual al total para cada cuota</li>
+            </ul>
+        </div>
+        <div id="excel-validation-results"></div>
+    </div>
+    <div class="actions">
+        <div class="ui cancel button">Cancelar</div>
+        <div class="ui primary button" id="btn-procesar-excel" disabled>Aplicar Cambios</div>
+    </div>
+</div>
+
+<!-- Modal para cambiar el valor de venta y redistribuir cuotas -->
+<div class="ui small modal" id="descuento-global-modal">
+    <div class="header">
+        <i class="money bill alternate icon"></i> Modificar Valor de Venta
+    </div>
+    <div class="content">
+        <div class="ui info message">
+            <div class="header">Cambio de valor y redistribución automática</div>
+            <p>Al modificar el valor total de la venta, se recalculará automáticamente el saldo pendiente y se redistribuirá en nuevas cuotas.</p>
+        </div>
+        
+        <div class="ui form">
+            <!-- Sección de valores de venta -->
+            <h4 class="ui dividing header">Valores de Venta</h4>
+            <div class="three fields">
+                <div class="field">
+                    <label>Valor original</label>
+                    <input type="text" id="valor-original-venta" readonly>
+                </div>
+                <div class="field">
+                    <label>Nuevo valor</label>
+                    <input type="text" id="nuevo-valor-venta" placeholder="Ej: 80.000.000">
+                </div>
+                <div class="field">
+                    <label>Diferencia</label>
+                    <input type="text" id="diferencia-valor" placeholder="Ej: 5.000.000">
+                </div>
+            </div>
+            
+            <div class="three fields">
+                <div class="field">
+                    <label>Saldo pendiente actual</label>
+                    <input type="text" id="saldo-pendiente-actual" readonly>
+                </div>
+                <div class="field">
+                    <label>Nuevo saldo pendiente</label>
+                    <input type="text" id="nuevo-saldo-pendiente" readonly>
+                </div>
+                <div class="field">
+                    <label>Descuento calculado</label>
+                    <div class="ui right labeled input">
+                        <input type="number" id="descuento-porcentaje" step="0.01" min="0" max="100" readonly>
+                        <div class="ui basic label">%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sección de configuración de nuevas cuotas -->
+            <div id="config-nuevas-cuotas">
+                <h4 class="ui dividing header">Configuración de Nuevas Cuotas</h4>
+                <div class="three fields">
+                    <div class="field">
+                        <label>Fecha de inicio</label>
+                        <input type="date" id="fecha-inicio-redistribuir">
+                    </div>
+                    <!-- Cambio en la sección de configuración de nuevas cuotas -->
+                    <div class="field">
+                        <label>Tasa mensual (%)</label>
+                        <input type="number" id="tasa-redistribuir" step="0.01" min="0" style="text-align: center;">
+                    </div>
+                    <div class="field">
+                        <label>Número de cuotas</label>
+                        <input type="number" id="num-cuotas-redistribuir" min="1" placeholder="Ej: 12">
+                    </div>
+                </div>
+                
+                <div class="field">
+                    <label>Valor calculado de cuota</label>
+                    <input type="text" id="valor-cuota-redistribuir" readonly>
+                </div>
+            </div>
+            <div class="field">
+                <label>Motivo del cambio (para historial)</label>
+                <textarea id="motivo-cambio-valor" rows="2" placeholder="Ejemplo: Acuerdo comercial con cliente"></textarea>
+            </div>
+        </div>
+    </div>
+    <div class="actions">
+        <div class="ui cancel button">Cancelar</div>
+        <div class="ui positive button" id="aplicar-cambio-valor">Aplicar Cambios</div>
+    </div>
+</div>
+
+<!-- Modal de Ayuda -->
+<div class="ui large modal" id="ayuda-plan-pagos-modal">
+    <div class="header">
+        <i class="question circle outline icon"></i> Guía de Uso - Plan de Pagos
+    </div>
+    <div class="scrolling content">
+
+        <!-- ============================================== -->
+        <!-- SECCIÓN 1: DIAGNÓSTICO INICIAL -->
+        <!-- ============================================== -->
+        <div class="ui teal segment">
+            <h4 class="ui header"><i class="compass icon"></i> ¿Por dónde empezar? - Identifique su situación</h4>
+            <p>Responda estas preguntas para saber qué pasos seguir:</p>
+
+            <table class="ui very basic celled table">
+                <tbody>
+                    <tr>
+                        <td style="width: 60%;"><strong>1. ¿Aparece un mensaje de "Inconsistencia detectada" en rojo?</strong></td>
+                        <td>
+                            <span class="ui label">Sí</span> → Lea <strong>"Corregir inconsistencia de saldo"</strong><br>
+                            <span class="ui label">No</span> → Continúe con la siguiente pregunta
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>2. ¿Ve botones rojos de tijera en alguna cuota?</strong></td>
+                        <td>
+                            <span class="ui label">Sí</span> → Lea <strong>"¿Qué es el botón rojo de tijera?"</strong> y haga split<br>
+                            <span class="ui label">No</span> → Continúe con la siguiente pregunta
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>3. ¿Qué necesita hacer?</strong></td>
+                        <td>
+                            <div class="ui list">
+                                <div class="item"><i class="tag icon"></i> Aplicar descuento → <strong>"Aplicar un descuento al valor del lote"</strong></div>
+                                <div class="item"><i class="arrow up icon"></i> Aumentar valor del lote → <strong>"Aumentar el valor del lote"</strong></div>
+                                <div class="item"><i class="edit icon"></i> Cambiar fecha o valor de una cuota → <strong>"Modificar una cuota individual"</strong></div>
+                                <div class="item"><i class="file excel icon"></i> Cargar plan desde Excel → <strong>"Usar la plantilla Excel"</strong></div>
+                                <div class="item"><i class="sync icon"></i> El saldo no coincide antes de Excel → <strong>"El saldo no coincide con el valor del lote"</strong></div>
+                                <div class="item"><i class="percent icon"></i> Cliente ya pagó todo y hay descuento → <strong>"Descuento cuando el cliente ya pagó todo"</strong></div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="ui warning message" style="margin-top: 1em;">
+                <i class="lightbulb icon"></i>
+                <strong>Consejo:</strong> Si tiene dudas o es la primera vez, lea primero <strong>"Flujo completo paso a paso"</strong> al final de esta guía.
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SECCIÓN 2: GLOSARIO DE TÉRMINOS -->
+        <!-- ============================================== -->
+        <div class="ui segment">
+            <h4 class="ui header"><i class="book icon"></i> Glosario - Términos importantes</h4>
+
+            <!-- Tipos de Cuota -->
+            <h5>Tipos de Cuota:</h5>
+            <div class="ui four small statistics">
+                <div class="statistic">
+                    <div class="value text" style="font-size: 1.5em !important;">CI</div>
+                    <div class="label">Cuota Inicial<br><small>Sin intereses</small></div>
+                </div>
+                <div class="statistic">
+                    <div class="value text" style="font-size: 1.5em !important;">SCR</div>
+                    <div class="label">Regular<br><small>Mensual con interés</small></div>
+                </div>
+                <div class="statistic">
+                    <div class="value text" style="font-size: 1.5em !important;">SCE</div>
+                    <div class="label">Extraordinaria<br><small>Semestral/Anual</small></div>
+                </div>
+                <div class="statistic">
+                    <div class="value text" style="font-size: 1.5em !important;">ABCAP</div>
+                    <div class="label">Abono a Capital<br><small>Pago directo a capital</small></div>
+                </div>
+            </div>
+
+            <!-- Otros términos -->
+            <h5 style="margin-top: 1.5em;">Otros términos que verá en esta guía:</h5>
+            <table class="ui very basic compact table">
+                <tbody>
+                    <tr>
+                        <td style="width: 25%;"><strong>Adjudicación</strong></td>
+                        <td>Pantalla donde se ven los pagos (recibos) aplicados a cada cuota. <br>
+                            <small><i class="map marker icon"></i> <em>Cómo llegar: Menú lateral → Ventas → Adjudicación → Buscar contrato</em></small>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Recaudos</strong></td>
+                        <td>Los pagos que el cliente ha realizado (cada recibo de caja es un recaudo).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Desvincular recaudos</strong></td>
+                        <td>Quitar temporalmente la relación entre los pagos y las cuotas, para poder modificar el plan libremente.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reaplicar recibos</strong></td>
+                        <td>Volver a asignar los pagos a las cuotas según el nuevo plan de pagos.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Split (Dividir)</strong></td>
+                        <td>Separar una cuota parcialmente pagada en dos: una pagada y otra pendiente.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Saldo pendiente</strong></td>
+                        <td>Lo que falta por pagar. Se calcula como: <code>Valor del lote - Capital ya pagado</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reestructuración</strong></td>
+                        <td>El proceso de modificar el plan de pagos. Requiere aprobación de un supervisor.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- SECCIÓN 3: CASOS DE USO (ACORDEÓN) -->
+        <!-- ============================================== -->
+        <div class="ui styled fluid accordion" id="accordion-ayuda">
+
+            <!-- ========== CASO 1: Aplicar descuento ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="tag icon"></i> Aplicar un descuento al valor del lote
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo usar esto?</strong> Cuando se autoriza un descuento al cliente y el valor del lote debe DISMINUIR.
+                </div>
+
+                <h5><i class="numbered list icon"></i> Pasos:</h5>
+                <div class="ui ordered list">
+                    <div class="item">
+                        Click en el botón <button class="ui mini button"><i class="dollar icon"></i> Modificar Valor Venta</button>
+                    </div>
+                    <div class="item">
+                        En <strong>"Nuevo valor del lote"</strong>, ingrese el valor YA CON el descuento aplicado
+                        <div class="ui teal message" style="margin: 0.5em 0;">
+                            <strong>Ejemplo:</strong><br>
+                            Valor original: <strong>$100.000.000</strong><br>
+                            Descuento autorizado: <strong>$10.000.000</strong><br>
+                            → Usted ingresa: <strong>$90.000.000</strong>
+                        </div>
+                    </div>
+                    <div class="item">
+                        El sistema calcula automáticamente el nuevo saldo pendiente
+                    </div>
+                    <div class="item">
+                        Configure las nuevas cuotas:
+                        <ul>
+                            <li><strong>Fecha de inicio:</strong> ¿Desde cuándo empiezan las nuevas cuotas?</li>
+                            <li><strong>Número de cuotas:</strong> ¿En cuántas cuotas se paga el nuevo saldo?</li>
+                            <li><strong>Tasa:</strong> Generalmente se deja igual</li>
+                        </ul>
+                    </div>
+                    <div class="item">Click en <strong>"Aplicar Cambios"</strong></div>
+                    <div class="item">Revise que la tabla muestre las cuotas correctas</div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                    <div class="item">Un supervisor debe aprobar la reestructuración</div>
+                </div>
+            </div>
+
+            <!-- ========== CASO 2: Aumentar valor ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="arrow up icon"></i> Aumentar el valor del lote
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo usar esto?</strong> Cuando el valor del lote debe SUBIR (por mejoras, ajustes de precio, etc.)
+                </div>
+
+                <h5><i class="numbered list icon"></i> Pasos:</h5>
+                <div class="ui ordered list">
+                    <div class="item">
+                        Click en el botón <button class="ui mini button"><i class="dollar icon"></i> Modificar Valor Venta</button>
+                    </div>
+                    <div class="item">
+                        En <strong>"Nuevo valor del lote"</strong>, ingrese el valor aumentado
+                        <div class="ui teal message" style="margin: 0.5em 0;">
+                            <strong>Ejemplo:</strong><br>
+                            Valor original: <strong>$100.000.000</strong><br>
+                            Aumento: <strong>$5.000.000</strong><br>
+                            → Usted ingresa: <strong>$105.000.000</strong>
+                        </div>
+                    </div>
+                    <div class="item">El sistema mostrará la diferencia como valor negativo (esto es normal, indica aumento)</div>
+                    <div class="item">Configure las nuevas cuotas con el saldo aumentado</div>
+                    <div class="item">Click en <strong>"Aplicar Cambios"</strong></div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                </div>
+            </div>
+
+            <!-- ========== CASO 3: Corregir inconsistencia de saldo (FUSIONADO) ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="exclamation triangle icon"></i> Corregir inconsistencia de saldo (mensaje en rojo)
+            </div>
+            <div class="content">
+                <div class="ui negative message">
+                    <strong>¿Qué significa este mensaje?</strong><br>
+                    Aparece cuando la suma de las cuotas pendientes NO coincide con lo que debería ser según el valor del lote.
+                    Esto puede pasar si hubo un descuento o aumento que no se registró correctamente.
+                </div>
+
+                <h5><i class="stethoscope icon"></i> Primero: Entienda qué pasó</h5>
+                <table class="ui celled table">
+                    <thead>
+                        <tr>
+                            <th style="width:30%;">El mensaje dice...</th>
+                            <th style="width:35%;">Esto significa que...</th>
+                            <th style="width:35%;">Usted debe...</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="warning">
+                            <td><strong>"Faltan $X por distribuir"</strong><br><small>(diferencia positiva)</small></td>
+                            <td>El cliente tiene un <strong>descuento</strong> que no se registró. El valor del lote en el sistema es mayor al real.</td>
+                            <td><strong>Reducir</strong> el valor del lote al valor correcto (con descuento)</td>
+                        </tr>
+                        <tr class="warning">
+                            <td><strong>"Sobran $X en las cuotas"</strong><br><small>(diferencia negativa)</small></td>
+                            <td>El valor del lote <strong>aumentó</strong> pero no se registró. El valor en el sistema es menor al real.</td>
+                            <td><strong>Aumentar</strong> el valor del lote al valor correcto</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h5><i class="numbered list icon"></i> Pasos para corregir:</h5>
+                <div class="ui ordered list">
+                    <div class="item">
+                        <strong>Confirme el valor correcto del lote</strong>
+                        <div class="ui small info message">
+                            Consulte con el área comercial o revise el contrato para saber cuál es el valor real del lote (con o sin descuento).
+                        </div>
+                    </div>
+                    <div class="item">Click en <button class="ui mini button"><i class="dollar icon"></i> Modificar Valor Venta</button></div>
+                    <div class="item">
+                        En <strong>"Nuevo valor del lote"</strong> ingrese el valor correcto
+                        <div class="ui teal message" style="margin: 0.5em 0;">
+                            <strong>Ejemplo:</strong> Si el sistema dice $100M pero el cliente tiene descuento y el valor real es $90M, ingrese <strong>$90.000.000</strong>
+                        </div>
+                    </div>
+                    <div class="item">El sistema recalculará el saldo pendiente automáticamente</div>
+                    <div class="item">Configure las nuevas cuotas (fecha, número de cuotas, tasa)</div>
+                    <div class="item">Click en <strong>"Aplicar Cambios"</strong></div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                </div>
+
+                <div class="ui blue message">
+                    <i class="info circle icon"></i>
+                    <strong>¿Va a cargar un Excel después?</strong> No hay problema. Primero corrija el valor del lote con estos pasos (las cuotas que genere son temporales), y luego cargue su Excel. Lo importante es que el valor del lote quede correcto.
+                </div>
+            </div>
+
+            <!-- ========== CASO 4: Split ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="cut icon"></i> ¿Qué es el botón rojo de tijera? (Split)
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo aparece?</strong> En cuotas donde el cliente pagó una parte pero no todo. Por ejemplo: cuota de $1.000.000 y pagó $600.000.
+                </div>
+
+                <h5><i class="question circle icon"></i> ¿Por qué es necesario?</h5>
+                <p>El sistema necesita separar lo que ya se pagó de lo que falta, para poder modificar solo la parte pendiente.</p>
+
+                <h5><i class="magic icon"></i> ¿Qué hace el Split?</h5>
+                <p>Divide UNA cuota en DOS:</p>
+                <div class="ui two column grid">
+                    <div class="column">
+                        <div class="ui segment">
+                            <h5><i class="arrow left icon"></i> ANTES (1 cuota)</h5>
+                            <p>
+                                <strong>SCR5</strong><br>
+                                Capital: $1.000.000<br>
+                                Pagado: $600.000<br>
+                                <span class="ui orange text">Pendiente: $400.000</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="ui segment">
+                            <h5><i class="arrow right icon"></i> DESPUÉS (2 cuotas)</h5>
+                            <p>
+                                <strong>SCR5</strong> <span class="ui green label">Pagada</span><br>
+                                Capital: $600.000 | Pendiente: $0<br><br>
+                                <strong>SCR5-B</strong> <span class="ui orange label">Pendiente</span><br>
+                                Capital: $400.000 | Pendiente: $400.000
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <h5><i class="numbered list icon"></i> Cómo hacerlo:</h5>
+                <div class="ui ordered list">
+                    <div class="item">Busque las cuotas con el botón <button class="ui mini red icon button"><i class="cut icon"></i></button></div>
+                    <div class="item">Click en el botón de tijera</div>
+                    <div class="item">¡Listo! El sistema separa automáticamente</div>
+                    <div class="item">Repita con todas las cuotas que tengan tijera</div>
+                </div>
+
+                <div class="ui warning message">
+                    <i class="exclamation triangle icon"></i>
+                    <strong>Importante:</strong> Mientras existan cuotas con tijera, NO podrá usar "Modificar Valor Venta" ni cargar Excel. Primero haga split de todas.
+                </div>
+            </div>
+
+            <!-- ========== CASO 5: Editar cuota individual ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="edit icon"></i> Modificar una cuota individual
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo usar esto?</strong> Cuando necesita cambiar la fecha, el valor o la distribución capital/interés de una cuota específica.
+                </div>
+
+                <h5><i class="numbered list icon"></i> Pasos:</h5>
+                <div class="ui ordered list">
+                    <div class="item">Busque la cuota en la tabla</div>
+                    <div class="item">Click en el botón <button class="ui mini icon button"><i class="edit icon"></i></button> (lápiz)</div>
+                    <div class="item">
+                        Modifique lo que necesite:
+                        <ul>
+                            <li><strong>Fecha:</strong> Cuándo vence la cuota</li>
+                            <li><strong>Valor cuota:</strong> El monto total</li>
+                            <li><strong>Capital:</strong> Cuánto va a capital</li>
+                            <li><strong>Interés:</strong> Cuánto va a interés</li>
+                        </ul>
+                    </div>
+                    <div class="item">
+                        Elija <strong>cómo aplicar el cambio</strong>:
+                        <table class="ui very basic compact table">
+                            <tr>
+                                <td><span class="ui label">Solo esta cuota</span></td>
+                                <td>Cambia únicamente esta cuota, las demás quedan igual</td>
+                            </tr>
+                            <tr>
+                                <td><span class="ui label">Esta y las siguientes</span></td>
+                                <td>Aplica el mismo valor a esta cuota y todas las que siguen del mismo tipo</td>
+                            </tr>
+                            <tr>
+                                <td><span class="ui label">Redistribuir</span></td>
+                                <td>Toma todo el saldo pendiente y lo reparte en un número de cuotas que usted elija</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="item">Click en <strong>"Guardar"</strong></div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong> para confirmar todo</div>
+                </div>
+
+                <div class="ui info message">
+                    <i class="lightbulb icon"></i>
+                    <strong>Tip:</strong> Las cuotas tipo CI (Cuota Inicial) nunca tienen interés. Si edita una CI, el interés siempre será $0.
+                </div>
+            </div>
+
+            <!-- ========== CASO 6: Excel ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="file excel icon"></i> Usar la plantilla Excel
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo usar esto?</strong> Cuando tiene un plan de pagos complejo (muchas cuotas, valores irregulares) y es más fácil armarlo en Excel.
+                </div>
+
+                <div class="ui warning message">
+                    <i class="exclamation triangle icon"></i>
+                    <strong>Antes de empezar, verifique:</strong>
+                    <ul class="list">
+                        <li>¿Hay cuotas con tijera roja? → Primero haga Split de todas</li>
+                        <li>¿El saldo pendiente es correcto? → Si no, primero corrija el valor del lote (ver caso siguiente)</li>
+                    </ul>
+                </div>
+
+                <h5><i class="download icon"></i> Paso 1: Descargar la plantilla</h5>
+                <div class="ui ordered list">
+                    <div class="item">Click en <button class="ui mini green button"><i class="download icon"></i> Descargar Excel</button></div>
+                    <div class="item">Se descarga un archivo .xlsx</div>
+                    <div class="item">La plantilla ya tiene el saldo pendiente correcto</div>
+                </div>
+
+                <h5><i class="edit icon"></i> Paso 2: Llenar el Excel</h5>
+                <div class="ui blue message">
+                    <strong>¿Qué cuotas incluir?</strong> Solo las cuotas PENDIENTES (las que faltan por pagar). Las cuotas ya pagadas NO se incluyen en el Excel.
+                </div>
+                <p>Complete estas columnas:</p>
+                <table class="ui small celled table">
+                    <thead>
+                        <tr>
+                            <th>Columna</th>
+                            <th>Qué poner</th>
+                            <th>Ejemplo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Tipo</strong></td><td>CI, SCR, SCE o ABCAP</td><td>SCR</td></tr>
+                        <tr><td><strong>Fecha</strong></td><td>Día/Mes/Año</td><td>15/02/2026</td></tr>
+                        <tr><td><strong>Capital</strong></td><td>Monto que va a capital</td><td>500000</td></tr>
+                        <tr><td><strong>Interés</strong></td><td>Monto de interés</td><td>150000</td></tr>
+                        <tr><td><strong>Otros</strong></td><td>Otros cargos (usualmente 0)</td><td>0</td></tr>
+                        <tr><td><strong>Total</strong></td><td>Capital + Interés + Otros</td><td>650000</td></tr>
+                    </tbody>
+                </table>
+
+                <h5><i class="check circle icon"></i> Paso 3: Validar antes de cargar</h5>
+                <div class="ui warning message">
+                    El sistema rechazará el archivo si:
+                    <ul class="list">
+                        <li>La <strong>suma de todos los capitales</strong> NO es igual al saldo pendiente</li>
+                        <li>Hay <strong>tipos inválidos</strong> (solo CI, SCR, SCE, ABCAP)</li>
+                        <li>Algún <strong>capital o total</strong> es cero o negativo</li>
+                        <li>El <strong>Total</strong> no cuadra con Capital + Interés + Otros</li>
+                    </ul>
+                </div>
+
+                <h5><i class="upload icon"></i> Paso 4: Cargar el Excel</h5>
+                <div class="ui ordered list">
+                    <div class="item">Click en <button class="ui mini blue button"><i class="upload icon"></i> Importar Excel</button></div>
+                    <div class="item">Seleccione su archivo .xlsx</div>
+                    <div class="item">Si hay errores, el sistema le dirá cuáles. Corrija y vuelva a cargar.</div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                </div>
+            </div>
+
+            <!-- ========== CASO 7: Saldo no coincide antes de cargar Excel ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="sync alternate icon"></i> El saldo no coincide con el valor del lote (antes de cargar Excel)
+            </div>
+            <div class="content">
+                <div class="ui negative message">
+                    <strong>¿Cuándo ocurre esto?</strong> Cuando el saldo pendiente mostrado no corresponde con lo que usted espera según el valor real del lote. Esto impide cargar un Excel correctamente.
+                </div>
+
+                <h5><i class="question circle icon"></i> ¿Por qué pasa?</h5>
+                <p>El saldo pendiente se calcula como: <code>Valor del lote - Capital ya pagado</code></p>
+                <p>Si el valor del lote en el sistema está desactualizado (por descuentos o aumentos no registrados), el saldo calculado será incorrecto.</p>
+
+                <h5><i class="numbered list icon"></i> Solución: Primero corregir el valor del lote</h5>
+                <div class="ui ordered list">
+                    <div class="item">
+                        <strong>Confirme el valor correcto del lote</strong>
+                        <div class="ui small info message">
+                            Consulte con el área comercial o revise el contrato.
+                        </div>
+                    </div>
+                    <div class="item">Click en <button class="ui mini button"><i class="dollar icon"></i> Modificar Valor Venta</button></div>
+                    <div class="item">Ingrese el valor correcto del lote</div>
+                    <div class="item">
+                        Click en <strong>"Aplicar Cambios"</strong>
+                        <div class="ui small teal message">
+                            El sistema generará cuotas temporales. <strong>No importa si no son las correctas</strong>, serán reemplazadas por el Excel.
+                        </div>
+                    </div>
+                    <div class="item"><strong>Ahora sí</strong>, descargue la plantilla Excel (tendrá el saldo correcto)</div>
+                    <div class="item">Modifique el Excel con su plan real y cárguelo</div>
+                </div>
+
+                <h5><i class="table icon"></i> Ejemplo:</h5>
+                <table class="ui small celled table">
+                    <thead>
+                        <tr>
+                            <th>Situación</th>
+                            <th>Valor en sistema</th>
+                            <th>Valor real</th>
+                            <th>Qué hacer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Descuento de $10M no registrado</td>
+                            <td>$100.000.000</td>
+                            <td>$90.000.000</td>
+                            <td>Modificar a $90M → Cargar Excel</td>
+                        </tr>
+                        <tr>
+                            <td>Aumento no registrado</td>
+                            <td>$80.000.000</td>
+                            <td>$85.000.000</td>
+                            <td>Modificar a $85M → Cargar Excel</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ========== CASO 8: Descuento cuando cliente ya pagó todo ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="percent icon"></i> Descuento cuando el cliente ya pagó todo
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    <strong>¿Cuándo usar esto?</strong> El cliente ya pagó todas sus cuotas, pero se le autoriza un descuento retroactivo. El descuento es igual o cercano al saldo pendiente, así que el contrato quedará saldado.
+                </div>
+
+                <h5><i class="numbered list icon"></i> Pasos:</h5>
+                <div class="ui ordered list">
+                    <div class="item">Click en <button class="ui mini button"><i class="dollar icon"></i> Modificar Valor Venta</button></div>
+                    <div class="item">
+                        Ingrese el nuevo valor del lote (valor original menos el descuento)
+                        <div class="ui teal message" style="margin: 0.5em 0;">
+                            <strong>Ejemplo:</strong> Lote de $100M con descuento de $5M → Ingrese <strong>$95.000.000</strong>
+                        </div>
+                    </div>
+                    <div class="item">
+                        Si el nuevo saldo pendiente es <strong>$0</strong>, el sistema:
+                        <ul>
+                            <li>Oculta la configuración de cuotas (no se necesitan)</li>
+                            <li>Solo pide el motivo del cambio</li>
+                        </ul>
+                    </div>
+                    <div class="item">Escriba el motivo (ej: "Descuento por pronto pago")</div>
+                    <div class="item">Click en <strong>"Aplicar Cambios"</strong></div>
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                    <div class="item">Aprobar la reestructuración</div>
+                </div>
+
+                <div class="ui positive message">
+                    <strong>Resultado:</strong> El contrato aparecerá como "Pagado: Sí" y no tendrá cuotas pendientes.
+                </div>
+            </div>
+
+            <!-- ========== CASO 9: Limitaciones y restricciones ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="ban icon"></i> Limitaciones y restricciones
+            </div>
+            <div class="content">
+                <div class="ui info message">
+                    Algunas acciones tienen restricciones. Aquí le explicamos cuáles y cómo manejarlas.
+                </div>
+
+                <table class="ui celled table">
+                    <thead>
+                        <tr>
+                            <th style="width:30%;">Situación</th>
+                            <th style="width:35%;">Restricción</th>
+                            <th style="width:35%;">Solución</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Hay cuotas con tijera roja</strong><br><small>(pagos parciales)</small></td>
+                            <td>
+                                No puede:<br>
+                                • Modificar Valor Venta<br>
+                                • Descargar/Importar Excel
+                            </td>
+                            <td>Primero haga <strong>Split</strong> de todas las cuotas con tijera</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cuotas Iniciales (CI) pendientes</strong></td>
+                            <td>
+                                Si usa "Modificar Valor Venta", las CI pendientes se <strong>eliminan</strong> y se convierten en SCR
+                            </td>
+                            <td>Si necesita mantener las CI, edítelas individualmente antes de modificar el valor</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cuotas ya pagadas</strong><br><small>(en verde)</small></td>
+                            <td>No se pueden modificar ni editar</td>
+                            <td>Esto es por diseño. Los pagos ya aplicados no deben alterarse.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mezcla de SCR y SCE</strong></td>
+                            <td>Al editar una cuota, solo afecta a cuotas del mismo tipo seleccionado</td>
+                            <td>Use los checkboxes para seleccionar qué tipos afectar</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ========== CASO 10: Abonos a capital (AVANZADO) ========== -->
+            <div class="title">
+                <i class="dropdown icon"></i>
+                <i class="money bill alternate icon"></i> <span class="ui tiny orange label">Avanzado</span> Corregir plan con abonos a capital
+            </div>
+            <div class="content">
+                <div class="ui orange message">
+                    <strong>¿Qué es un abono a capital?</strong> Es un pago que va directamente a reducir la deuda (capital), sin pagar intereses. A veces estos pagos se registraron como cuotas normales y hay que corregirlos.
+                </div>
+
+                <div class="ui negative message">
+                    <i class="exclamation triangle icon"></i>
+                    <strong>Paso previo OBLIGATORIO:</strong> Vaya a la pantalla de Adjudicación y seleccione <strong>"Desvincular todos los recaudos"</strong> antes de hacer cualquier cambio.
+                    <div class="ui small info message" style="margin-top: 0.5em;">
+                        <i class="map marker icon"></i> <em>Cómo llegar: Menú lateral → Ventas → Adjudicación → Buscar contrato → Menú de acciones → "Desvincular todos los recaudos"</em>
+                    </div>
+                </div>
+
+                <h5><i class="numbered list icon"></i> Pasos para convertir cuotas en abonos a capital:</h5>
+                <div class="ui ordered list">
+                    <div class="item">
+                        Identifique cuáles cuotas fueron en realidad abonos a capital
+                        <div class="ui small message">
+                            <strong>Pista:</strong> Generalmente son pagos grandes que no coinciden con el valor regular de las cuotas.
+                        </div>
+                    </div>
+                    <div class="item">Click en el botón <button class="ui mini icon button"><i class="edit icon"></i></button> de esa cuota</div>
+                    <div class="item">Seleccione <strong>"Solo esta cuota"</strong></div>
+                    <div class="item">Ingrese el valor total del pago en <strong>"Valor cuota"</strong></div>
+                    <div class="item">
+                        <strong>Cambie el interés a $0</strong>
+                        <div class="ui small teal message">
+                            Esto hace que todo el pago vaya a capital. Así es como funciona un abono a capital.
+                        </div>
+                    </div>
+                    <div class="item">Click en <strong>"Guardar"</strong></div>
+                    <div class="item">Repita para cada cuota que deba ser abono a capital</div>
+                </div>
+
+                <h5><i class="save icon"></i> Finalizar:</h5>
+                <div class="ui ordered list">
+                    <div class="item">Click en <strong>"Guardar reestructuración"</strong></div>
+                    <div class="item">Un supervisor debe aprobar</div>
+                    <div class="item">
+                        Vuelva a Adjudicación y seleccione <strong>"Reaplicar recibos"</strong>
+                        <div class="ui small info message">
+                            Esto asigna los pagos al nuevo plan corregido.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== CASO 11: Flujo completo ========== -->
+            <div class="title active">
+                <i class="dropdown icon"></i>
+                <i class="tasks icon"></i> <span class="ui tiny blue label">Recomendado</span> Flujo completo paso a paso
+            </div>
+            <div class="content active">
+                <div class="ui info message">
+                    <strong>¿Primera vez?</strong> Siga este flujo completo. Le guiará desde el inicio hasta el final del proceso de reestructuración.
+                </div>
+
+                <div class="ui steps fluid vertical">
+                    <!-- Paso 0 -->
+                    <div class="step">
+                        <i class="unlink icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 0: Desvincular recaudos (si hay pagos aplicados)</div>
+                            <div class="description">
+                                <p>Vaya a la pantalla de <strong>Adjudicación</strong> y desvinvule los recaudos:</p>
+                                <div class="ui small message">
+                                    <i class="map marker icon"></i> Menú lateral → Ventas → Adjudicación → Busque el contrato → Menú de acciones (⋮) → "Desvincular todos los recaudos"
+                                </div>
+                                <p><em>¿Por qué? Esto libera el plan de pagos para poder modificarlo.</em></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 1 -->
+                    <div class="step">
+                        <i class="cut icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 1: ¿Hay cuotas con tijera roja?</div>
+                            <div class="description">
+                                <p><strong>Sí:</strong> Haga click en cada tijera roja para hacer Split</p>
+                                <p><strong>No:</strong> Continúe al siguiente paso</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 2 -->
+                    <div class="step">
+                        <i class="exclamation triangle icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 2: ¿Hay mensaje de inconsistencia?</div>
+                            <div class="description">
+                                <p><strong>Sí:</strong> Primero corrija el valor del lote con "Modificar Valor Venta"</p>
+                                <p><strong>No:</strong> Continúe al siguiente paso</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 3 -->
+                    <div class="step">
+                        <i class="question icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 3: Elija qué hacer</div>
+                            <div class="description">
+                                <table class="ui very basic compact table">
+                                    <tr>
+                                        <td><i class="tag icon"></i> Aplicar descuento o cambiar valor</td>
+                                        <td>→ Use <strong>"Modificar Valor Venta"</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="edit icon"></i> Cambiar una o pocas cuotas</td>
+                                        <td>→ Edite cada cuota con el botón lápiz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="file excel icon"></i> Plan complejo o muchas cuotas</td>
+                                        <td>→ Use la plantilla Excel</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 4 -->
+                    <div class="step">
+                        <i class="eye icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 4: Revise los cambios</div>
+                            <div class="description">
+                                <p>Verifique que la tabla muestre las cuotas correctas y revise el historial de modificaciones.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 5 -->
+                    <div class="step">
+                        <i class="save icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 5: Guardar</div>
+                            <div class="description">
+                                <p>Click en <button class="ui mini primary button"><i class="save icon"></i> Guardar reestructuración</button></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 6 -->
+                    <div class="step">
+                        <i class="check icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 6: Aprobar</div>
+                            <div class="description">
+                                <p>Un usuario con permisos debe aprobar la reestructuración desde el listado de reestructuraciones.</p>
+                                <div class="ui small message">
+                                    <i class="map marker icon"></i> Menú lateral → Ventas → Reestructuraciones → Aprobar
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 7 -->
+                    <div class="step">
+                        <i class="redo icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 7: Reaplicar recibos</div>
+                            <div class="description">
+                                <p>Vuelva a Adjudicación y seleccione <strong>"Reaplicar recibos"</strong></p>
+                                <p><em>¿Por qué? Esto asigna los pagos existentes al nuevo plan de pagos.</em></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paso 8 -->
+                    <div class="step">
+                        <i class="check circle icon"></i>
+                        <div class="content">
+                            <div class="title">Paso 8: Verificar</div>
+                            <div class="description">
+                                <p>Confirme en Adjudicación que todo esté correcto: plan de pagos y recaudos aplicados.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ui positive message">
+                    <i class="thumbs up icon"></i>
+                    <strong>¡Listo!</strong> Ha completado la reestructuración del plan de pagos.
+                </div>
+            </div>
+
+        </div><!-- Fin acordeón -->
+    </div>
+    <div class="actions">
+        <div class="ui positive button">Entendido</div>
+    </div>
+</div>
+<!-- Fin Modal de Ayuda -->
+
+</div>
+
+<input type="hidden" id="tasa-plan-pagos" value="{{ preferred_rate_js|unlocalize }}">
+
+{% endblock %}
+
+{% block script %}
+<script src="{% static 'js/jquery.mask.js' %}"></script>
+<script>
+const preferredRate = Number('{{ preferred_rate_js|unlocalize }}');
+let bloqueandoActualizacionValorVenta = false;
+function parseCurrencyInput(value) {
+    if (typeof value !== 'string') value = (value ?? '').toString();
+    const normalized = value.replace(/\./g, '').replace(/,/g, '.');
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
+function formatCurrencyInput(value, decimals = 2) {
+    return value.toLocaleString('es-CO', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+function actualizarTotalDesdeComponentes() {
+    const capital = parseCurrencyInput($('#edit-capital').val());
+    const interes = parseCurrencyInput($('#edit-interes').val());
+    const otros = parseFloat($('#edit-valor-cuota').data('otros') || 0);
+    const total = Math.max(0, capital + interes + otros);
+    $('#edit-valor-cuota').val(formatCurrencyInput(total, 0));
+}
+
+function actualizarCamposNuevoValorVenta(nuevoValor) {
+    const valorOriginal = parseCurrencyInput($('#valor-original-venta').val());
+    const saldoActual = parseCurrencyInput($('#saldo-pendiente-actual').val());
+    let nuevoValorNormalizado = isNaN(nuevoValor) ? 0 : nuevoValor;
+    if (nuevoValorNormalizado < 0) nuevoValorNormalizado = 0;
+
+    const diferencia = valorOriginal - nuevoValorNormalizado;
+    let porcentajeVariacion = 0;
+    if (valorOriginal > 0) {
+        porcentajeVariacion = (diferencia / valorOriginal) * 100;
+    }
+    let nuevoSaldo = saldoActual - diferencia;
+    nuevoSaldo = Math.max(0, nuevoSaldo);
+
+    bloqueandoActualizacionValorVenta = true;
+    $('#nuevo-valor-venta').val(Math.round(nuevoValorNormalizado).toLocaleString('es-CO'));
+    $('#diferencia-valor').val(Math.round(diferencia).toLocaleString('es-CO'));
+    bloqueandoActualizacionValorVenta = false;
+
+    $('#nuevo-saldo-pendiente').val(Math.round(nuevoSaldo).toLocaleString('es-CO'));
+    $('#descuento-porcentaje').val(porcentajeVariacion.toFixed(2));
+    $('#nuevo-valor-venta-hidden').val(nuevoValorNormalizado);
+    if (nuevoSaldo <= 0) {
+        $('#config-nuevas-cuotas').hide();
+    } else {
+        $('#config-nuevas-cuotas').show();
+    }
+
+    const labelEl = $('#descuento-porcentaje').closest('.field').find('label');
+    if (diferencia > 0) {
+        labelEl.text('Descuento calculado');
+    } else if (diferencia < 0) {
+        labelEl.text('Aumento calculado');
+    } else {
+        labelEl.text('Variación calculada');
+    }
+
+    calcularValorCuotaRedistribuir();
+}
+
+$('#btn-guardar-reestructuracion').on('click', function() {
+    // Obtén los datos de la tabla de cuotas
+    let cuotas = [];
+    $('#plan-pagos-table tbody tr').each(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        cuotas.push({
+            id_quota: $(this).find('td').eq(0).text().trim(),
+            quota_type: $(this).find('td').eq(1).text().trim(),
+            pay_date: $(this).find('td').eq(2).text().trim().split('/').reverse().join('-'),
+            capital: $(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.').trim(),
+            interest: $(this).find('.interest-cell').text().replace(/\./g, '').replace(/,/g, '.').trim(),
+            others: $(this).find('.others-cell').text().replace(/\./g, '').replace(/,/g, '.').trim(),
+            es_pagada: pendiente === 0
+        });
+    });
+
+    // Toma el historial de modificaciones como observaciones
+    let observations = [];
+    $('#historial-cambios-list .item').each(function() {
+        observations.push($(this).html());
+    });
+    let sale_id = $('#sale-id').val();
+    
+    // Obtener el nuevo valor de la venta (si se modificó)
+    let nuevoValorVenta = $('#nuevo-valor-venta-hidden').val();
+    
+    // Formatear correctamente la tasa para que el backend pueda procesarla
+    let tasa = $('#tasa-plan-pagos').val();
+    // Asegurar que use punto como separador decimal (no coma)
+    tasa = tasa.replace(',', '.');
+    // Convertir a número y luego a string para eliminar caracteres no numéricos
+    tasa = parseFloat(tasa).toString();
+
+    $.ajax({
+        url: '/sales/guardar_reestructuracion/',
+        method: 'POST',
+        data: JSON.stringify({
+            sale_id: sale_id,
+            cuotas: cuotas,
+            observations: observations.join('<br>'),
+            tasa: tasa,
+            nuevo_valor_venta: nuevoValorVenta
+        }),
+        contentType: 'application/json',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+        success: function(resp) {
+            if (resp.success) {
+                alert('Reestructuración guardada correctamente.');
+                location.replace('/sales/{{sale.project.name}}/reestructuraciones');
+            } else {
+                alert('Error: ' + resp.error);
+            }
+        }
+    });
+});
+    
+    $('#edit-tasa').on('input', function() {
+        $('#tasa-plan-pagos').val($(this).val());
+    });
+    let contadorNuevasCuotas = 1;
+    function abrirModalEdicionCuota(cuotaId) {
+        const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
+        const tipoCuota = fila.data('tipo-cuota');
+
+        let saldo = 0;
+        fila.nextAll('tr:visible').addBack().filter(function() {
+            return $(this).data('tipo-cuota') === tipoCuota;
+        }).each(function() {
+            const capitalCuota = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            const capitalPagado = parseFloat($(this).find('td').eq(8).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            saldo += (capitalCuota - capitalPagado);
+        });
+        let saldoBase = saldo;
+
+            // Verificar si es la primera cuota pendiente (para descuento)
+        const esPrimeraCuotaPendiente = fila.index() === $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0;
+        }).first().index();
+        
+        // Marcar si es primera cuota pendiente
+        $('#es-primera-cuota').val(esPrimeraCuotaPendiente ? "1" : "0");
+        
+        // Mostrar/ocultar sección de descuento
+        if (esPrimeraCuotaPendiente) {
+            // Calcular saldo pendiente total (suma de todas las cuotas pendientes)
+            let saldoPendienteTotal = 0;
+            $('#plan-pagos-table tbody tr').filter(function() {
+                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                return pendiente > 0;
+            }).each(function() {
+                const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                saldoPendienteTotal += capital;
+            });
+            
+            // Configurar campos de descuento
+            $('#descuento-saldo-pendiente').val(saldoPendienteTotal.toLocaleString('es-CO'));
+            $('#descuento-nuevo-saldo').val(saldoPendienteTotal.toLocaleString('es-CO'));
+            $('#descuento-monto').val('');
+            $('#descuento-porcentaje').val('');
+            $('#descuento-motivo').val('');
+            
+            // Mostrar checkbox pero mantener oculta la sección de descuento
+            $('#aplicar-descuento-field').show();
+            $('#descuento-section').hide();
+            $('#aplicar-descuento-checkbox').prop('checked', false);
+            
+            // Aplicar máscara al campo de monto de descuento
+            $('#descuento-monto').mask('000.000.000.000', {reverse: true});
+            
+        } else {
+            // Si no es la primera cuota, ocultar tanto el checkbox como la sección
+            $('#aplicar-descuento-field').hide();
+            $('#descuento-section').hide();
+            $('#edit-aplicar-cambio-field').show();
+        }
+
+        // Verificación de pago total del crédito
+        const $ultimaFila = $('#plan-pagos-table tbody tr:visible').last();
+        const saldoAmortizacion = parseFloat($ultimaFila.find('.saldo-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const capitalUltima = parseFloat($ultimaFila.find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+        if (Math.abs(saldoAmortizacion - capitalUltima) > 0) {
+            // Muestra un aviso en el modal
+            $('#edit-cuota-modal .content form').find('#aviso-saldo-final').remove();
+            $('#edit-cuota-modal .content form').prepend(`
+                <div class="ui visible warning small message" id="aviso-saldo-final">
+                    <i class="warning sign icon"></i>
+                    <strong>Atención:</strong> El saldo de la última cuota (${saldoAmortizacion.toLocaleString('es-CO', {minimumFractionDigits: 2})}) es diferente al valor a capital (${capitalUltima.toLocaleString('es-CO', {minimumFractionDigits: 2})}). El crédito no se está pagando en su totalidad, por lo que se ajustó el saldo pendiente para que coincidiera.
+                </div>
+            `);
+            saldoBase += saldoAmortizacion - capitalUltima; // Ajusta el saldo base para reflejar el capital no pagado
+        } else {
+            $('#edit-cuota-modal .content form').find('#aviso-saldo-final').remove();
+        }
+
+
+        const capitalCuota = parseFloat(fila.find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const valorInteres = parseFloat(fila.find('.interest-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const valorOtros = parseFloat(fila.find('.others-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const valorCuota = capitalCuota + valorInteres + valorOtros;
+        const fechaCuota = fila.find('td').eq(2).text().split('/').reverse().join('-');
+        let tasa = preferredRate / 100;
+        if (!tasa || isNaN(tasa) || tasa === 0) {
+            const tasaInput = parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.'));
+            if (tasaInput && !isNaN(tasaInput)) {
+                tasa = tasaInput / 100;
+            }
+        }
+        const interes = Math.round(Math.max(0, (tipoCuota === 'CI') ? 0 : saldoBase * tasa));
+        const capital = Math.round(Math.max(0, valorCuota - interes));
+
+        console.log('[PlanPagos] abrirModalEdicionCuota', {
+            cuotaId,
+            tipoCuota,
+            saldoBase,
+            tasa,
+            valorOriginalInteres: valorInteres,
+            valorCuota,
+            valorInteres,
+            interesCalculado: interes,
+            capitalCalculado: capital
+        });
+
+        // Obtener tipos de cuota únicos después de la fila seleccionada (incluida)
+        let tiposSet = new Set();
+        fila.nextAll('tr:visible').addBack().each(function() {
+            // Usa .data('tipo-cuota'), si no existe, usa .attr('data-tipo-cuota')
+            let tipo = $(this).data('tipo-cuota');
+            if (!tipo) {
+                tipo = $(this).attr('data-tipo-cuota');
+            }
+            tiposSet.add(tipo);
+        });
+        let tipos = Array.from(tiposSet);
+        if (tipos.length === 0) {
+            tipos = [tipoCuota];
+        }
+
+        // Definir $select aquí
+        let $select = $('#edit-tipos-cuota');
+
+        if (tipoCuota === 'CI') {
+            $select.closest('.field').hide();
+            $select.val([tipoCuota]);
+            // No uses $select.dropdown ni eventos aquí
+        } else {
+            $select.closest('.field').show();
+            $select.dropdown('clear');
+            $select.dropdown('restore defaults');
+            $select.empty();
+            tipos.forEach(function(tipo) {
+                if (tipo === fila.data('tipo-cuota')) {
+                    $select.append(`<option value="${tipo}" selected>${tipo}</option>`);
+                } else {
+                    $select.append(`<option value="${tipo}">${tipo}</option>`);
+                }
+            });
+            $select.dropdown('refresh');
+            $select.dropdown('set selected', [fila.data('tipo-cuota')]);
+
+            // Siempre forzar seleccionado el tipo principal después de cada cambio
+            $select.off('change.forzarTipo').on('change.forzarTipo', function() {
+                let tipoPrincipal = fila.data('tipo-cuota');
+                let valores = $(this).val() || [];
+                if (!valores.includes(tipoPrincipal)) {
+                    valores.push(tipoPrincipal);
+                    $(this).dropdown('set selected', valores);
+                }
+            });
+            $select.trigger('change');
+        }
+
+        $('#edit-aplicar-cambio').dropdown('set selected', 'solo');
+        $('#edit-incluir-extra').dropdown('set selected', 'no');
+
+        $('#cuota_id').val(cuotaId);
+        $('#edit-saldo-base').val(saldoBase.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        $('#edit-valor-cuota')
+            .val(valorCuota.toLocaleString('es-CO'))
+            .data('original', valorCuota)
+            .data('otros', valorOtros)
+            .data('capital-base', capital)
+            .data('interes-base', interes);
+        $('#edit-capital').val(capital.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        $('#edit-interes').val(interes.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        $('#edit-fecha-cuota').val(fechaCuota).data('original', fechaCuota);
+        //$('#edit-aplicar-cambio-field').hide();
+        $('#edit-num-cuotas-field').hide(); // Oculta el campo de número de cuotas
+        $('#edit-redistribuir-fields').hide(); // Oculta campos de redistribución
+
+        const fechaFila = fila.find('td').eq(2).text(); // formato dd/mm/yyyy
+        if (fechaFila && fechaFila.includes('/')) {
+            const partes = fechaFila.split('/');
+            if (partes.length === 3) {
+                // Convertir a yyyy-mm-dd para el input date
+                const fechaISO = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                $('#edit-fecha-inicio-redistribuir').val(fechaISO);
+            }
+        }
+
+        $('#edit-cuota-modal').modal('show');
+        $('#edit-valor-cuota').mask('000.000.000.000', {reverse: true});
+
+        
+        
+
+
+        return false;
+    }
+
+    // Al cambiar el valor de la cuota, recalcula capital e interés en el modal
+    $('#edit-valor-cuota').on('keyup change', function() {
+        const saldoBase = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const tipoCuota = $('tr').has('.capital-cell[data-id="'+$('#cuota_id').val()+'"]').data('tipo-cuota');
+        let nuevoValor = $(this).val().replace(/\./g, '');
+        nuevoValor = Math.max(0, Math.round(parseFloat(nuevoValor) || 0)); // Ajuste a entero
+
+        const aplicarCambio = $('#edit-aplicar-cambio').val() || 'solo';
+
+        let capital;
+        let interes;
+        if (aplicarCambio === 'solo' || tipoCuota === 'CI') {
+            const interesBase = parseCurrencyInput($('#edit-valor-cuota').data('interes-base')) || 0;
+            interes = Math.min(interesBase, nuevoValor);
+            capital = Math.max(0, nuevoValor - interes);
+        } else {
+            let tasa = preferredRate / 100;
+            if (!tasa || isNaN(tasa) || tasa === 0) {
+                const tasaInput = parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.'));
+                if (tasaInput && !isNaN(tasaInput)) {
+                    tasa = tasaInput / 100;
+                }
+            }
+            if (tasa > 0) {
+                interes = Math.round(Math.max(0, saldoBase * tasa));
+                capital = Math.max(0, nuevoValor - interes);
+            } else {
+                interes = parseCurrencyInput($('#edit-interes').val());
+                capital = Math.max(0, nuevoValor - interes);
+                interes = Math.max(0, nuevoValor - capital);
+            }
+        }
+
+        $('#edit-capital').val(capital.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        $('#edit-interes').val(interes.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+
+        // Mostrar el select solo si el valor cambió respecto al original
+        const valorOriginal = $('#edit-valor-cuota').data('original');
+        if (valorOriginal && nuevoValor !== valorOriginal) {
+            $('#edit-aplicar-cambio-field').show();
+        } else {
+            //$('#edit-aplicar-cambio-field').hide();
+        }
+    });
+
+    $('#edit-capital').on('input', function() {
+        const valorTotal = parseCurrencyInput($('#edit-valor-cuota').val());
+        let capital = parseCurrencyInput($(this).val());
+        capital = Math.max(0, Math.min(capital, valorTotal));
+        const interes = Math.max(0, valorTotal - capital);
+        $('#edit-interes').val(formatCurrencyInput(interes));
+    }).on('blur', function() {
+        const valorTotal = parseCurrencyInput($('#edit-valor-cuota').val());
+        let capital = parseCurrencyInput($(this).val());
+        capital = Math.max(0, Math.min(capital, valorTotal));
+        $('#edit-capital').val(formatCurrencyInput(capital));
+        $('#edit-interes').val(formatCurrencyInput(Math.max(0, valorTotal - capital)));
+    });
+
+    $('#edit-interes').on('input', function() {
+        const valorTotal = parseCurrencyInput($('#edit-valor-cuota').val());
+        let interes = parseCurrencyInput($(this).val());
+        interes = Math.max(0, Math.min(interes, valorTotal));
+        const capital = Math.max(0, valorTotal - interes);
+        $('#edit-capital').val(formatCurrencyInput(capital));
+    }).on('blur', function() {
+        const valorTotal = parseCurrencyInput($('#edit-valor-cuota').val());
+        let interes = parseCurrencyInput($(this).val());
+        interes = Math.max(0, Math.min(interes, valorTotal));
+        $('#edit-interes').val(formatCurrencyInput(interes));
+        $('#edit-capital').val(formatCurrencyInput(Math.max(0, valorTotal - interes)));
+    });
+
+    $('#edit-tipos-cuota').on('change', function() {
+        const tiposSeleccionados = $(this).val() || [];
+        let saldo = 0;
+        const fila = $('tr').has('.capital-cell[data-id="'+$('#cuota_id').val()+'"]');
+        fila.nextAll('tr:visible').addBack().each(function() {
+            if (tiposSeleccionados.includes($(this).data('tipo-cuota'))) {
+                const capitalCuota = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                const capitalPagado = parseFloat($(this).find('td').eq(8).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                saldo += (capitalCuota - capitalPagado);
+            }
+        });
+        $('#edit-saldo-base').val(saldo.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+    });
+
+    $('#edit-tipos-cuota').trigger('change');
+
+    // Observa cambios en el historial
+    function actualizarBotonReestructuracion() {
+        const $list = $('#historial-cambios-list');
+        // Si hay al menos un cambio, activa el botón
+        if ($list.find('.item').length > 0 && !$list.find('.item').text().includes('No hay cambios')) {
+            $('#btn-guardar-reestructuracion').prop('disabled', false);
+        } else {
+            $('#btn-guardar-reestructuracion').prop('disabled', true);
+        }
+    }
+
+    $(document).ready(function() {
+        // Desactiva el botón al inicio
+        $('#btn-guardar-reestructuracion').prop('disabled', true);
+
+
+
+        // Llama la función cada vez que se agrega un cambio
+        window.agregarHistorialCambio = function(texto) {
+            const $list = $('#historial-cambios-list');
+            if ($list.find('.item').length === 1 && $list.find('.item').text().includes('No hay cambios')) {
+                $list.empty();
+            }
+            const fecha = new Date();
+            const fechaStr = fecha.toLocaleString('es-CO');
+            $list.prepend(`<div class="item">${texto}</div>`);
+            actualizarBotonReestructuracion();
+        };
+
+        // También verifica al cargar la página
+        actualizarBotonReestructuracion();
+    });
+
+    $(document).ready(function() {
+        recalcularAmortizacion();
+        verificarConsistenciaSaldo();
+        // Inicializar el modal
+        $('#edit-cuota-modal').modal({
+            closable: true,
+            onApprove: function() { return false; }
+        });
+
+        $('#edit-valor-cuota-regular').mask('000.000.000.000', {reverse: true});
+
+        // Guardar cambios del modal SOLO en el front
+        $('#save-edit').on('click', function() {
+            const cuotaId = $('#cuota_id').val();
+            const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
+            const nuevaFecha = $('#edit-fecha-cuota').val();
+            let nuevoValor = $('#edit-valor-cuota').val().replace(/\./g, '');
+            nuevoValor = parseFloat(nuevoValor);
+            const aplicarCambio = $('#edit-aplicar-cambio').val() || 'solo';
+            const tiposSeleccionados = $('#edit-tipos-cuota').val() || [];
+            const saldoBase = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            let capitalManual = parseCurrencyInput($('#edit-capital').val());
+            let interesManual = parseCurrencyInput($('#edit-interes').val());
+
+            // Validar fecha no menor a la anterior
+            //const filaAnterior = fila.prevAll('tr:visible').first();
+            //if (filaAnterior.length > 0) {
+            //    const fechaAnterior = filaAnterior.find('td').eq(2).text().split('/').reverse().join('-');
+            //    if (nuevaFecha < fechaAnterior) {
+            //        showToast('La fecha de la cuota no puede ser anterior a la cuota previa.', 'error');
+            //        return;
+            //    }
+            //}
+
+            // ✅ NUEVO: Verificar si hubo cambio de tasa
+            const huboCambioTasa = $('#edit-tasa').data('cambio-tasa');
+            let mensajeHistorial = '';
+
+            // PROTECCIÓN: el capital no puede ser mayor al saldo
+            const saldo = parseFloat(fila.find('.saldo-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            const tasa = preferredRate / 100;
+            let interes = interesManual;
+            let capital = capitalManual;
+
+            if (aplicarCambio !== 'solo') {
+                interes = saldo * tasa;
+                capital = nuevoValor - interes;
+            }
+
+            if (capital > saldo) {
+                showToast('El valor de la cuota es tan alto que el capital supera el saldo pendiente. Ajusta el valor.', 'error');
+                return;
+            }
+
+            // Si está activada la opción de cuotas extraordinarias
+            if ($('#edit-incluir-extra').val() === 'si') {
+                const nReg = parseInt($('#edit-cant-regular').val()) || 0;
+                const nExtra = parseInt($('#edit-cant-extra').val()) || 0;
+                const periodExtra = parseInt($('#edit-period-extra').val()) || 6;
+                const cuotaReg = parseFloat($('#edit-valor-cuota-regular').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                const cuotaExtra = parseFloat($('#edit-valor-cuota-extra').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                const saldoBase = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                const tasa = parseFloat($('#edit-tasa').val().replace(',', '.')) / 100;
+                let fechaBase = new Date($('#edit-fecha-cuota').val());
+                const sobreponer = $('#edit-extra-sobreponer').val() === 'si';
+
+                // Elimina las filas actuales a partir de la seleccionada
+                const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
+                let filasAEliminar = fila.nextAll('tr:visible').addBack();
+                filasAEliminar.remove();
+
+                // Genera meses de pago de extraordinarias
+                let mesesExtra = [];
+                for (let i = 1; i <= nExtra; i++) {
+                    mesesExtra.push(i * periodExtra);
+                }
+
+                // Buscar el último consecutivo usado para cada tipo en la tabla
+                const ctr = '{{ sale.contract_number }}';
+                let maxSCR = 0, maxSCE = 0;
+                $('#plan-pagos-table tbody tr').each(function() {
+                    const tipo = $(this).data('tipo-cuota');
+                    const idCuota = $(this).find('td').eq(0).text();
+                    let match = idCuota.match(/^([A-Z]+)(\d+)CTR/);
+                    if (match) {
+                        let tipoFila = match[1];
+                        let num = parseInt(match[2]);
+                        if (tipoFila === 'SCR' && num > maxSCR) maxSCR = num;
+                        if (tipoFila === 'SCE' && num > maxSCE) maxSCE = num;
+                    }
+                });
+                let consecutivoSCR = maxSCR + 1;
+                let consecutivoSCE = maxSCE + 1;
+
+                // Genera cuotas
+                let cuotasGeneradas = [];
+                let saldo = saldoBase;
+
+                for (let i = 1; i <= nReg; i++) {
+                    let esExtra = mesesExtra.includes(i);
+                    let fechaStr = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+
+                    if (esExtra && sobreponer) {
+                        // Regular
+                        let interesReg = Math.round(saldo * tasa);
+                        let capitalReg = Math.round(cuotaReg - interesReg);
+                        if (capitalReg > saldo) capitalReg = saldo;
+                        if (capitalReg < 0) capitalReg = 0;
+                        let totalReg = capitalReg + interesReg;
+                        let codigoCuotaReg = `SCR${consecutivoSCR++}CTR${ctr}`;
+                        cuotasGeneradas.push({
+                            tipo: 'SCR',
+                            codigo: codigoCuotaReg,
+                            fecha: fechaStr,
+                            capital: capitalReg,
+                            interes: interesReg,
+                            total: totalReg,
+                            saldo: saldo - capitalReg
+                        });
+                        saldo -= capitalReg;
+
+                        // Extraordinaria (mismo mes)
+                        let interesExt = Math.round(saldo * tasa);
+                        let capitalExt = Math.round(cuotaExtra - interesExt);
+                        if (capitalExt > saldo) capitalExt = saldo;
+                        if (capitalExt < 0) capitalExt = 0;
+                        let totalExt = capitalExt + interesExt;
+                        let codigoCuotaExt = `SCE${consecutivoSCE++}CTR${ctr}`;
+                        cuotasGeneradas.push({
+                            tipo: 'SCE',
+                            codigo: codigoCuotaExt,
+                            fecha: fechaStr,
+                            capital: capitalExt,
+                            interes: interesExt,
+                            total: totalExt,
+                            saldo: saldo - capitalExt
+                        });
+                        saldo -= capitalExt;
+                    } else if (esExtra && !sobreponer) {
+                        // Solo extraordinaria
+                        let interesExt = Math.round(saldo * tasa);
+                        let capitalExt = Math.round(cuotaExtra - interesExt);
+                        if (capitalExt > saldo) capitalExt = saldo;
+                        if (capitalExt < 0) capitalExt = 0;
+                        let totalExt = capitalExt + interesExt;
+                        let codigoCuotaExt = `SCE${consecutivoSCE++}CTR${ctr}`;
+                        cuotasGeneradas.push({
+                            tipo: 'SCE',
+                            codigo: codigoCuotaExt,
+                            fecha: fechaStr,
+                            capital: capitalExt,
+                            interes: interesExt,
+                            total: totalExt,
+                            saldo: saldo - capitalExt
+                        });
+                        saldo -= capitalExt;
+                    } else {
+                        // Solo regular
+                        let interesReg = Math.round(saldo * tasa);
+                        let capitalReg = Math.round(cuotaReg - interesReg);
+                        if (capitalReg > saldo) capitalReg = saldo;
+                        if (capitalReg < 0) capitalReg = 0;
+                        let totalReg = capitalReg + interesReg;
+                        let codigoCuotaReg = `SCR${consecutivoSCR++}CTR${ctr}`;
+                        cuotasGeneradas.push({
+                            tipo: 'SCR',
+                            codigo: codigoCuotaReg,
+                            fecha: fechaStr,
+                            capital: capitalReg,
+                            interes: interesReg,
+                            total: totalReg,
+                            saldo: saldo - capitalReg
+                        });
+                        saldo -= capitalReg;
+                    }
+                    fechaBase.setMonth(fechaBase.getMonth() + 1);
+                }
+                // Renderiza las filas
+                for (const cuota of cuotasGeneradas) {
+                    
+                    let idUnico = `NEW${contadorNuevasCuotas++}`;
+                    let nuevaFila = `
+                        <tr data-tipo-cuota="${cuota.tipo}">
+                            <td>${cuota.codigo}</td>
+                            <td>${cuota.tipo}</td>
+                            <td>${cuota.fecha}</td>
+                            <td class="right aligned capital-cell" data-id="${idUnico}">${cuota.capital.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td class="right aligned interest-cell" data-id="${idUnico}">${cuota.interes.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td class="right aligned others-cell">0,00</td>
+                            <td class="right aligned total-cell" data-id="${idUnico}">${cuota.total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td class="right aligned saldo-cell" data-id="${idUnico}">${cuota.saldo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td class="right aligned">0,00</td>
+                            <td class="right aligned">0,00</td>
+                            <td class="right aligned">0,00</td>
+                            <td class="right aligned pendiente-cell">${cuota.total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td>
+                                <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                                    <i class="edit icon"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    $('#plan-pagos-table tbody').append(nuevaFila);
+                }
+
+                recalcularAmortizacion();
+                actualizarColoresVencidas();
+                $('#edit-cuota-modal').modal('hide');
+                agregarHistorialCambio(
+                    `Redistribuiste el plan con <strong>${nReg} cuotas regulares</strong> y <strong>${nExtra} extraordinarias</strong>.`
+                );
+                
+                return;
+            }
+            // Decide qué función de recálculo usar según la opción seleccionada
+            else if (aplicarCambio === 'redistribuir') {
+                const numCuotas = parseInt($('#edit-num-cuotas').val()) || 0;
+                const nuevaFecha = $('#edit-fecha-inicio-redistribuir').val();
+                let nuevoValor = $('#edit-valor-cuota-redistribuir').val().replace(/\./g, '').replace(/,/g, '.');
+                nuevoValor = parseFloat(nuevoValor);
+                const saldoBase = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                const tiposSeleccionados = $('#edit-tipos-cuota').val() || [];
+                const tipoCuota = fila.data('tipo-cuota');
+                const tasa = parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.')) / 100;
+                if (numCuotas < 1 || !nuevaFecha || !nuevoValor) {
+                    showToast('Completa todos los campos para redistribuir.', 'error');
+                    return;
+                }
+
+                // Simulación precisa para asegurar que la redistribución es viable
+                let saldoSimulado = saldoBase;
+                let esViable = true;
+                for (let i = 0; i < numCuotas; i++) {
+                    let interes = Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa);
+                    let capital = Math.max(0, nuevoValor - interes);
+
+                    if (capital < 0) {
+                        esViable = false;
+                        break;
+                    }
+                    saldoSimulado -= capital;
+                    if (saldoSimulado <= 0) {
+                        esViable = true;
+                        break;
+                    }
+                }
+                // Si queda un saldo relevante, no es viable
+                if (saldoSimulado > saldoBase * 0.05) {
+                    esViable = false;
+                }
+
+                let tasaParam = parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.')) / 100;
+                let primeraFilaNueva = reemplazarCuotasTipo(
+                    fila, nuevoValor, nuevaFecha, saldoBase, numCuotas, tiposSeleccionados, null, null, tasaParam
+                );
+                if (primeraFilaNueva) {
+                    renumerarCuotasDesde(primeraFilaNueva);
+                }
+                // ✅ NUEVO: Construir mensaje de historial con cambio de tasa
+                mensajeHistorial = `Redistribuiste desde la cuota <strong>${fila.find('td').eq(0).text()}</strong> en <strong>${numCuotas} cuotas</strong> de <strong>$${nuevoValor.toLocaleString('es-CO')}</strong> cada una`;
+                
+                if (huboCambioTasa) {
+                    const tasaOriginal = $('#edit-tasa').data('tasa-original');
+                    const nuevaTasa = $('#edit-tasa').data('nueva-tasa');
+                    mensajeHistorial += ` con <strong>nueva tasa del ${nuevaTasa}%</strong> (anterior: ${tasaOriginal}%)`;
+                }
+                
+                agregarHistorialCambio(mensajeHistorial);
+                ajustarFechasDesde(fila);
+            }
+            else if (aplicarCambio === 'solo') {
+                // Detectar si solo se cambió la fecha
+                const valorOriginal = $('#edit-valor-cuota').data('original');
+                const fechaOriginal = $('#edit-fecha-cuota').data('original');
+                recalcularSoloEstaCuota(fila, nuevoValor, nuevaFecha, saldoBase, capitalManual, interesManual);
+
+                if (valorOriginal === nuevoValor && fechaOriginal !== nuevaFecha) {
+                    agregarHistorialCambio(
+                        `Actualizaste la <strong>fecha</strong> de la cuota <strong>${fila.find('td').eq(0).text()}</strong> a <strong>${nuevaFecha.split('-').reverse().join('/')}</strong>`
+                    );
+                } else {
+                    agregarHistorialCambio(
+                        `Editaste la cuota <strong>${fila.find('td').eq(0).text()}</strong> a valor <strong>$${nuevoValor.toLocaleString('es-CO')}</strong> y fecha <strong>${nuevaFecha.split('-').reverse().join('/')}</strong>`
+                    );
+                }
+            } else {
+                recalcularDesdeEstaCuota(fila, nuevoValor, nuevaFecha, saldoBase);
+                agregarHistorialCambio(
+                    `Aplicaste el nuevo valor <strong>$${nuevoValor.toLocaleString('es-CO')}</strong> y fecha <strong>${nuevaFecha.split('-').reverse().join('/')}</strong> desde la cuota <strong>${fila.find('td').eq(0).text()}</strong> a todas las siguientes del mismo tipo`
+                );
+                
+                ajustarFechasDesde(fila);
+            }
+            
+            recalcularAmortizacion();
+            renumerarCuotasDesde(fila);
+            
+            
+            $('#edit-cuota-modal').modal('hide');
+        });
+
+        // Inicializar dropdown Semantic UI
+        $('#tipo-cuota-select').dropdown();
+
+        // Al cambiar el filtro de tipo de cuota, mostrar solo las filas seleccionadas
+        $('#tipo-cuota-select').on('change', function() {
+            const tipos = $(this).val() || [];
+            $('#plan-pagos-table tbody tr').each(function() {
+                const tipo = $(this).data('tipo-cuota');
+                if (tipos.length === 0 || tipos.includes(tipo)) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        });
+
+        // Recalcular plan de pagos en el front
+        $('#recalcular-plan').on('click', function() {
+            const tipos = $('#tipo-cuota-select').val() || [];
+            const nuevaCuota = parseFloat($('#nueva-cuota').val());
+            const nuevoPlazo = parseInt($('#nuevo-plazo').val());
+            const tasa = preferredRate / 100;
+
+            if (!nuevaCuota || !nuevoPlazo || tipos.length === 0) {
+                alert('Selecciona tipo de cuota, valor de cuota y plazo.');
+                return;
+            }
+
+            // Filtrar filas visibles y sumar capital pendiente
+            let saldo = 0;
+            $('#plan-pagos-table tbody tr').each(function() {
+                const tipo = $(this).data('tipo-cuota');
+                if (tipos.includes(tipo) && $(this).is(':visible')) {
+                    saldo += parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                }
+            });
+
+            // Recalcular cuotas (sistema francés simple)
+            let saldoRestante = saldo;
+            let plan = [];
+            for (let i = 1; i <= nuevoPlazo; i++) {
+                let interes = Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa);
+                let capital = Math.max(0, nuevaCuota - interes);
+                if (i === nuevoPlazo) capital = saldoRestante; // Ajuste última cuota
+                if (capital < 0) capital = 0;
+                plan.push({
+                    cuota: i,
+                    capital: capital,
+                    interes: interes,
+                    total: capital + interes,
+                    saldo: saldoRestante - capital
+                });
+                saldoRestante -= capital;
+            }
+
+            // Actualizar la tabla solo para las filas visibles y seleccionadas
+            let idx = 0;
+            $('#plan-pagos-table tbody tr').each(function() {
+                const tipo = $(this).data('tipo-cuota');
+                if (tipos.includes(tipo) && $(this).is(':visible') && idx < plan.length) {
+                    $(this).find('.capital-cell').text(plan[idx].capital.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+                    $(this).find('.interest-cell').text(plan[idx].interes.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+                    $(this).find('.pendiente-cell').text(plan[idx].total.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+                    $(this).find('.saldo-cell').text(plan[idx].saldo.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+                    idx++;
+                }
+            });
+
+            for (const tipo of tipos) {
+                let filasExistentes = $('#plan-pagos-table tbody tr').filter(function() {
+                    return $(this).data('tipo-cuota') === tipo && $(this).is(':visible');
+                });
+                let filasFaltantes = plan.length - filasExistentes.length;
+                for (let i = filasExistentes.length; i < plan.length; i++) {
+                    let nuevaFila = `
+                        <tr data-tipo-cuota="${tipo}">
+                            <td>--</td>
+                            <td>${tipo}</td>
+                            <td>${/* aquí puedes calcular la fecha */''}</td>
+                            <td class="right aligned capital-cell">${plan[i].capital.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                            <td class="right aligned interest-cell">${plan[i].interes.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                            <td class="right aligned others-cell">0,00</td>
+                            <td class="right aligned total-cell">${plan[i].total.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                            <td class="right aligned saldo-cell">${plan[i].saldo.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                            <td class="right aligned">0</td>
+                            <td class="right aligned">0</td>
+                            <td class="right aligned">0</td>
+                            <td class="right aligned pendiente-cell">${plan[i].total.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                            <td>
+                                <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                                    <i class="edit icon"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    $('#plan-pagos-table tbody').append(nuevaFila);
+                }
+            }
+        });
+    });
+
+
+
+    $('#edit-incluir-extra, #edit-period-extra').dropdown();
+
+    $('#edit-incluir-extra').on('change', function() {
+        if ($(this).val() === 'si') {
+            $('#edit-extra-fields').show();
+            $('#edit-redistribuir-fields').hide(); // Oculta los campos de redistribución estándar
+            calcularCuotasExtra();
+        } else {
+            $('#edit-extra-fields').hide();
+            $('#edit-redistribuir-fields').show(); // Muestra los campos de redistribución estándar
+        }
+    });
+    $('#edit-cant-regular, #edit-cant-extra, #edit-period-extra, #edit-saldo-base, #edit-tasa, #edit-valor-cuota-regular').on('input change', calcularCuotasExtra);
+
+    function calcularCuotasExtra() {
+        const saldo = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const tasa = parseFloat($('#edit-tasa').val().replace(',', '.')) / 100;
+        const nReg = parseInt($('#edit-cant-regular').val()) || 0;
+        const nExtra = parseInt($('#edit-cant-extra').val()) || 0;
+        const periodExtra = parseInt($('#edit-period-extra').val()) || 6;
+        let cuotaReg = parseFloat($('#edit-valor-cuota-regular').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+        if (saldo > 0 && tasa >= 0 && nReg > 0 && nExtra > 0 && periodExtra > 0 && cuotaReg > 0) {
+            // Meses en los que se pagan las extraordinarias
+            let mesesExtra = [];
+            for (let i = 1; i <= nExtra; i++) {
+                mesesExtra.push(i * periodExtra);
+            }
+
+            // Valor presente de las extraordinarias
+            let vpExtra = 0;
+            mesesExtra.forEach(mes => {
+                vpExtra += 1 / Math.pow(1 + tasa, mes);
+            });
+
+            // Valor presente de las regulares (en los meses que no hay extra)
+            let vpReg = 0;
+            let numRegulares = 0;
+            for (let i = 1; i <= nReg; i++) {
+                if (!mesesExtra.includes(i)) {
+                    vpReg += 1 / Math.pow(1 + tasa, i);
+                    numRegulares++;
+                }
+            }
+
+            // saldo = cuotaReg * vpReg + cuotaExtra * vpExtra
+            // => cuotaExtra = (saldo - cuotaReg * vpReg) / vpExtra
+            let cuotaExtra = 0;
+            if (vpExtra > 0) {
+                cuotaExtra = (saldo - cuotaReg * vpReg) / vpExtra;
+            }
+            if (cuotaExtra < 0) cuotaExtra = 0;
+
+            // Redondear
+            cuotaExtra = Math.round(cuotaExtra);
+
+            $('#edit-valor-cuota-extra').val(cuotaExtra.toLocaleString('es-CO'));
+        } else {
+            $('#edit-valor-cuota-extra').val('');
+        }
+    }
+
+    function recalcularDesdeEstaCuota(fila, nuevoValor, nuevaFecha, saldo) {
+        const tipoCuota = fila.data('tipo-cuota');
+        const tasa = preferredRate / 100;
+
+        let fechaBase = new Date(nuevaFecha);
+
+        // Solo filas del mismo tipo desde la actual en adelante
+        let filas = fila.nextAll('tr:visible').addBack().filter(function() {
+            return $(this).data('tipo-cuota') === tipoCuota;
+        });
+        let filasArray = filas.toArray();
+        let idx = 0;
+        let saldoSiguiente = saldo;
+
+        for (; idx < filasArray.length; idx++) {
+            if (saldo <= 0.01) {
+                // Elimina todas las filas restantes del mismo tipo
+                for (let j = idx; j < filasArray.length; j++) {
+                    $(filasArray[j]).remove();
+                }
+                break;
+            }
+            // ✅ CORRECCIÓN: Ajustar a enteros
+            let interes = Math.round(Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa)); // Ajuste a entero
+            let capital = Math.round(Math.max(0, nuevoValor - interes)); // Ajuste a entero
+
+            // Si es la última fila o el capital supera el saldo, ajusta el capital
+            if (idx === filasArray.length - 1 || capital > saldo) capital = Math.round(saldo); // Ajuste a entero
+            if (capital < 0) capital = 0;
+
+            // Si el capital es menor que un peso, elimina la fila y termina
+            if (capital <= 0.01) {
+                for (let j = idx; j < filasArray.length; j++) {
+                    $(filasArray[j]).remove();
+                }
+                break;
+            }
+
+            let total = capital + interes;
+            saldoSiguiente = saldo - capital;
+
+            if (idx === 0) {
+                $(filasArray[idx]).find('td').eq(2).text(nuevaFecha.split('-').reverse().join('/'));
+            } else {
+                fechaBase.setMonth(fechaBase.getMonth() + 1);
+                const nuevaFechaStr = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+                $(filasArray[idx]).find('td').eq(2).text(nuevaFechaStr);
+            }
+            $(filasArray[idx]).find('.capital-cell').text(capital.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(filasArray[idx]).find('.interest-cell').text(interes.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(filasArray[idx]).find('.pendiente-cell').text(total.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(filasArray[idx]).find('.saldo-cell').text(saldoSiguiente.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(filasArray[idx]).find('.total-cell').text(total.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+
+            saldo = saldoSiguiente;
+        }
+
+        // Si aún queda saldo, agregar nuevas cuotas del mismo tipo hasta cubrir el saldo
+        while (saldo > 0.01) {
+            // ✅ CORRECCIÓN: Ajustar a enteros
+            let interes = Math.round(Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa)); // Ajuste a entero
+            let capital = Math.round(Math.max(0, nuevoValor - interes)); // Ajuste a entero
+            if (capital > saldo) capital = Math.round(saldo); // Ajuste a entero
+            if (capital < 0) capital = 0;
+            if (capital <= 0.01) break;
+            let total = capital + interes;
+            fechaBase.setMonth(fechaBase.getMonth() + 1);
+            const fechaStr = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+
+            let idUnico = `NEW${contadorNuevasCuotas++}`;
+            let nuevaFila = `
+                <tr data-tipo-cuota="${tipoCuota}">
+                    <td>--</td>
+                    <td>${tipoCuota}</td>
+                    <td>${fechaStr}</td>
+                    <td class="right aligned capital-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${capital.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned interest-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${interes.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned others-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">0,00</td>
+                    <td class="right aligned total-cell" data-id="${idUnico}">${total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned saldo-cell" data-id="${idUnico}">${(saldo - capital).toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned pendiente-cell">${total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                            <i class="edit icon"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            $('#plan-pagos-table tbody').append(nuevaFila);
+
+            saldo = saldo - capital;
+        }
+        reorganizarTablaPorFecha();
+    }
+
+    function recalcularSoloEstaCuota(fila, nuevoValor, nuevaFecha, saldoBase, capitalManual, interesManual) {
+        const tipoCuota = fila.data('tipo-cuota');
+        const tasa = preferredRate / 100;
+
+        // PROTECCIÓN: No modificar si está pagada
+        const pendiente = parseFloat(fila.find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        if (pendiente === 0) {
+            showToast('No puedes modificar una cuota que ya está completamente pagada.', 'error');
+            return;
+        }
+
+        // 1. Actualiza la cuota editada CON EL NUEVO VALOR TOTAL
+        let saldo = saldoBase;
+        let interes;
+        let capital;
+        if (typeof capitalManual === 'number' && typeof interesManual === 'number') {
+            capital = Math.max(0, Math.min(capitalManual, saldo));
+            interes = Math.max(0, Math.min(interesManual, nuevoValor));
+            if (capital + interes !== nuevoValor) {
+                interes = Math.max(0, nuevoValor - capital);
+            }
+        } else {
+            interes = Math.round(Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa)); // Ajuste a entero
+            capital = Math.round(Math.max(0, nuevoValor - interes)); // Ajuste a entero
+        }
+        if (capital < 0) capital = 0;
+        if (capital > saldo) capital = saldo;
+        let total = capital + interes;
+        let saldoSiguiente = saldo - capital;
+
+        fila.find('td').eq(2).text(nuevaFecha.split('-').reverse().join('/'));
+        fila.find('.capital-cell').text(capital.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        fila.find('.interest-cell').text(interes.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        fila.find('.pendiente-cell').text(total.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        fila.find('.saldo-cell').text(saldoSiguiente.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+        fila.find('.total-cell').text(total.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+
+        // 2. Para las siguientes cuotas del mismo tipo: MANTENER valor total original, recalcular capital/interés
+        let fechaBase = new Date(nuevaFecha);
+        let filaReferencia = fila;
+        let filasSiguientes = fila.nextAll('tr:visible').filter(function() {
+            const pendienteSig = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return $(this).data('tipo-cuota') === tipoCuota && pendienteSig > 0;
+        });
+
+        filasSiguientes.each(function() {
+            if (saldoSiguiente <= 0.01) {
+                $(this).remove();
+                return;
+            }
+            fechaBase.setMonth(fechaBase.getMonth() + 1);
+
+            // ✅ CORRECCIÓN: Mantener el TOTAL original, recalcular capital/interés según nuevo saldo
+            let totalOriginal = parseFloat($(this).find('.total-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            let interesSig = Math.round((tipoCuota === 'CI') ? 0 : saldoSiguiente * tasa); // Ajuste a entero
+            let capitalSig = Math.round(Math.max(0, totalOriginal - interesSig)); // Ajuste a entero
+            
+            // Validar que el capital no supere el saldo
+            if (capitalSig > saldoSiguiente) {
+                capitalSig = Math.round(saldoSiguiente); // Ajuste a entero
+                // Recalcular el total si el capital fue limitado
+                totalOriginal = capitalSig + interesSig;
+            }
+            
+            let saldoSigSiguiente = saldoSiguiente - capitalSig;
+
+            $(this).find('.capital-cell').text(capitalSig.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(this).find('.interest-cell').text(interesSig.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(this).find('.pendiente-cell').text(totalOriginal.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(this).find('.saldo-cell').text(saldoSigSiguiente.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            $(this).find('.total-cell').text(totalOriginal.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+
+            saldoSiguiente = saldoSigSiguiente;
+            filaReferencia = $(this);
+        });
+
+        // 3. Si queda saldo, agrega nuevas cuotas del mismo tipo
+        while (saldoSiguiente > 0.01) {
+            let interesNuevo = Math.round((tipoCuota === 'CI') ? 0 : saldoSiguiente * tasa); // Ajuste a entero
+            let capitalNuevo = Math.round(nuevoValor - interesNuevo); // Ajuste a entero
+            if (capitalNuevo > saldoSiguiente) capitalNuevo = Math.round(saldoSiguiente); // Ajuste a entero
+            if (capitalNuevo < 0) capitalNuevo = 0;
+            let totalNuevo = capitalNuevo + interesNuevo;
+            fechaBase.setMonth(fechaBase.getMonth() + 1);
+            const fechaStr = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+            let idUnico = `NEW${contadorNuevasCuotas++}`;
+            let nuevaFila = `
+                <tr data-tipo-cuota="${tipoCuota}">
+                    <td>--</td>
+                    <td>${tipoCuota}</td>
+                    <td>${fechaStr}</td>
+                    <td class="right aligned capital-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${capitalNuevo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned interest-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${interesNuevo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned others-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">0,00</td>
+                    <td class="right aligned total-cell" data-id="${idUnico}">${totalNuevo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned saldo-cell" data-id="${idUnico}">${(saldoSiguiente - capitalNuevo).toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned pendiente-cell">${totalNuevo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                            <i class="edit icon"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            $('#plan-pagos-table tbody').append(nuevaFila);
+
+            saldoSiguiente = saldoSiguiente - capitalNuevo;
+        }
+        reorganizarTablaPorFecha();
+    }
+
+    function reemplazarCuotasTipo(fila, nuevoValor, nuevaFecha, saldoBase, numCuotas, tiposSeleccionados, tipoCuotaForzado = null, fechaForzada = null, tasaParam = null) {
+        const tipoCuota = tipoCuotaForzado || fila.data('tipo-cuota');
+        // Usa la tasa pasada si existe, si no, la de la venta
+        const tasa = (typeof tasaParam === 'number' && !isNaN(tasaParam)) 
+            ? tasaParam 
+            : preferredRate / 100;
+
+        // PROTECCIÓN: Solo eliminar cuotas NO pagadas
+        let filasAEliminar;
+        if (tipoCuotaForzado) {
+            filasAEliminar = $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipoCuota + '"]').filter(function() {
+                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                return pendiente > 0;
+            });
+        } else {
+            filasAEliminar = fila.nextAll('tr:visible').addBack().filter(function() {
+                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                return $(this).data('tipo-cuota') === tipoCuota && pendiente > 0;
+            });
+        }
+
+        // PROTECCIÓN: Obtener números ya usados en cuotas PAGADAS del mismo tipo
+        let numerosUsados = new Set();
+        $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipoCuota + '"]').each(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            if (pendiente === 0) { // Solo cuotas pagadas
+                const idCuota = $(this).find('td').eq(0).text();
+                const match = idCuota.match(/^([A-Z]+)(\d+)/);
+                if (match) {
+                    numerosUsados.add(parseInt(match[2]));
+                }
+            }
+        });
+
+        // Función para encontrar el siguiente número disponible
+        function siguienteNumeroDisponible(numeroBase) {
+            while (numerosUsados.has(numeroBase)) {
+                numeroBase++;
+            }
+            return numeroBase;
+        }
+
+        // PROTECCIÓN: Recalcular saldo excluyendo cuotas pagadas
+        let saldoRecalculado = saldoBase;
+
+        let filaAnterior = tipoCuotaForzado
+            ? $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipoCuota + '"]').filter(function() {
+                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                return pendiente === 0;
+            }).last()
+            : fila.prev('tr:visible');
+
+        let fechaBase = new Date(fechaForzada || nuevaFecha);
+
+        // PROTECCIÓN: Eliminar solo cuotas con pendiente > 0
+        filasAEliminar.remove();
+
+        let saldo = Math.max(0, saldoRecalculado);
+        let cuotaMensual = nuevoValor;
+        let plan = [];
+
+        // Generar plan solo si hay saldo pendiente
+        if (saldo > 0) {
+            for (let i = 0; i < numCuotas; i++) {
+                let interes = Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa);
+                let capital;
+                if (tipoCuota === 'CI') {
+                    // Para CI, distribuir el saldo total entre todas las cuotas
+                    capital = Math.round(saldo / (numCuotas - i));
+                } else {
+                    capital = Math.max(0, nuevoValor - interes);
+                }
+
+                // Redondear a enteros
+                interes = Math.round(interes);
+                capital = Math.round(capital);
+
+                // Ajuste para la última cuota
+                if (i === numCuotas - 1) {
+                    capital = saldo;
+                    interes = Math.round(Math.max(0, (tipoCuota === 'CI') ? 0 : saldo * tasa));
+                }
+
+                if (capital > saldo) capital = saldo;
+                if (capital < 0) capital = 0;
+
+                let total = capital + interes;
+
+                plan.push({
+                    capital: capital,
+                    interes: interes,
+                    total: total,
+                    saldo: saldo - capital
+                });
+
+                saldo -= capital;
+                if (saldo <= 0) break;
+            }
+
+            // Ajustar la última cuota si queda algún residuo por redondeo
+            let diff = saldo;
+            if (Math.abs(diff) > 0 && plan.length > 0) {
+                plan[plan.length - 1].capital += diff;
+                plan[plan.length - 1].total += diff;
+                plan[plan.length - 1].saldo -= diff;
+            }
+        }
+
+        // PROTECCIÓN: Encontrar siguiente número disponible para empezar
+        let siguienteNumero = siguienteNumeroDisponible(1);
+
+        // Insertar las nuevas filas
+        let referenciaFila;
+        if (filaAnterior.length) {
+            referenciaFila = filaAnterior;
+        } else {
+            // Si no hay fila anterior, usamos la referencia al cuerpo de la tabla
+            referenciaFila = $('#plan-pagos-table tbody');
+        }
+
+        let primeraFilaNueva = null;
+
+        // Verificar si hay un plan generado
+        if (plan.length === 0) {
+            console.error("No se generó ningún plan de cuotas. Saldo:", saldoRecalculado);
+            return null;
+        }
+
+        // Imprimir información de diagnóstico
+        console.log('Inserción de nuevas filas:', {
+            referenciaExiste: referenciaFila.length > 0,
+            esBody: referenciaFila.is('tbody'),
+            planLength: plan.length
+        });
+
+        for (let i = 0; i < plan.length; i++) {
+            if (i > 0) fechaBase.setMonth(fechaBase.getMonth() + 1);
+            let fechaStr = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+            let idUnico = `NEW${contadorNuevasCuotas++}`;
+            
+            // Encontrar el siguiente número disponible para esta cuota
+            let numeroFinal = siguienteNumeroDisponible(siguienteNumero + i);
+            let codigoCuota = `${tipoCuota}${numeroFinal}CTR{{ sale.contract_number }}`;
+            
+            // Marcar este número como usado
+            numerosUsados.add(numeroFinal);
+            
+            let nuevaFila = `
+                <tr data-tipo-cuota="${tipoCuota}">
+                    <td>${codigoCuota}</td>
+                    <td>${tipoCuota}</td>
+                    <td>${fechaStr}</td>
+                    <td class="right aligned capital-cell" data-id="${idUnico}">${plan[i].capital.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned interest-cell" data-id="${idUnico}">${plan[i].interes.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned others-cell">0,00</td>
+                    <td class="right aligned total-cell" data-id="${idUnico}">${plan[i].total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned saldo-cell" data-id="${idUnico}">${plan[i].saldo.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned pendiente-cell">${plan[i].total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                            <i class="edit icon"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            
+            // Insertar la nueva fila
+            if (!referenciaFila.length || referenciaFila.is('tbody')) {
+                // Si no hay referencia válida o es el tbody, usar append
+                $('#plan-pagos-table tbody').append(nuevaFila);
+                if (i === 0) {
+                    primeraFilaNueva = $('#plan-pagos-table tbody tr:last');
+                }
+            } else {
+                // Usar after para insertar después de la referencia
+                referenciaFila.after(nuevaFila);
+                referenciaFila = referenciaFila.next();
+                if (i === 0) {
+                    primeraFilaNueva = referenciaFila;
+                }
+            }
+        }
+
+        console.log('Nuevas filas insertadas:', plan.length);
+        return primeraFilaNueva;
+    }
+
+    function showToast(message, type='warning') {
+        $('body').toast({
+            message: message,
+            class: type,
+            showProgress: 'bottom'
+        });
+    }
+
+    function reorganizarTablaPorFecha() {
+        const $tbody = $('#plan-pagos-table tbody');
+        const filas = $tbody.find('tr').toArray();
+        
+        // Ordenar filas por: pagadas primero (pendiente = 0), luego por fecha
+        filas.sort(function(a, b) {
+            const $filaA = $(a);
+            const $filaB = $(b);
+            
+            // Obtener valores de pendiente
+            const pendienteA = parseFloat($filaA.find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            const pendienteB = parseFloat($filaB.find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            
+            const esPagadaA = pendienteA === 0;
+            const esPagadaB = pendienteB === 0;
+            
+            // Si una está pagada y la otra no, la pagada va primero
+            if (esPagadaA && !esPagadaB) return -1;
+            if (!esPagadaA && esPagadaB) return 1;
+            
+            // Si ambas tienen el mismo estado de pago, ordenar por fecha
+            const fechaStrA = $filaA.find('td').eq(2).text();
+            const fechaStrB = $filaB.find('td').eq(2).text();
+            
+            const fechaA = parsearFecha(fechaStrA);
+            const fechaB = parsearFecha(fechaStrB);
+            
+            return fechaA - fechaB;
+        });
+        
+        // Reorganizar las filas en el DOM
+        $tbody.empty();
+        filas.forEach(function(fila) {
+            $tbody.append(fila);
+        });
+        
+        // Actualizar colores después de reorganizar
+        actualizarColoresVencidas();
+    }
+
+    function parsearFecha(fechaStr) {
+        const partes = fechaStr.split('/');
+        if (partes.length === 3) {
+            return new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+        }
+        return new Date();
+    }
+
+    function agregarHistorialCambio(texto) {
+        const $list = $('#historial-cambios-list');
+        // Si es el primer cambio, elimina el mensaje por defecto
+        if ($list.find('.item').length === 1 && $list.find('.item').text().includes('No hay cambios')) {
+            $list.empty();
+        }
+        const fecha = new Date();
+        const fechaStr = fecha.toLocaleString('es-CO');
+        $list.prepend(`<div class="item">${texto}</div>`);
+    }
+
+    function recalcularAmortizacion() {
+        // Identificar el saldo total correcto
+        // En lugar de usar siempre el valor original de la venta, calculamos el saldo total
+        // sumando el capital de todas las cuotas pendientes y pagadas
+        let saldoTotal = 0;
+        
+        // Primero sumamos el capital ya pagado (para mantener consistencia)
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente === 0; // Solo cuotas pagadas
+        }).each(function() {
+            saldoTotal += parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        });
+        
+        // Luego sumamos el capital pendiente (para incluir cambios por descuentos)
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0; // Solo cuotas pendientes
+        }).each(function() {
+            saldoTotal += parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        });
+        
+        // Ahora calculamos el saldo para cada fila
+        let saldoPendiente = saldoTotal;
+        
+        // Ordenamos las filas por fecha antes de recalcular
+        let filas = $('#plan-pagos-table tbody tr').toArray().sort(function(a, b) {
+            const fechaA = parsearFecha($(a).find('td').eq(2).text());
+            const fechaB = parsearFecha($(b).find('td').eq(2).text());
+            return fechaA - fechaB;
+        });
+        
+        // Procesamos filas en orden cronológico
+        $(filas).each(function() {
+            // Actualizamos el saldo pendiente en esta fila
+            $(this).find('.saldo-cell').text(saldoPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2}));
+            
+            // Restamos el capital de la cuota actual para la siguiente fila
+            let capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            saldoPendiente -= capital;
+        });
+        
+        // Actualizamos el saldo total mostrado en el footer de la tabla
+        $('#saldo-total').text(saldoTotal.toLocaleString('es-CO'));
+    }
+
+    function verificarConsistenciaSaldo() {
+        // Valor de venta (fuente de verdad)
+        const valorVenta = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+        // Calcular capital ya pagado (cuotas con pendiente = 0)
+        let capitalPagado = 0;
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente === 0;
+        }).each(function() {
+            const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            capitalPagado += capital;
+        });
+
+        // Calcular suma de capital de cuotas pendientes
+        let sumaCapitalPendiente = 0;
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0;
+        }).each(function() {
+            const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            sumaCapitalPendiente += capital;
+        });
+
+        // Saldo pendiente correcto según valor de venta
+        const saldoCorreecto = valorVenta - capitalPagado;
+
+        // Diferencia entre lo que debería ser y lo que hay en las cuotas
+        const diferencia = saldoCorreecto - sumaCapitalPendiente;
+
+        // Si hay diferencia significativa (más de $1), mostrar warning
+        if (Math.abs(diferencia) > 1) {
+            // Eliminar warning anterior si existe
+            $('#warning-inconsistencia-saldo').remove();
+
+            let mensajeWarning = '';
+            if (diferencia > 0) {
+                // Diferencia positiva: el saldo en cuotas es menor que el correcto
+                // Esto indica que probablemente se aplicó un descuento al valor del lote
+                mensajeWarning = `<i class="exclamation triangle icon"></i>
+                    <strong>Inconsistencia detectada:</strong> El saldo pendiente según las cuotas ($${sumaCapitalPendiente.toLocaleString('es-CO')})
+                    es <strong>menor</strong> que el saldo correcto ($${saldoCorreecto.toLocaleString('es-CO')}) según el valor de venta ($${valorVenta.toLocaleString('es-CO')}).
+                    <br>Faltan <strong>$${diferencia.toLocaleString('es-CO')}</strong> en las cuotas pendientes.
+                    <br><strong>Nota:</strong> Esto puede indicar que se aplicó un descuento al valor del lote y no se actualizó el valor de venta.
+                    <br><em>Use "Modificar Valor Venta" para ajustar el valor del lote (disminuirlo) y redistribuir el saldo correctamente.</em>`;
+            } else {
+                // Diferencia negativa: el saldo en cuotas es mayor que el correcto
+                // Esto indica que probablemente aumentó el valor del lote
+                mensajeWarning = `<i class="exclamation triangle icon"></i>
+                    <strong>Inconsistencia detectada:</strong> El saldo pendiente según las cuotas ($${sumaCapitalPendiente.toLocaleString('es-CO')})
+                    es <strong>mayor</strong> que el saldo correcto ($${saldoCorreecto.toLocaleString('es-CO')}) según el valor de venta ($${valorVenta.toLocaleString('es-CO')}).
+                    <br>Sobran <strong>$${Math.abs(diferencia).toLocaleString('es-CO')}</strong> en las cuotas pendientes.
+                    <br><strong>Nota:</strong> Esto puede indicar que se aumentó el valor del lote y no se actualizó el valor de venta.
+                    <br><em>Use "Modificar Valor Venta" para ajustar el valor del lote (aumentarlo) y redistribuir el saldo correctamente.</em>`;
+            }
+
+            // Insertar warning después del header
+            $('h2.ui.header').after(`
+                <div class="ui warning message" id="warning-inconsistencia-saldo">
+                    ${mensajeWarning}
+                </div>
+            `);
+        } else {
+            // Si no hay inconsistencia, remover warning si existe
+            $('#warning-inconsistencia-saldo').remove();
+        }
+    }
+
+    function renumerarCuotasDesde(fila) {
+        // Obtener todos los tipos de cuota distintos que existen en la tabla
+        let tiposCuota = new Set();
+        $('#plan-pagos-table tbody tr').each(function() {
+            tiposCuota.add($(this).data('tipo-cuota'));
+        });
+        
+        const ctr = '{{ sale.contract_number }}';
+        
+        // Primero, reorganizar la tabla por fecha para asegurar el orden correcto
+        reorganizarTablaPorFecha();
+        
+        // Mapa para almacenar el último número usado por cada tipo de cuota para cuotas ya pagadas
+        let ultimoNumeroPorTipo = {};
+        
+        // Para cada tipo de cuota, buscar el último número usado en cuotas ya pagadas
+        tiposCuota.forEach(function(tipo) {
+            if (!tipo) return; // Ignorar si no hay tipo (por seguridad)
+            
+            let maxNum = 0;
+            // Busca todas las filas PAGADAS del mismo tipo
+            $('#plan-pagos-table tbody tr[data-tipo-cuota="'+tipo+'"]').filter(function() {
+                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                return pendiente === 0; // Solo cuotas pagadas
+            }).each(function() {
+                const idCuota = $(this).find('td').eq(0).text().trim();
+                const match = idCuota.match(/^([A-Z]+)(\d+)/);
+                if (match && match[1] === tipo) {
+                    const num = parseInt(match[2]);
+                    if (num > maxNum) maxNum = num;
+                }
+            });
+            ultimoNumeroPorTipo[tipo] = maxNum;
+        });
+        
+        // Crear un array con todas las filas pendientes ordenadas por fecha
+        let todasLasFilas = [];
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0; // Solo filas pendientes
+        }).each(function() {
+            todasLasFilas.push({
+                fila: $(this),
+                fecha: parsearFecha($(this).find('td').eq(2).text()),
+                tipo: $(this).data('tipo-cuota')
+            });
+        });
+        
+        // Ordenar por fecha
+        todasLasFilas.sort(function(a, b) {
+            return a.fecha - b.fecha;
+        });
+        
+        // Ahora renumerar cada cuota según su posición ordenada por fecha
+        for (let i = 0; i < todasLasFilas.length; i++) {
+            const item = todasLasFilas[i];
+            const tipo = item.tipo;
+            
+            if (!tipo) continue; // Seguridad adicional
+            
+            // Incrementar el número para este tipo
+            ultimoNumeroPorTipo[tipo] = (ultimoNumeroPorTipo[tipo] || 0) + 1;
+            const nuevoNumero = ultimoNumeroPorTipo[tipo];
+            
+            // Aplicar el nuevo número a la fila
+            item.fila.find('td').eq(0).text(`${tipo}${nuevoNumero}CTR${ctr}`);
+        }
+        
+        // Actualizar la visualización después de renumerar
+        actualizarColoresVencidas();
+    }
+
+    // Modificar la función ajustarFechasDesde para incluir reorganización
+    function ajustarFechasDesde(fila) {
+        // Toma la fecha de la cuota modificada
+        let fechaBaseStr = fila.find('td').eq(2).text();
+        // Convierte a objeto Date (asume formato dd/mm/yyyy)
+        let partes = fechaBaseStr.split('/');
+        let fechaBase = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+
+        // Selecciona todas las filas desde la actual en adelante (sin filtrar por tipo)
+        let filas = fila.nextAll('tr:visible').addBack();
+
+        filas.each(function(idx) {
+            if (idx === 0) {
+                // La primera fila (la modificada) ya tiene la fecha correcta
+                return;
+            }
+            // Suma un mes a la fecha base
+            fechaBase.setMonth(fechaBase.getMonth() + 1);
+            // Formatea la fecha a dd/mm/yyyy
+            let nuevaFecha = fechaBase.toISOString().slice(0,10).split('-').reverse().join('/');
+            $(this).find('td').eq(2).text(nuevaFecha);
+        });
+        
+        // ✅ NUEVO: Reorganizar tabla después de ajustar fechas
+        reorganizarTablaPorFecha();
+    }
+
+    // Agregar esto después de los otros event handlers en el bloque script
+
+    // Manejar el checkbox de aplicar descuento
+    $('#aplicar-descuento-checkbox').on('change', function() {
+        if ($(this).is(':checked')) {
+            // Si se activa el checkbox
+            $('#descuento-section').show();
+            
+            
+        } else {
+            // Si se desactiva el checkbox
+            $('#descuento-section').hide();
+            
+            // Restaurar el saldo original (sin descuento)
+            const saldoPendiente = parseFloat($('#descuento-saldo-pendiente').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            $('#edit-saldo-base').val(saldoPendiente.toLocaleString('es-CO'));
+        }
+    });
+
+    // Mostrar u ocultar campos según la opción elegida
+    $('#edit-aplicar-cambio').on('change', function() {
+        const opcion = $(this).val();
+        if (opcion === 'redistribuir') {
+            $('#edit-extra-config').show();
+            $('#edit-num-cuotas-field').show();
+            $('#edit-redistribuir-fields').show();
+            $('#edit-campos-individuales').hide();
+        } else {
+            $('#edit-extra-config').hide();
+            $('#edit-num-cuotas-field').hide();
+            $('#edit-redistribuir-fields').hide();
+            $('#edit-campos-individuales').show();
+        }
+    });
+
+    $('#edit-num-cuotas, #edit-tasa').on('input', function() {
+        const CuotaId = $("#cuota_id").val();
+        const fila = $('tr').has('.capital-cell[data-id="'+CuotaId+'"]');
+        const tipoCuota = fila.data('tipo-cuota');
+        const saldo = parseFloat($('#edit-saldo-base').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const tasa = (tipoCuota === 'CI') ? 0 : parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.')) / 100;
+        
+            // ✅ NUEVO: Detectar cambio de tasa para el historial
+        if ($(this).attr('id') === 'edit-tasa') {
+            const tasaOriginal = preferredRate;
+            const nuevaTasa = parseFloat($('#edit-tasa').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            
+            // Solo agregar al historial si la tasa cambió significativamente
+            if (Math.abs(nuevaTasa - tasaOriginal) > 0.01) {
+                // Marcar que hubo cambio de tasa (flag para usar después)
+                $('#edit-tasa').data('cambio-tasa', true);
+                $('#edit-tasa').data('tasa-original', tasaOriginal);
+                $('#edit-tasa').data('nueva-tasa', nuevaTasa);
+            } else {
+                $('#edit-tasa').removeData('cambio-tasa');
+            }
+        }
+
+        const n = parseInt($('#edit-num-cuotas').val()) || 0;
+        if (saldo > 0 && tasa >= 0 && n > 0) {
+            // Fórmula de anualidad: cuota = saldo * [i*(1+i)^n] / [(1+i)^n - 1]
+            let cuota = 0;
+            if (tasa === 0) {
+                cuota = saldo / n;
+            } else {
+                cuota = saldo * (tasa * Math.pow(1 + tasa, n)) / (Math.pow(1 + tasa, n) - 1);
+            }
+            cuota = Math.round(cuota); // Redondear a entero
+            $('#edit-valor-cuota-redistribuir').val(cuota.toLocaleString('es-CO'));
+        } else {
+            $('#edit-valor-cuota-redistribuir').val('');
+        }
+    });
+
+    function splitCuota(cuotaId) {
+        const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
+        const tipoCuota = fila.data('tipo-cuota');
+        const ctr = '{{ sale.contract_number }}';
+        
+        // Obtener el ID de la cuota original y extraer su número
+        const idCuotaOriginal = fila.find('td').eq(0).text().trim();
+        const match = idCuotaOriginal.match(/^([A-Z]+)(\d+)(CTR\d+)/);
+        
+        if (!match) {
+            showToast('Error: Formato de ID de cuota inválido', 'error');
+            return;
+        }
+        
+        const prefijo = match[1]; // Por ejemplo: "SCR"
+        const numeroOriginal = parseInt(match[2]); // Por ejemplo: 1
+        const sufijo = match[3]; // Por ejemplo: "CTR366"
+        
+        // Obtén valores pagados y originales
+        const capitalPagado = parseFloat(fila.find('td').eq(8).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const interesPagado = parseFloat(fila.find('td').eq(9).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const otrosPagado = parseFloat(fila.find('td').eq(10).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+        const capitalOriginal = parseFloat(fila.find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const interesOriginal = parseFloat(fila.find('.interest-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const otrosOriginal = parseFloat(fila.find('.others-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+        // Si todo está pagado, no hacer nada
+        if (capitalPagado >= capitalOriginal && interesPagado >= interesOriginal && otrosPagado >= otrosOriginal) {
+            showToast('Esta cuota ya está completamente pagada.', 'info');
+            return;
+        }
+
+        // Ajusta la fila actual a los valores pagados
+        fila.find('.capital-cell').text(capitalPagado.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        fila.find('.interest-cell').text(interesPagado.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        fila.find('.others-cell').text(otrosPagado.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        const totalPagado = capitalPagado + interesPagado + otrosPagado;
+        fila.find('.total-cell').text(totalPagado.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        fila.find('.pendiente-cell').text('0,00');
+
+        // Marca la fila como dividida (splitted)
+        fila.removeClass('negative positive').addClass('blue active splitted');
+        fila.find('td:last-child button[onclick^="splitCuota"]').remove();
+
+        // Crea una nueva fila with los valores pendientes
+        const capitalPendiente = capitalOriginal - capitalPagado;
+        const interesPendiente = interesOriginal - interesPagado;
+        const otrosPendiente = otrosOriginal - otrosPagado;
+        const totalPendiente = capitalPendiente + interesPendiente + otrosPendiente;
+
+        // Si no hay nada pendiente, no crear nueva fila
+        if (totalPendiente <= 0) {
+            showToast('No hay saldo pendiente para separar.', 'info');
+            return;
+        }
+
+        // Fecha: suma un día a la actual para evitar duplicados
+        let fechaActual = fila.find('td').eq(2).text();
+        let partes = fechaActual.split('/');
+        let fechaNueva = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+        fechaNueva.setDate(fechaNueva.getDate() + 1);
+        let fechaStr = fechaNueva.toISOString().slice(0,10).split('-').reverse().join('/');
+        let idUnico = `NEW${contadorNuevasCuotas++}`;
+        
+        // La nueva cuota tendrá el siguiente número secuencial
+        const nuevoNumero = numeroOriginal + 1;
+        let nuevaIdCuota = `${prefijo}${nuevoNumero}${sufijo}`;
+        
+        // Construye la nueva fila
+        let nuevaFila = `
+            <tr data-tipo-cuota="${tipoCuota}">
+                <td>${nuevaIdCuota}</td>
+                <td>${tipoCuota}</td>
+                <td>${fechaStr}</td>
+                <td class="right aligned capital-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${capitalPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="right aligned interest-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${interesPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="right aligned others-cell" data-id="${idUnico}" data-tipo-cuota="${tipoCuota}">${otrosPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="right aligned total-cell" data-id="${idUnico}">${totalPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="right aligned saldo-cell" data-id="${idUnico}">${capitalPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="right aligned">0</td>
+                <td class="right aligned">0</td>
+                <td class="right aligned">0</td>
+                <td class="right aligned pendiente-cell">${totalPendiente.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td>
+                    <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                        <i class="edit icon"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+        fila.after(nuevaFila);
+        
+        // Renumerar todas las cuotas pendientes posteriores para mantener secuencia
+        renumerarCuotasDesdeNumero(fila.next(), tipoCuota, nuevoNumero);
+        recalcularAmortizacion();
+        // Agregar al historial
+        agregarHistorialCambio(
+            `Se separó la cuota <strong>${idCuotaOriginal}</strong>: pagado <strong>$${totalPagado.toLocaleString('es-CO')}</strong>, pendiente <strong>$${totalPendiente.toLocaleString('es-CO')}</strong>`
+        );
+
+        showToast('La cuota fue separada. Ahora puedes editar el saldo pendiente.', 'success');
+        verificarBotonesSplit();
+    }
+
+    // Modificación a la función renumerarCuotasDesdeNumero para que renumere correctamente todas las cuotas
+
+    function renumerarCuotasDesdeNumero(filaInicio, tipoCuota, numeroInicio) {
+        const ctr = '{{ sale.contract_number }}';
+        let numeroActual = numeroInicio;
+        
+        // Obtener TODAS las cuotas pendientes del mismo tipo que tengan un número mayor o igual al nuevoNumero
+        const filasSiguientes = $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipoCuota + '"]').filter(function() {
+            // Solo incluir cuotas pendientes
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            if (pendiente <= 0) return false;
+            
+            // No incluir la fila que acabamos de insertar (que ya tiene el nuevo número correcto)
+            if ($(this).is(filaInicio)) return false;
+            
+            // Extraer el número de la cuota actual
+            const idCuota = $(this).find('td').eq(0).text().trim();
+            const match = idCuota.match(/^([A-Z]+)(\d+)/);
+            if (!match) return false;
+            
+            // Incluir cuotas con número >= al de inicio (necesitan ser renumeradas)
+            const num = parseInt(match[2]);
+            return num >= numeroInicio;
+        });
+        
+        // Obtener las filas en un array para poder ordenarlas
+        const filasArray = filasSiguientes.toArray();
+        
+        // Ordenar por fecha
+        filasArray.sort(function(a, b) {
+            const fechaA = parsearFecha($(a).find('td').eq(2).text());
+            const fechaB = parsearFecha($(b).find('td').eq(2).text());
+            return fechaA - fechaB;
+        });
+        
+        // La primera cuota después de la dividida tiene el número numeroInicio+1
+        numeroActual = numeroInicio + 1;
+        
+        // Renumerar secuencialmente
+        $(filasArray).each(function() {
+            const idActual = $(this).find('td').eq(0).text();
+            const match = idActual.match(/^([A-Z]+)\d+(CTR\d+)/);
+            if (match) {
+                const prefijo = match[1];
+                const sufijo = match[2];
+                $(this).find('td').eq(0).text(`${prefijo}${numeroActual}${sufijo}`);
+                numeroActual++;
+            }
+        });
+    }
+
+    function actualizarColoresVencidas() {
+        const hoy = new Date();
+        hoy.setHours(0,0,0,0);
+        $('#plan-pagos-table tbody tr').each(function() {
+            const $fila = $(this);
+            const fechaStr = $fila.find('td').eq(2).text();
+            const partes = fechaStr.split('/');
+            if (partes.length === 3) {
+                const fechaCuota = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
+                fechaCuota.setHours(0,0,0,0);
+                const pendiente = parseFloat($fila.find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+                // Quita clases previas
+                $fila.removeClass('negative positive blue active');
+                if (pendiente > 0 && fechaCuota < hoy) {
+                    $fila.addClass('negative');
+                } else if (pendiente === 0) {
+                    $fila.addClass('positive');
+                }
+                // Si fue spliteada, mantener azul
+                if ($fila.hasClass('splitted')) {
+                    $fila.removeClass('negative positive').addClass('blue active');
+                }
+            }
+        });
+    }
+
+    // Actualizar monto al cambiar porcentaje y viceversa
+    $('#descuento-monto').on('input', function() {
+        const saldoPendiente = parseFloat($('#descuento-saldo-pendiente').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        const monto = parseFloat($(this).val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        
+        if (saldoPendiente > 0 && monto > 0) {
+            // Calcular porcentaje
+            const porcentaje = (monto / saldoPendiente) * 100;
+            $('#descuento-porcentaje').val(porcentaje.toFixed(2));
+            
+            // Calcular nuevo saldo
+            const nuevoSaldo = saldoPendiente - monto;
+            $('#descuento-nuevo-saldo').val(nuevoSaldo.toLocaleString('es-CO'));
+            
+            // Actualizar el saldo base para redistribución
+            $('#edit-saldo-base').val(nuevoSaldo.toLocaleString('es-CO'));
+        } else {
+            $('#descuento-nuevo-saldo').val(saldoPendiente.toLocaleString('es-CO'));
+            $('#edit-saldo-base').val(saldoPendiente.toLocaleString('es-CO'));
+        }
+    });
+
+
+    // Función para generar y descargar la plantilla Excel
+$('#btn-descargar-plantilla').on('click', function() {
+    // Mostrar indicador de carga
+    showToast('Generando plantilla...', 'info');
+    
+    let saldoPendienteTotal = 0;
+    let fechaBase = '';
+    let sinPlanPagos = false;
+    
+    // Encontrar la primera cuota pendiente
+    const primeraCuotaPendiente = $('#plan-pagos-table tbody tr').filter(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        return pendiente > 0;
+    }).first();
+
+    // Verificar si hay plan de pagos
+    if (primeraCuotaPendiente.length === 0) {
+        // No hay cuotas pendientes - posiblemente no hay plan de pagos
+        sinPlanPagos = true;
+        
+        // Usar el valor total de la venta como saldo pendiente
+        saldoPendienteTotal = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
+        
+        // Usar la fecha actual como fecha base
+        const hoy = new Date();
+        fechaBase = hoy.toLocaleDateString('es-CO', {day: '2-digit', month: '2-digit', year: 'numeric'});
+    } else {
+        // Hay plan de pagos - calculamos el saldo pendiente
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0;
+        }).each(function() {
+            const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            saldoPendienteTotal += capital;
+        });
+        
+        // Obtener la fecha de la primera cuota pendiente
+        fechaBase = primeraCuotaPendiente.find('td').eq(2).text();
+    }
+    
+    // Preparar datos para el Excel
+    const data = {
+        venta: '{{ sale }}',
+        contrato: 'CTR{{ sale.contract_number }}',
+        proyecto: '{{ sale.project }}',
+        valor_total: '{{ sale.value|intcomma }}',
+        saldo_pendiente: saldoPendienteTotal.toLocaleString('es-CO'),
+        tasa: preferredRate,
+        fecha_base: fechaBase,
+        saldo_total: saldoPendienteTotal,
+        sin_plan_pagos: sinPlanPagos  // Nueva bandera para indicar si hay plan de pagos
+    };
+
+    // Método 1: Usando formulario para enviar POST
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "generar_plantilla_excel" %}';
+    form.target = '_blank'; // Abre en nueva pestaña, evita problemas de blob
+    
+    // Añadir CSRF token
+    const csrfField = document.createElement('input');
+    csrfField.type = 'hidden';
+    csrfField.name = 'csrfmiddlewaretoken';
+    csrfField.value = $('[name=csrfmiddlewaretoken]').val();
+    form.appendChild(csrfField);
+    
+    // Añadir datos como campo oculto
+    const dataField = document.createElement('input');
+    dataField.type = 'hidden';
+    dataField.name = 'data';
+    dataField.value = JSON.stringify(data);
+    form.appendChild(dataField);
+    
+    // Añadir el formulario al DOM y enviarlo
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+});
+
+    // Reemplazar el código actual del botón de subir Excel con este nuevo código
+
+    // Inicializar el modal de subida de Excel
+    $('#subir-excel-modal').modal({
+        closable: true,
+        onApprove: function() { return false; }
+    });
+
+    // Abrir el modal de cambio de valor
+    $('#btn-subir-excel').on('click', function() {
+        $('#excel-file-name').val('');
+        $('#excel-validation-results').empty();
+        $('#btn-procesar-excel').prop('disabled', true);
+        $('#subir-excel-modal').modal('show');
+    });
+
+    // Actualizar nombre del archivo cuando se selecciona
+    $('#excel-file-upload').on('change', function() {
+        const fileName = this.files[0] ? this.files[0].name : '';
+        $('#excel-file-name').val(fileName);
+        $('#btn-procesar-excel').prop('disabled', !fileName);
+        $('#excel-validation-results').empty();
+    });
+
+    // Procesar el archivo Excel cuando se hace clic en "Aplicar Cambios"
+    $('#btn-procesar-excel').on('click', function() {
+        const fileInput = document.getElementById('excel-file-upload');
+        if (!fileInput.files.length) {
+            showToast('No se ha seleccionado ningún archivo.', 'warning');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('excel_file', file);
+        formData.append('sale_id', $('#sale-id').val());
+        
+        // Mostrar estado de carga
+        $('#excel-validation-results').html(`
+            <div class="ui active inverted dimmer">
+                <div class="ui text loader">Procesando archivo...</div>
+            </div>
+        `);
+        
+        $.ajax({
+            url: '{% url "procesar_excel_plan_pagos" %}',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()},
+            success: function(response) {
+                if (response.success) {
+                    // Cerrar el modal
+                    $('#subir-excel-modal').modal('hide');
+                    
+                    // Actualizar plan de pagos
+                    actualizarPlanPagosDesdeExcel(response.data);
+                    
+                } else {
+                    // Mostrar errores en el modal
+                    let mensajeError = `
+                    <div class="ui negative message">
+                        <div class="header">No se pudo cargar el archivo</div>
+                        <p>${response.error}</p>
+                    </div>`;
+                    $('#excel-validation-results').html(mensajeError);
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Error al procesar el archivo Excel.';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.error) errorMsg = response.error;
+                } catch (e) {}
+                
+                $('#excel-validation-results').html(`
+                    <div class="ui negative message">
+                        <div class="header">Error</div>
+                        <p>${errorMsg}</p>
+                    </div>
+                `);
+            }
+        });
+    });
+
+    function actualizarPlanPagosDesdeExcel(cuotas) {
+        if (!cuotas || !cuotas.length) {
+            showToast('El archivo Excel no contiene cuotas válidas.', 'error');
+            return;
+        }
+        
+        // 1. VALIDACIÓN: Verificar integridad de los datos
+        let erroresValidacion = validarPlanExcel(cuotas);
+        if (erroresValidacion.length > 0) {
+            // Mostrar todos los errores en un modal o alerta
+            let mensajeError = 'Errores en el plan de pagos:<ul>';
+            erroresValidacion.forEach(error => {
+                mensajeError += `<li>${error}</li>`;
+            });
+            mensajeError += '</ul>';
+            
+            // Crear modal de error con detalles
+            $('body').append(`
+                <div class="ui mini modal" id="error-excel-modal">
+                    <div class="header">Error en la plantilla Excel</div>
+                    <div class="content">${mensajeError}</div>
+                    <div class="actions">
+                        <div class="ui positive button">Entendido</div>
+                    </div>
+                </div>
+            `);
+            $('#error-excel-modal').modal('show');
+            return;
+        }
+        
+        // 2. Si pasa validaciones, continuar con la actualización en el frontend
+        
+        // Eliminar todas las cuotas pendientes actuales
+        $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0;
+        }).remove();
+        
+        // Agregar las nuevas cuotas
+        let saldo = parseFloat(cuotas[0].saldo_anterior) || 0;
+        cuotas.forEach(function(cuota) {
+            const capital = parseFloat(cuota.capital) || 0;
+            const interes = parseFloat(cuota.interes) || 0;
+            const otros = parseFloat(cuota.otros) || 0;
+            const total = capital + interes + otros;
+            saldo -= capital;
+            
+            const idUnico = `NEW${contadorNuevasCuotas++}`;
+            const nuevaFila = `
+                <tr data-tipo-cuota="${cuota.tipo}">
+                    <td>--</td>
+                    <td>${cuota.tipo}</td>
+                    <td>${cuota.fecha}</td>
+                    <td class="right aligned capital-cell" data-id="${idUnico}">${capital.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td class="right aligned interest-cell" data-id="${idUnico}">${interes.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td class="right aligned others-cell" data-id="${idUnico}">${otros.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td class="right aligned total-cell" data-id="${idUnico}">${total.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td class="right aligned saldo-cell" data-id="${idUnico}">${saldo.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned">0</td>
+                    <td class="right aligned pendiente-cell">${total.toLocaleString('es-CO', {minimumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="ui mini icon button" onclick="abrirModalEdicionCuota('${idUnico}')">
+                            <i class="edit icon"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            $('#plan-pagos-table tbody').append(nuevaFila);
+        });
+        
+        // Renumerar las cuotas
+        let filasDesde = $('#plan-pagos-table tbody tr').filter(function() {
+            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+            return pendiente > 0;
+        });
+        
+        // Ordenar por fecha para una numeración correcta
+        filasDesde = filasDesde.sort(function(a, b) {
+            const fechaA = parsearFecha($(a).find('td').eq(2).text());
+            const fechaB = parsearFecha($(b).find('td').eq(2).text());
+            return fechaA - fechaB;
+        });
+        
+        let primeraPendiente = filasDesde.first();
+        if (primeraPendiente.length) {
+            renumerarCuotasDesde(primeraPendiente);
+        }
+        
+        // Reorganizar por fecha y recalcular saldos
+        reorganizarTablaPorFecha();
+        recalcularAmortizacion();
+        actualizarColoresVencidas();
+        actualizarBotonReestructuracion();
+        
+        // Mostrar mensaje de éxito
+        showToast('Plan de pagos cargado correctamente. Revisa los cambios antes de guardar.', 'success');
+        
+        // Agregar al historial de cambios
+        agregarHistorialCambio('Se importó un nuevo plan de pagos desde Excel');
+    }
+
+    // Función de validación personalizable
+    function validarPlanExcel(cuotas) {
+        let errores = [];
+        let saldoOriginal = parseFloat(cuotas[0].saldo_anterior) || 0;
+        
+        // 3. Validar que el capital total sume el saldo pendiente
+        let capitalTotal = 0;
+        cuotas.forEach(function(cuota, idx) {
+            capitalTotal += parseFloat(cuota.capital) || 0;
+        });
+        
+        if (Math.abs(capitalTotal - saldoOriginal) > 1) {
+            errores.push(`La suma del capital de todas las cuotas (${capitalTotal.toLocaleString('es-CO')}) no coincide con el saldo pendiente (${saldoOriginal.toLocaleString('es-CO')}).`);
+        }
+        
+        // 4. Validar que todos los tipos de cuota sean válidos
+        const tiposValidos = ['SCR', 'SCE', 'CI', 'ABCAP'];
+        cuotas.forEach(function(cuota, idx) {
+            if (!tiposValidos.includes(cuota.tipo)) {
+                errores.push(`Tipo de cuota inválido en la fila ${idx+1}: "${cuota.tipo}". Tipos válidos: ${tiposValidos.join(', ')}`);
+            }
+        });
+        
+        // 5. Verificar valores negativos o cero
+        cuotas.forEach(function(cuota, idx) {
+            const capital = parseFloat(cuota.capital) || 0;
+            const interes = parseFloat(cuota.interes) || 0;
+            const otros = parseFloat(cuota.otros) || 0;
+            const total = capital + interes + otros;
+            
+            if (capital <= 0) {
+                errores.push(`La cuota ${idx+1} tiene capital menor o igual a cero: ${capital}`);
+            }
+            
+            if (total <= 0) {
+                errores.push(`La cuota ${idx+1} tiene valor total menor o igual a cero: ${total}`);
+            }
+            
+            // Nueva validación: verificar que capital + interés + otros = total en cada cuota
+            const totalDeclarado = parseFloat(cuota.total) || 0;
+            if (totalDeclarado > 0 && Math.abs(total - totalDeclarado) > 1) {
+                errores.push(`En la cuota ${idx+1}, la suma de capital (${capital.toLocaleString('es-CO')}) + interés (${interes.toLocaleString('es-CO')}) + otros (${otros.toLocaleString('es-CO')}) = ${total.toLocaleString('es-CO')} no coincide con el total declarado ${totalDeclarado.toLocaleString('es-CO')}`);
+            }
+        });
+        
+        return errores;
+    }
+
+    // Puedes eliminar el código antiguo de $('#excel-file-input').on('change', function(e) {...}) ya que no se usará más
+
+</script>
+<script>
+// Inicializar modal de ayuda
+$('#ayuda-plan-pagos-modal').modal({
+    closable: true
+});
+
+// Inicializar acordeón de ayuda
+$('#accordion-ayuda').accordion({
+    exclusive: true
+});
+
+// Abrir modal de ayuda
+$('#btn-ayuda-plan-pagos').on('click', function() {
+    $('#ayuda-plan-pagos-modal').modal('show');
+});
+
+// Inicializar modal de cambio de valor y redistribución
+$('#descuento-global-modal').modal({
+    closable: true,
+    onApprove: function() { return false; }
+});
+
+// Abrir modal de cambio de valor
+$('#btn-descuento-global').on('click', function() {
+    // Obtener valor original de la venta (fuente de verdad)
+    const valorOriginalVenta = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
+
+    // Calcular capital ya pagado (cuotas con pendiente = 0)
+    let capitalPagado = 0;
+    $('#plan-pagos-table tbody tr').filter(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        return pendiente === 0;
+    }).each(function() {
+        const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        capitalPagado += capital;
+    });
+
+    // Saldo pendiente correcto = valor venta - capital ya pagado
+    const saldoPendienteTotal = Math.max(0, valorOriginalVenta - capitalPagado);
+    
+    // Obtener fecha de la primera cuota pendiente
+    let fechaInicio = '';
+    const primeraCuotaPendiente = $('#plan-pagos-table tbody tr').filter(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        return pendiente > 0;
+    }).first();
+    
+    if (primeraCuotaPendiente.length) {
+        const fechaStr = primeraCuotaPendiente.find('td').eq(2).text();
+        if (fechaStr && fechaStr.includes('/')) {
+            const partes = fechaStr.split('/');
+            if (partes.length === 3) {
+                fechaInicio = `${partes[2]}-${partes[1]}-${partes[0]}`;
+            }
+        }
+    }
+    
+    // Obtener tasa actual
+    const tasaActual = parseFloat($('#tasa-plan-pagos').val() || preferredRate);
+    
+    // Configurar campos del modal
+    $('#valor-original-venta').val(valorOriginalVenta.toLocaleString('es-CO'));
+    $('#nuevo-valor-venta').val(valorOriginalVenta.toLocaleString('es-CO'));
+    $('#diferencia-valor').val('0');
+    $('#saldo-pendiente-actual').val(saldoPendienteTotal.toLocaleString('es-CO'));
+    $('#nuevo-saldo-pendiente').val(saldoPendienteTotal.toLocaleString('es-CO'));
+    $('#descuento-porcentaje').val('0.00');
+    $('#fecha-inicio-redistribuir').val(fechaInicio);
+    $('#tasa-redistribuir').val(tasaActual);
+    $('#num-cuotas-redistribuir').val('12'); // Valor predeterminado
+    $('#motivo-cambio-valor').val('');
+    
+    // Aplicar máscaras a los campos numéricos
+    $('#nuevo-valor-venta').mask('000.000.000.000', {reverse: true});
+    $('#valor-cuota-redistribuir').mask('000.000.000.000', {reverse: true});
+    
+    // Calcular cuota inicial
+    calcularValorCuotaRedistribuir();
+    
+    // Mostrar el modal
+    $('#descuento-global-modal').modal('show');
+});
+
+// Actualizar cálculos cuando cambia el nuevo valor de venta
+$('#nuevo-valor-venta').on('input', function() {
+    if (bloqueandoActualizacionValorVenta) return;
+    const nuevoValor = parseCurrencyInput($(this).val());
+    actualizarCamposNuevoValorVenta(nuevoValor);
+});
+
+$('#diferencia-valor').on('input', function() {
+    if (bloqueandoActualizacionValorVenta) return;
+    const valorOriginal = parseCurrencyInput($('#valor-original-venta').val());
+    const diferencia = parseCurrencyInput($(this).val());
+    const nuevoValor = valorOriginal - diferencia;
+    actualizarCamposNuevoValorVenta(nuevoValor);
+});
+
+// Calcular valor de cuota cuando cambian los parámetros
+$('#num-cuotas-redistribuir, #tasa-redistribuir').on('input', function() {
+    calcularValorCuotaRedistribuir();
+});
+
+// Función para calcular el valor de la cuota (versión actualizada)
+function calcularValorCuotaRedistribuir() {
+    const saldo = parseFloat($('#nuevo-saldo-pendiente').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    // Simplificado para input type="number" - solo mantenemos el reemplazo básico de coma por punto
+    const tasa = parseFloat($('#tasa-redistribuir').val().replace(',', '.')) / 100;
+    const numCuotas = parseInt($('#num-cuotas-redistribuir').val()) || 0;
+    
+    if (saldo > 0 && numCuotas > 0) {
+        let valorCuota;
+        if (tasa === 0) {
+            valorCuota = saldo / numCuotas;
+        } else {
+            valorCuota = saldo * (tasa * Math.pow(1 + tasa, numCuotas)) / (Math.pow(1 + tasa, numCuotas) - 1);
+        }
+        valorCuota = Math.round(valorCuota);
+        $('#valor-cuota-redistribuir').val(valorCuota.toLocaleString('es-CO'));
+    } else {
+        $('#valor-cuota-redistribuir').val('');
+    }
+}
+
+$('#aplicar-cambio-valor').on('click', function() {
+    const valorOriginal = parseFloat($('#valor-original-venta').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    const nuevoValor = parseFloat($('#nuevo-valor-venta').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    const diferencia = valorOriginal - nuevoValor;
+    const saldoActual = parseFloat($('#saldo-pendiente-actual').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    const nuevoSaldo = parseFloat($('#nuevo-saldo-pendiente').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    const tasa = parseFloat($('#tasa-redistribuir').val().replace(',', '.')) / 100;
+    const numCuotas = parseInt($('#num-cuotas-redistribuir').val()) || 0;
+    const fechaInicio = $('#fecha-inicio-redistribuir').val();
+    const valorCuota = parseFloat($('#valor-cuota-redistribuir').val().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    const motivo = $('#motivo-cambio-valor').val() || 'Cambio en el valor total de la venta';
+    const porcentajeVariacion = parseFloat($('#descuento-porcentaje').val()) || 0;
+    
+    // Validar datos (sin validación de valor negativo)
+    if (nuevoSaldo > 0 && (nuevoValor <= 0 || numCuotas <= 0 || !fechaInicio || isNaN(tasa) || valorCuota <= 0)) {
+        showToast('Por favor complete todos los campos correctamente.', 'error');
+        return;
+    }
+    
+    const filasPendientes = $('#plan-pagos-table tbody tr').filter(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        return pendiente > 0;
+    });
+    
+    const ultimaCuotaPagada = $('#plan-pagos-table tbody tr').filter(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        return pendiente === 0;
+    }).last();
+    
+    const tipoCuota = 'SCR'; // Por defecto usar SCR para las nuevas cuotas
+    // Detectar si hubo cambio en la tasa
+    const tasaOriginal = preferredRate;
+    const nuevaTasa = parseFloat($('#tasa-redistribuir').val().replace(',', '.'));
+    const huboCambioTasa = Math.abs(nuevaTasa - tasaOriginal) > 0.01;
+    
+    // Actualizar la tasa global del plan
+    $('#tasa-plan-pagos').val(nuevaTasa);
+    
+    let tasaParam = nuevaTasa / 100;
+    
+    if (nuevoSaldo <= 0) {
+        filasPendientes.remove();
+        agregarHistorialCambio(
+            `Se cambió el valor de la venta de <strong>$${valorOriginal.toLocaleString('es-CO')}</strong> a <strong>$${nuevoValor.toLocaleString('es-CO')}</strong>, saldando la totalidad del saldo pendiente. ${motivo}`
+        );
+        recalcularAmortizacion();
+        $('#config-nuevas-cuotas').hide();
+        $('#descuento-global-modal').modal('hide');
+        showToast('Valor de venta modificado. No quedan cuotas pendientes.', 'success');
+        return;
+    }
+    
+    filasPendientes.remove();
+    
+    const primeraFilaNueva = reemplazarCuotasTipo(
+        ultimaCuotaPagada,
+        valorCuota,
+        fechaInicio,
+        nuevoSaldo,
+        numCuotas,
+        [tipoCuota],
+        tipoCuota,
+        fechaInicio,
+        tasaParam
+    );
+    
+    if (primeraFilaNueva) {
+        renumerarCuotasDesde(primeraFilaNueva);
+    }
+    
+    // Recalcular amortización y verificar consistencia
+    recalcularAmortizacion();
+    verificarConsistenciaSaldo();
+    actualizarColoresVencidas();
+    
+    // Actualizar el valor oculto que se enviará con la reestructuración
+    $('#nuevo-valor-venta-hidden').val(nuevoValor);
+
+    // Agregar al historial
+    let mensajeHistorial = `Se cambió el valor de la venta de <strong>$${valorOriginal.toLocaleString('es-CO')}</strong> a <strong>$${nuevoValor.toLocaleString('es-CO')}</strong> `;
+    
+    if (diferencia > 0) {
+        mensajeHistorial += `(reducción de <strong>$${diferencia.toLocaleString('es-CO')}</strong>, ${Math.abs(porcentajeVariacion).toFixed(2)}%). `;
+    } else if (diferencia < 0) {
+        mensajeHistorial += `(aumento de <strong>$${Math.abs(diferencia).toLocaleString('es-CO')}</strong>, ${Math.abs(porcentajeVariacion).toFixed(2)}%). `;
+    }
+    
+    mensajeHistorial += `<br>El nuevo saldo de <strong>$${nuevoSaldo.toLocaleString('es-CO')}</strong> se redistribuyó en <strong>${numCuotas} cuotas</strong> de <strong>$${valorCuota.toLocaleString('es-CO')}</strong> cada una`;
+    
+    // Incluir información del cambio de tasa si aplica
+    if (huboCambioTasa) {
+        mensajeHistorial += ` con <strong>nueva tasa del ${nuevaTasa.toFixed(2)}%</strong> (anterior: ${tasaOriginal}%)`;
+    } else {
+        mensajeHistorial += ` con tasa del <strong>${nuevaTasa.toFixed(2)}%</strong>`;
+    }
+    
+    mensajeHistorial += `. ${motivo}`;
+    
+    agregarHistorialCambio(mensajeHistorial);
+    
+    // Cerrar modal
+    $('#descuento-global-modal').modal('hide');
+    
+    // Mensaje de éxito
+    showToast('Valor de venta modificado y cuotas redistribuidas correctamente.', 'success');
+});
+
+// Función para verificar y controlar estado del botón de descuento global
+function verificarBotonesSplit() {
+    // Buscar si hay botones de split visibles en la tabla
+    const hayBotonesSplit = $('#plan-pagos-table tbody tr td button[onclick*="splitCuota"]').length > 0;
+    
+    // Obtener referencias a todos los botones que deben desactivarse
+    const btnDescuentoGlobal = $('#btn-descuento-global');
+    const btnSubirExcel = $('#btn-subir-excel');
+    const btnDescargarPlantilla = $('#btn-descargar-plantilla'); // Agregado: botón de descargar plantilla
+    
+    if (hayBotonesSplit) {
+        // Desactivar los botones si hay botones de split
+        btnDescuentoGlobal.addClass('disabled');
+        btnSubirExcel.addClass('disabled');
+        btnDescargarPlantilla.addClass('disabled'); // Agregado: deshabilitar también este botón
+        
+        // Agregar títulos explicativos
+        btnDescuentoGlobal.attr('title', 'No disponible cuando hay cuotas pendientes con opción de split');
+        btnSubirExcel.attr('title', 'No disponible cuando hay cuotas pendientes con opción de split');
+        btnDescargarPlantilla.attr('title', 'No disponible cuando hay cuotas pendientes con opción de split'); // Agregado
+        
+        // Opcional: añadir tooltips para explicar por qué están desactivados
+        if (typeof $.fn.popup === 'function') {  // Si Semantic UI está disponible
+            btnDescuentoGlobal.popup({
+                content: 'Esta opción no está disponible cuando hay cuotas con opción de split',
+                position: 'top center'
+            });
+            
+            btnSubirExcel.popup({
+                content: 'Esta opción no está disponible cuando hay cuotas con opción de split',
+                position: 'top center'
+            });
+            
+            btnDescargarPlantilla.popup({  // Agregado: tooltip para el botón de descargar plantilla
+                content: 'Esta opción no está disponible cuando hay cuotas con opción de split',
+                position: 'top center'
+            });
+        }
+    } else {
+        // Activar los botones si no hay botones de split
+        btnDescuentoGlobal.removeClass('disabled');
+        btnSubirExcel.removeClass('disabled');
+        btnDescargarPlantilla.removeClass('disabled'); // Agregado: habilitar también este botón
+        
+        btnDescuentoGlobal.removeAttr('title');
+        btnSubirExcel.removeAttr('title');
+        btnDescargarPlantilla.removeAttr('title'); // Agregado: quitar título
+        
+        // Eliminar los popups si existen
+        if (typeof $.fn.popup === 'function') {
+            try {
+                btnDescuentoGlobal.popup('destroy');
+                btnSubirExcel.popup('destroy');
+                btnDescargarPlantilla.popup('destroy'); // Agregado: eliminar tooltip
+            } catch(e) {}
+        }
+    }
+}
+
+// Ejecutar la verificación al cargar la página
+$(document).ready(function() {
+    // Verificación inicial
+    verificarBotonesSplit();
+    
+    // También verificar después de cualquier actualización del plan de pagos
+    $(document).on('DOMSubtreeModified', '#plan-pagos-table', function() {
+        verificarBotonesSplit();
+    });
+    
+    // Si hay un evento específico que actualice la tabla, también podemos escucharlo
+    $(document).on('planPagosActualizado', function() {
+        verificarBotonesSplit();
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,108 @@
+{# filepath: /code/sales/templates/sales/sales_plans_project_list.html #}
+{% extends "site_base.html" %}
+{% block title %}Planes de Pago{% endblock %}
+{% block submenu %}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/new_sale" data-tab='tab-clientes'>Nueva venta</a>
+<a class='item submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item active submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui header">Planes de pago para {{ project.name_to_show }}</h2>
+<form method="post" action="/sales/{{ project.name }}/plan-pago/crear/" class="ui form">
+    {% csrf_token %}
+    <div class="fields">
+        <div class="four wide field">
+            <input type="text" name="name" placeholder="Nombre del plan" required>
+        </div>
+        <div class="three wide field">
+            <input type="number" name="initial_payment" placeholder="Pago inicial" required>
+        </div>
+        <div class="three wide field">
+            <input type="number" name="to_finance" placeholder="A financiar" required>
+        </div>
+        <div class="three wide field">
+            <input type="number" step="0.01" name="rate" placeholder="Tasa (%)" required>
+        </div>
+        <div class="three wide field">
+            <button class="ui primary button" type="submit">Crear plan</button>
+        </div>
+    </div>
+</form>
+<table class="ui celled compact small table">
+    <thead>
+        <tr style="text-align: center;">
+            <th>Nombre</th>
+            <th>Estado</th>
+            <th>Adjudicaciones</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for plan in plans %}
+        <tr>
+            <td>{{ plan.name }}</td>
+            <td style="text-align: center;">
+                {% if plan.status %}
+                    <span class="ui green label">Activo</span>
+                {% else %}
+                    <span class="ui grey label">Inactivo</span>
+                {% endif %}
+            </td>
+            <td style="text-align: center;">
+                {{ plan.adjudicaciones_count }}
+            </td>
+            <td style="text-align: center;">
+                {% if plan.status %}
+                    <button class="ui mini red button toggle-plan-btn" data-id="{{ plan.id }}">
+                        Desactivar
+                    </button>
+                {% else %}
+                    <button class="ui mini green button toggle-plan-btn" data-id="{{ plan.id }}">
+                        Activar
+                    </button>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No hay planes de pago registrados.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+{%block script%}
+<script>
+$('.toggle-plan-btn').on('click', function() {
+    var btn = $(this);
+    var planId = btn.data('id');
+    $.post(
+        '/sales/plan-pago/' + planId + '/toggle/',
+        {'csrfmiddlewaretoken': '{{ csrf_token }}'},
+        function(resp){
+            if(resp.success) location.reload();
+        }
+    );
+});
+
+// Validación para que pago inicial + a financiar = 100
+$('form.ui.form').on('submit', function(e) {
+    var inicial = parseFloat($('input[name="initial_payment"]').val()) || 0;
+    var financiar = parseFloat($('input[name="to_finance"]').val()) || 0;
+    if ((inicial + financiar) !== 100) {
+        alert('La suma de "Pago inicial" y "A financiar" debe ser exactamente 100%.');
+        e.preventDefault();
+        return false;
+    }
+});
+</script>
+{% endblock %}

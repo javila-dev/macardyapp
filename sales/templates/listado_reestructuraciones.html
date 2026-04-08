@@ -1,0 +1,185 @@
+<!-- filepath: /code/sales/templates/sales/listado_reestructuraciones.html -->
+{% extends "site_base.html" %}
+{%block title%}Ventas | Reestructuraciones{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/sales/{{project.name}}/new_sale" data-tab='tab-clientes'>Nueva venta</a>
+<a class='item submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item active submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{%endblock%}
+{% block content %}
+<h2 class="ui header">
+    <i class="exchange icon"></i>
+    Listado de reestructuraciones de planes de pago
+</h2>
+<div class="ui scrolling container" style="max-height: 40em !important;">
+    <table class="ui very relaxed small compact head stuck unstackable table">
+        <thead>
+            <tr style="text-align:center;">
+                <th>ID</th>
+                <th style="min-width: 220px; max-width: 320px;">Contrato</th>
+                <th>Proyecto</th>
+                <th>Solicitado por</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in restructuraciones %}
+            <tr>
+                <td>{{ r.id_restructuring }}</td>
+                <td style="min-width: 220px; max-width: 320px; white-space: normal;">
+                    CTR{{ r.sale.contract_number }}
+                    <br>
+                    <span style="font-size: 0.95em; color: #555;">
+                        {{ r.sale.first_owner.full_name|truncatechars:40 }}
+                        {% if r.sale.second_owner %}<br>{{ r.sale.second_owner.full_name|truncatechars:40 }}{% endif %}
+                        {% if r.sale.third_owner %}<br>{{ r.sale.third_owner.full_name|truncatechars:40 }}{% endif %}
+                        {% if r.sale.fourth_owner %}<br>{{ r.sale.fourth_owner.full_name|truncatechars:40 }}{% endif %}
+                    </span>
+                </td>
+                <td>{{ r.sale.project }}</td>
+                <td>{{ r.created_by.get_full_name }}</td>
+                <td>{{ r.created_at|date:"d/m/Y H:i" }}</td>
+                <td>
+                    <span class="ui label {% if r.status == 'Aprobado' %}green{% elif r.status == 'Rechazado' %}red{% else %}yellow{% endif %}">
+                        {{ r.status }}
+                    </span>
+                </td>
+                <td>
+                    <button class="ui mini button ver-detalle-btn" data-id="{{ r.id_restructuring }}">
+                        <i class="eye icon"></i> Ver detalle
+                    </button>
+                    {% if r.status == 'Pendiente' %}
+                    <button class="ui mini green button aprobar-btn" data-id="{{ r.id_restructuring }}">
+                        <i class="check icon"></i> Aprobar
+                    </button>
+                    <button class="ui mini red button rechazar-btn" data-id="{{ r.id_restructuring }}">
+                        <i class="close icon"></i> Rechazar
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="center aligned">No hay reestructuraciones registradas.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<!-- Modal para detalle -->
+<div class="ui modal" id="modal-detalle-reestructuracion">
+    <div class="header">Detalle de reestructuración</div>
+    <div class="content" id="modal-detalle-content">
+        <div class="ui active centered inline loader"></div>
+    </div>
+    <div class="actions">
+        <div class="ui cancel button">Cerrar</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+function showToast(message, type='info') {
+    $('body').toast({
+        message: message,
+        class: type === 'success' ? 'success' : (type === 'error' ? 'error' : 'info'),
+        showProgress: 'bottom'
+    });
+}
+
+// Toast de confirmación para aprobar
+$('.aprobar-btn').on('click', function() {
+    var id = $(this).data('id');
+    $('body').toast({
+        message: '¿Seguro que deseas aprobar esta reestructuración?',
+        class: 'warning',
+        showProgress: 'bottom',
+        displayTime: 0,
+        actions: [
+            {
+                text: 'Aprobar',
+                class: 'green',
+                click: function() {
+                    showToast('Procesando aprobación...', 'info');
+                    $.post('/sales/ajax/aprobar_reestructuracion/' + id + '/', {
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                    }, function(resp) {
+                        if(resp.success) {
+                            showToast('Reestructuración aprobada correctamente.', 'success');
+                            setTimeout(function(){ location.reload(); }, 1200);
+                        } else {
+                            showToast('Error: ' + resp.error, 'error');
+                        }
+                    });
+                }
+            },
+            {
+                text: 'Cancelar',
+                class: 'grey',
+                click: function() {}
+            }
+        ]
+    });
+});
+
+// Toast de confirmación para rechazar
+$('.rechazar-btn').on('click', function() {
+    var id = $(this).data('id');
+    $('body').toast({
+        message: '¿Seguro que deseas rechazar esta reestructuración?',
+        class: 'warning',
+        showProgress: 'bottom',
+        displayTime: 0,
+        actions: [
+            {
+                text: 'Rechazar',
+                class: 'red',
+                click: function() {
+                    showToast('Procesando rechazo...', 'info');
+                    $.post('/sales/ajax/rechazar_reestructuracion/' + id + '/', {
+                        csrfmiddlewaretoken: '{{ csrf_token }}'
+                    }, function(resp) {
+                        if(resp.success) {
+                            showToast('Reestructuración rechazada.', 'success');
+                            setTimeout(function(){ location.reload(); }, 1200);
+                        } else {
+                            showToast('Error: ' + resp.error, 'error');
+                        }
+                    });
+                }
+            },
+            {
+                text: 'Cancelar',
+                class: 'grey',
+                click: function() {}
+            }
+        ]
+    });
+});
+
+$('.ver-detalle-btn').on('click', function() {
+    var id = $(this).data('id');
+    $('#modal-detalle-content').html('<div class="ui active centered inline loader"></div>');
+    $('#modal-detalle-reestructuracion').modal('show');
+    $.get('/sales/ajax/detalle_reestructuracion/' + id + '/', function(data) {
+        $('#modal-detalle-content').html(data);
+    });
+});
+</script>
+{% endblock %}

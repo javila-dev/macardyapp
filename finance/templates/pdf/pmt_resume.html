@@ -1,0 +1,118 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th>
+                {%if project.name == 'altoscovenas' %}
+                <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="130" height="60">
+                {%else%}
+                <img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140">
+                {%endif%}
+            </th>
+            <th><h1 style="margin:1px">PMT detallado</h1>
+                <h3 class="text-muted" style="margin:1px">Liquidado el {{pmt.add_date|date:'d/m/Y'}}</h3></th>
+            <th><img src='/media/{{project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+<div id="footer_content">(c) - pagina <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.username}} el {{now}}
+</div>
+<div>
+    <br>
+    <p><strong>Observaciones:</strong> {{pmt.observations}}</p>
+    <br>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+        <thead>
+            <tr style="background-color: lightblue;">
+                <th>Identificacion</th>
+                <th style="width: 40%;">Nombre</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for pay in pmts%}<tr>
+                <td style="text-align: center;">{{pay.seller.pk}}</td>
+                <td>{{pay.seller.full_name}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.value|format_number}}</td>
+            </tr>{%endfor%}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2" style="text-align: right;padding-right: 2px;">TOTAL</th>
+                <th>${{totals.total|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table><br><br><br>
+    <h2><strong>Creado por:</strong> {{pmt.user.username}}</h2>
+    <h2><strong>Aprobado por:</strong> {{pmt.user_approve.username}}</h2>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+
+        @frame header_frame {           /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 150px;
+        }
+        @frame footer_frame {           /* Another static Frame */
+            -pdf-frame-content: footer_content;
+            left: 50pt; width: 512pt; top: 800pt; height: 20pt;
+        }
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 170px; 
+            height: 600pt;
+        }
+
+    }
+
+
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+    }
+    td{
+        vertical-align: top!important;
+    }
+    
+    .text-muted{
+        color: gray;
+        
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+        color: lightslategray;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

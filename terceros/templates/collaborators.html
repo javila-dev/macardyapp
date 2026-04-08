@@ -1,0 +1,224 @@
+{%extends 'site_base.html'%}{%load static%}{% load finance_extras %}{% load crispy_forms_tags %}
+{%block title%}Partners{%endblock%}
+{%block submenu%}
+<div class='header item'>
+  RRHH
+</div>
+{%endblock%}
+{%block css%}
+<link rel="stylesheet" href="https://unpkg.com/dropzone@5/dist/min/dropzone.min.css" type="text/css" />
+{%endblock%}
+{%block content%}
+<script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
+<div class='ui tab segment active'>
+  <div class='ui center aligned basic segment' id='div_sale'>
+    <h2 class="ui icon dividing header">
+      <i class="users circular teal icon"></i>
+      <div class="content">
+        Gestion de RRHH
+      </div>
+    </h2>
+  </div>
+  <div class="ui basic center aligned segment" id="div-actions">
+    <button type="button" class="ui circular green button" id="btn-new-collaborator">Nuevo</button>
+    <div class="ui toggle checkbox">
+      <input type="checkbox" name="public">
+      <label>Incluir colaboradores retirados</label>
+    </div>
+  </div>
+  <div class="div-table-detail">
+    <table id="table_detail" class="ui table small stackable selectable">
+      <thead>
+        <tr class="center aligned">
+          <th rowspan="2">Identificación</th>
+          <th rowspan="2">Nombre</th>
+          <th rowspan="2">Cargo</th>
+          <th colspan="5">Información de Contrato</th>
+
+        </tr>
+        <tr class="center aligned">
+          <th>Tipo</th>
+          <th>Inicio</th>
+          <th>Fin</th>
+          <th>Salario</th>
+        </tr>
+      </thead>
+    </table>
+  </div>
+</div>
+<div class="ui modal" id="modalCollaborator">
+  <i class="close icon"></i>
+  <div class="header">Nuevo colaborador</div>
+  <div class="scrolling content">
+    {%crispy form%}
+  </div>
+</div>
+<div class="ui tiny modal" id="modalRetireCollab">
+  <i class="close icon"></i>
+  <div class="header">Retirar colaborador</div>
+  <div class="content">
+    <form class="ui form" id="form-retire" method="POST">{%csrf_token%}
+      <div class="ui calendar required field" id="calendar_end_date">
+        <label>Fecha de retiro</label>
+        <div class="ui input left icon">
+          <i class="calendar icon"></i>
+          <input type="text" name="retire_date" onkeypress="return false;">
+        </div>
+      </div>
+      <div class="required field">
+        <label>Motivo</label>
+        <input type="text" name="comments" placeholder="Escribe aqui el motivo del retiro...">
+      </div>
+      <div class="ui basic right aligned segment">
+        <button type="submit" class="ui green button">
+          Retirar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="ui tiny modal" id="modalReactCollab">
+  <i class="close icon"></i>
+  <div class="header">Retirar colaborador</div>
+  <div class="scrolling content">
+    {%crispy form_react%}
+  </div>
+</div>
+<div class="ui tiny modal" id="modalCollabDocs">
+  <i class="close icon"></i>
+  <div class="header"></div>
+  <div class="scrolling content">
+    <script>
+      Dropzone.options.uploaddocsform = {
+        acceptedFiles: 'application/pdf',
+        maxFiles: 1,
+        autoProcessQueue:false,
+        uploadMultiple: true,
+        parallelUploads: 100,
+        maxFiles: 1,
+        // The setting up of the dropzone
+        init: function() {
+          var myDropzone = this;
+
+          // First change the button to actually tell Dropzone to process the queue.
+          this.element.querySelector("button[type=submit]").addEventListener("click", function(e) {
+            // Make sure that the form isn't actually being sent.
+            e.preventDefault();
+            e.stopPropagation();
+            let descript = $('#id_doc_description').val()
+            if (descript == '') {
+              $('body').toast({
+                    message: 'Debes ingresar una descripción para este documento',
+                    class: 'error',
+                    displayTime: 'auto'
+                });
+                return false;
+            }
+            myDropzone.processQueue();
+          });
+
+          // Listen to the sendingmultiple event. In this case, it's the sendingmultiple event instead
+          // of the sending event because uploadMultiple is set to true.
+          this.on("sendingmultiple", function() {
+            $('#uploaddocsform').addClass('loading')
+            // Gets triggered when the form is actually being sent.
+            // Hide the success button or the complete form.
+          });
+          this.on("successmultiple", function(files, response) {
+            
+              setTimeout(()=>{
+                $('#uploaddocsform').removeClass('loading')
+                $('#uploaddocsform').trigger('reset')
+                this.removeAllFiles()
+                $('#modalCollabDocs').modal('hide')
+                $('body').toast({
+                    message: response.msj,
+                    class: response.class,
+                    displayTime: 'auto'
+                });
+                $('#modalviewCollabDocs').modal('show')
+              },2000)
+            // Gets triggered when the files have successfully been sent.
+            // Redirect user or notify of success.
+          });
+          this.on("errormultiple", function(files, response) {
+            setTimeout(()=>{
+              $('#uploaddocsform').removeClass('loading')
+              $('body').toast({
+                  message: 'Ocurrió un error, contactate con el administrador del sistema',
+                  class: 'error',
+                  displayTime: 'auto'
+              });
+            },2000)
+            // Gets triggered when there was an error sending the files.
+            // Maybe show form again, and notify user of error
+          });
+        }
+      }      
+    </script>
+    <form id="uploaddocsform" class="dropzone ui form" 
+     method = "post" enctype="multipart/form-data" action="/partners/collaborators/uploadfiles">{%csrf_token%}
+      <!-- this is were the previews should be shown. -->
+      <!-- Now setup your input fields -->
+      <input name="todo" value="create" hidden>
+      <input id="id_collab_doc_id" name="collab_doc_id" hidden>
+      <input required type="text" placeholder="Descripcion..." name="doc_description" max="50" id='id_doc_description'/>
+      <div class="dz-message">Arrastra el archivo o haz click</div>
+      <div class="previews"></div>
+      <div class="ui basic right aligned segment">
+        <button type="submit" class="ui green button">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="ui tiny modal" id="modalviewCollabDocs">
+  <input id="collab-id-docs" type="text" hidden>
+  <i class="close icon"></i>
+  <div class="header"></div>
+  <div class="scrolling content">
+      <div class="table-responsive">
+        <table id="table-docs" class="ui celled small table" style="width:100%">
+          <thead>
+            <tr class="center aligned">
+              <th>Fecha</th>
+              <th>Descripcion</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+  </div>
+</div>
+{%endblock%}
+{%block contextmenu%}
+<div class="ui popup bottom left " id='popup-collab' style="position: absolute; 
+    padding:0px; left: 0px;top:0px;max-width: 15rem;">
+  <div class='ui basic vertical menu'>
+    <a class="item" id='docs-collab'>
+      Cargar documentos
+      <i class="cloud upload alternate teal icon"></i>
+    </a>
+    <a class="item" id='view-docs-collab'>
+      Ver documentos
+      <i class="file pdf outline teal icon"></i>
+    </a>
+    <a class="item" id='retire-collab'>
+      Retirar
+      <i class="times circle teal outline icon"></i>
+    </a>
+    <a class="item" id='reactivate-collab'>
+      Reactivar
+      <i class="undo teal icon"></i>
+    </a>
+  </div>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script src="{%static 'js/moment.js'%}"></script>
+<script src="https://cdn.datatables.net/plug-ins/1.11.5/dataRender/datetime.js"></script>
+<script src="{%static 'js/collaborators.js'%}"></script>
+
+{%endblock%}

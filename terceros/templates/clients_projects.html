@@ -1,0 +1,52 @@
+<!-- filepath: /code/terceros/templates/terceros/clients_projects.html -->
+{% extends 'site_base.html' %}
+{% block title %}Clientes por Proyecto{% endblock %}
+{% block content %}
+<div class="ui container">
+    <h2 class="ui dividing header">Clientes por Proyecto</h2>
+    <table id="clients_table" class="ui small selectable very compact table" style="width: 100%;font-size: 0.8em;">
+        <thead>
+            <tr style="text-align: center;">
+                <th>Documento</th>
+                <th style="width: 30%;">Nombre</th>
+                <th>Email</th>
+                <th style="width: 12%;">Teléfono</th>
+                <th style="width: 15%;">Proyectos</th>
+                <th style="width: 15%;">Contratos</th>
+                <th style="width: 8%;">Rol</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+{% endblock %}
+{% block script %}
+{% include 'datatables.html' %}
+<script>
+    $(document).ready(function () {
+        $('#clients_table').DataTable({
+            ajax: {
+                url: "/partners/ajax/clients_projects", // URL directa para obtener datos
+                dataSrc: "data"
+            },
+            columns: [
+                { data: "document" },
+                { data: "name" },
+                { data: "email" },
+                { data: "phone" },
+                { 
+                    data: "project",
+                    render: function(data) {
+                        return data.join('<br>'); // Renderiza cada proyecto con su logo
+                    }
+                },
+                { data: "contracts" },
+                { data: "roles" }
+            ],
+            language: {
+                url: '/ajax/datatable_spanish'
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,438 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load finance_extras %}
+
+{% block content %}
+<div id="header_content">
+    <table>
+        <tr>
+            <th><img src='{% static "img/logo-gibraltar.png" %}' width="180" height="60"></th>
+            <th><img src='{% static "img/logo-macardy.png" %}' width="80" height="60"></th>
+            <th style="text-align: right; font-size: 10pt;">
+                <strong>fecha: {{ fecha_actual|date:"d/m/Y" }}</strong>
+            </th>
+        </tr>
+    </table>
+</div>
+
+<div>
+    <h2 style="text-align: center; font-size: 14pt; margin: 20px 0;">
+        <strong>SOLICITUD DE ADMISIÓN</strong>
+    </h2>
+
+    <!-- 1. INFORMACIÓN PERSONAL DEL SOLICITANTE -->
+    <div class="section-title">1. INFORMACIÓN PERSONAL DEL SOLICITANTE</div>
+    
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Nombres y Apellidos:</strong> <u>{{ sale.first_owner.full_name.upper }}</u>
+                <span style="margin-left: 40px;"><strong>C.C.</strong> <u>{{ sale.first_owner.client_document }}</u></span>
+                <span style="margin-left: 40px;"><strong>Edad:</strong> <u>{{ sale.first_owner.age|default:"_____" }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 60%;">
+                <strong>Lugar y Fecha de Nacimiento:</strong> <u>{{ sale.first_owner.birth_place|default:"_________________________" }}</u>
+            </td>
+            <td style="width: 40%;">
+                <strong>Vive en Casa propia:</strong> 
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( ) 
+                <strong>Alquilada</strong>
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( )
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Dirección:</strong> <u>{{ sale.first_owner.address }}</u>
+                <span style="margin-left: 40px;"><strong>Barrio:</strong> <u>{{ sale.first_owner.neighborhood|default:"_______________" }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Teléfono:</strong> <u>{{ sale.first_owner.phone_house|default:"_______________" }}</u>
+                <span style="margin-left: 40px;"><strong>Celular:</strong> <u>{{ sale.first_owner.phone }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Ciudad o Municipio:</strong> <u>{{ sale.first_owner.city }}</u>
+                <span style="margin-left: 40px;"><strong>Correo electrónico:</strong> <u>{{ sale.first_owner.email }}</u></span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 2. REFERENCIAS -->
+    <div class="section-title">2. REFERENCIAS</div>
+    
+    <!-- 2.1 REFERENCIAS FAMILIARES -->
+    <div class="subsection-title">2.1 REFERENCIAS FAMILIARES</div>
+    <table class="form-table">
+        {% with familiares=sale.first_owner.references.all|dictsort:"reference_type" %}
+        {% for ref in familiares %}
+            {% if ref.reference_type == 'familiar' %}
+            <tr>
+                <td style="width: 40%;">
+                    <strong>Nombre:</strong> <u>{{ ref.name }}</u>
+                </td>
+                <td style="width: 30%;">
+                    <strong>Ocupación:</strong> <u>{{ ref.occupation }}</u>
+                </td>
+                <td style="width: 30%;">
+                    <strong>Tel:</strong> <u>{{ ref.phone }}</u>
+                </td>
+            </tr>
+            {% endif %}
+        {% empty %}
+        <tr>
+            <td style="width: 40%;">
+                <strong>Nombre:</strong> <u>_________________________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Ocupación:</strong> <u>_________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Tel:</strong> <u>_______________________</u>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 40%;">
+                <strong>Nombre:</strong> <u>_________________________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Ocupación:</strong> <u>_________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Tel:</strong> <u>_______________________</u>
+            </td>
+        </tr>
+        {% endfor %}
+        {% endwith %}
+    </table>
+
+    <!-- 2.2 REFERENCIAS PERSONALES -->
+    <div class="subsection-title">2.2 REFERENCIAS PERSONALES</div>
+    <table class="form-table">
+        {% with personales=sale.first_owner.references.all|dictsort:"reference_type" %}
+        {% for ref in personales %}
+            {% if ref.reference_type == 'personal' %}
+            <tr>
+                <td style="width: 40%;">
+                    <strong>Nombre:</strong> <u>{{ ref.name }}</u>
+                </td>
+                <td style="width: 30%;">
+                    <strong>Ocupación:</strong> <u>{{ ref.occupation }}</u>
+                </td>
+                <td style="width: 30%;">
+                    <strong>Tel:</strong> <u>{{ ref.phone }}</u>
+                </td>
+            </tr>
+            {% endif %}
+        {% empty %}
+        <tr>
+            <td style="width: 40%;">
+                <strong>Nombre:</strong> <u>_________________________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Ocupación:</strong> <u>_________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Tel:</strong> <u>_______________________</u>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 40%;">
+                <strong>Nombre:</strong> <u>_________________________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Ocupación:</strong> <u>_________________</u>
+            </td>
+            <td style="width: 30%;">
+                <strong>Tel:</strong> <u>_______________________</u>
+            </td>
+        </tr>
+        {% endfor %}
+        {% endwith %}
+    </table>
+
+    <!-- 3. INFORMACIÓN LABORAL DEL SOLICITANTE -->
+    <div class="section-title">3. INFORMACIÓN LABORAL DEL SOLICITANTE</div>
+    
+    {% if sale.first_owner.employment_info %}
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Empresa donde labora:</strong> <u>{{ sale.first_owner.employment_info.company_name }}</u>
+                <span style="margin-left: 40px;"><strong>Cargo:</strong> <u>{{ sale.first_owner.employment_info.position }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Profesión:</strong> <u>{{ sale.first_owner.employment_info.profession }}</u>
+                <span style="margin-left: 20px;"><strong>Ocupación:</strong> <u>{{ sale.first_owner.employment_info.occupation }}</u></span>
+                <span style="margin-left: 20px;"><strong>Salario/ Ingresos Mensuales:</strong> <u>${{ sale.first_owner.employment_info.monthly_salary|format_number|default:"_____________" }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Antigüedad:</strong> <u>{{ sale.first_owner.employment_info.years_experience|default:"____" }}</u>
+                <span style="margin-left: 20px;"><strong>Ciudad:</strong> <u>{{ sale.first_owner.employment_info.company_city }}</u></span>
+                <span style="margin-left: 20px;"><strong>Dirección:</strong> <u>{{ sale.first_owner.employment_info.company_address }}</u></span>
+                <span style="margin-left: 20px;"><strong>Tel:</strong> <u>{{ sale.first_owner.employment_info.company_phone }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Mencione las entidades sociales, Deportivas, Culturales o Agremiaciones a las que pertenece:</strong> 
+                <u>{{ sale.first_owner.employment_info.social_organizations|default:"____________________________________________________________________________________________" }}</u>
+            </td>
+        </tr>
+    </table>
+    {% else %}
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Empresa donde labora:</strong> <u>_____________________________________</u>
+                <span style="margin-left: 40px;"><strong>Cargo:</strong> <u>_______________________________</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Profesión:</strong> <u>___________________</u>
+                <span style="margin-left: 20px;"><strong>Ocupación:</strong> <u>__________________</u></span>
+                <span style="margin-left: 20px;"><strong>Salario/ Ingresos Mensuales:</strong> <u>_________________________</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Antigüedad:</strong> <u>___________________</u>
+                <span style="margin-left: 20px;"><strong>Ciudad:</strong> <u>_______________</u></span>
+                <span style="margin-left: 20px;"><strong>Dirección:</strong> <u>_______________</u></span>
+                <span style="margin-left: 20px;"><strong>Tel:</strong> <u>_______________________</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Mencione las entidades sociales, Deportivas, Culturales o Agremiaciones a las que pertenece:</strong> 
+                <u>____________________________________________________________________________________________</u>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- SEGUNDO SOLICITANTE si existe -->
+    {% if sale.second_owner and sale.second_owner.client_document != "1" %}
+    <div class="section-title">4. INFORMACIÓN PERSONAL DEL SEGUNDO SOLICITANTE</div>
+    
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Nombres y Apellidos:</strong> <u>{{ sale.second_owner.full_name.upper }}</u>
+                <span style="margin-left: 40px;"><strong>C.C.</strong> <u>{{ sale.second_owner.client_document }}</u></span>
+                <span style="margin-left: 40px;"><strong>Edad:</strong> <u>{{ sale.second_owner.age|default:"_____" }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 60%;">
+                <strong>Lugar y Fecha de Nacimiento:</strong> <u>{{ sale.second_owner.birth_place|default:"_________________________" }}</u>
+            </td>
+            <td style="width: 40%;">
+                <strong>Vive en Casa propia:</strong> 
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( ) 
+                <strong>Alquilada</strong>
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( )
+                <span style="margin-left: 20px;"><strong>Tel:</strong> <u>{{ sale.second_owner.phone }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Dirección:</strong> <u>{{ sale.second_owner.address }}</u>
+                <span style="margin-left: 40px;"><strong>Ciudad:</strong> <u>{{ sale.second_owner.city }}</u></span>
+                <span style="margin-left: 40px;"><strong>Celular:</strong> <u>{{ sale.second_owner.phone }}</u></span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Referencias y empleo del segundo solicitante -->
+    {% if sale.second_owner.references.exists %}
+    <p><strong>Referencias:</strong></p>
+    <table class="form-table">
+        {% for ref in sale.second_owner.references.all %}
+        <tr>
+            <td style="width: 20%;">
+                <strong>{{ ref.get_reference_type_display }}:</strong>
+            </td>
+            <td style="width: 30%;">
+                <strong>Nombre:</strong> <u>{{ ref.name }}</u>
+            </td>
+            <td style="width: 25%;">
+                <strong>Ocupación:</strong> <u>{{ ref.occupation }}</u>
+            </td>
+            <td style="width: 25%;">
+                <strong>Tel:</strong> <u>{{ ref.phone }}</u>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if sale.second_owner.employment_info %}
+    <p><strong>Información Laboral:</strong></p>
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Empresa:</strong> <u>{{ sale.second_owner.employment_info.company_name }}</u>
+                <span style="margin-left: 40px;"><strong>Cargo:</strong> <u>{{ sale.second_owner.employment_info.position }}</u></span>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+    {% endif %}
+
+    <!-- TERCER SOLICITANTE si existe -->
+    {% if sale.third_owner and sale.third_owner.client_document != "1" %}
+    <div class="section-title">5. INFORMACIÓN PERSONAL DEL TERCER SOLICITANTE</div>
+    
+    <table class="form-table">
+        <tr>
+            <td colspan="2">
+                <strong>Nombres y Apellidos:</strong> <u>{{ sale.third_owner.full_name.upper }}</u>
+                <span style="margin-left: 40px;"><strong>C.C.</strong> <u>{{ sale.third_owner.client_document }}</u></span>
+                <span style="margin-left: 40px;"><strong>Edad:</strong> <u>{{ sale.third_owner.age|default:"_____" }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 60%;">
+                <strong>Lugar y Fecha de Nacimiento:</strong> <u>{{ sale.third_owner.birth_place|default:"_________________________" }}</u>
+            </td>
+            <td style="width: 40%;">
+                <strong>Vive en Casa propia:</strong> 
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( ) 
+                <strong>Alquilada</strong>
+                <img src='{% static "img/rectangle.png" %}' width="15" height="15"> ( )
+                <span style="margin-left: 20px;"><strong>Tel:</strong> <u>{{ sale.third_owner.phone }}</u></span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong>Dirección:</strong> <u>{{ sale.third_owner.address }}</u>
+                <span style="margin-left: 40px;"><strong>Ciudad:</strong> <u>{{ sale.third_owner.city }}</u></span>
+                <span style="margin-left: 40px;"><strong>Celular:</strong> <u>{{ sale.third_owner.phone }}</u></span>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- SECCIÓN IMPORTANTE -->
+    <div class="important-section">
+        <div class="section-title" style="text-align: center;">IMPORTANTE</div>
+        <p style="text-align: justify; font-size: 9pt;">
+            La Constructora Macardy S.A.S aclara que la presente solicitud de admisión tiene por objeto seleccionar las familias que van a convivir en la 
+            unidad campestre, y por lo tanto deben compartir actividades sociales, recreativas y deportivas. El estudio de esta solicitud no compromete a 
+            La Constructora Macardy con la aceptación, en todo caso, el comité de selección se reserva el derecho de admisión y los motivos para rechazarla.
+        </p>
+        <p style="text-align: justify; font-size: 9pt;">
+            El solicitante declara que todos los datos aquí consignados son verídicos.
+        </p>
+    </div>
+
+    <!-- FIRMAS -->
+    <br><br>
+    <table style="width: 100%;">
+        <tr>
+            <td style="text-align: center; vertical-align: top; width: 33%;">
+                <strong><u>________________________</u><br>
+                FIRMA DEL SOLICITANTE</strong>
+            </td>
+            {% if sale.second_owner and sale.second_owner.client_document != "1" %}
+            <td style="text-align: center; vertical-align: top; width: 33%;">
+                <strong><u>________________________</u><br>
+                FIRMA DEL SEGUNDO SOLICITANTE</strong>
+            </td>
+            {% endif %}
+            {% if sale.third_owner and sale.third_owner.client_document != "1" %}
+            <td style="text-align: center; vertical-align: top; width: 33%;">
+                <strong><u>________________________</u><br>
+                FIRMA DEL TERCER SOLICITANTE</strong>
+            </td>
+            {% endif %}
+        </tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block css %}
+<style>
+    @page {
+        size: legal;
+
+        @frame header_frame {
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 100px;
+        }
+
+        @frame content_frame {
+            left: 50pt; 
+            width: 512pt; 
+            top: 130px; 
+            height: 900pt;
+        }
+    }
+
+    p {
+        font-size: 9.5pt;
+        margin: 5px 0;
+    }
+
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .form-table td {
+        padding: 3px;
+        vertical-align: top;
+    }
+
+    .section-title {
+        font-weight: bold;
+        font-size: 11pt;
+        margin: 15px 0 8px 0;
+        text-transform: uppercase;
+    }
+
+    .subsection-title {
+        font-weight: bold;
+        font-size: 10pt;
+        margin: 10px 0 5px 0;
+    }
+
+    .important-section {
+        border: 1px solid #333;
+        padding: 10px;
+        margin: 20px 0;
+    }
+
+    u {
+        text-decoration: underline;
+        border-bottom: 1px solid #333;
+        padding-bottom: 1px;
+    }
+
+    #header_content table {
+        width: 100%;
+        margin-bottom: 0;
+    }
+
+    #header_content th {
+        text-align: center;
+        vertical-align: middle;
+        padding: 5px;
+    }
+</style>
+{% endblock %}

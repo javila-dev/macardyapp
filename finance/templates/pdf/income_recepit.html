@@ -1,0 +1,165 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<table id='encabezados-logos' style='margin-bottom: 0.2rem;'>
+    <tr>
+        {%if income.sale.project.name == "altoscovenas" %}
+        <td style='text-align: center; width: 30%;vertical-align: top;'>
+            <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="130" height="60">
+        </td>
+        <td style="font-weight: bold;text-align: center;width: 40%;">
+            <p style="line-height:3mm;"><small>Oficina<br>Carrera 76 Nº32-55 piso 2 ed Ofix 76 (Medellin)<br>Tel. 479 21 93<br>Nit. 900779254</small></p>
+            <p>RECIBO DE CAJA</p>
+            <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
+        </td>
+        <td style='text-align: center; width: 30%;vertical-align: top;'>
+            <img src="/media/{{income.sale.project.logo}}" width="70" height="70">
+        </td>
+       {%else%} 
+        <td style='text-align: center; width: 30%;vertical-align: top;'>
+            <img src="{%static 'img/Macardy-PNG.png'%}" width="70" height="70">
+        </td>
+        <td style="font-weight: bold;text-align: center;width: 40%;">
+            <p style="line-height:3mm;"><small>Oficina<br>Carrera 76 Nº32-55 piso 2 ed Ofix 76 (Medellin)<br>Tel. 479 21 93<br>Nit. 901036029</small></p>
+            <p>RECIBO DE CAJA</p>
+            <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
+        </td>
+        <td style='text-align: center; width: 30%;vertical-align: top;'>
+            <img src="/media/{{income.sale.project.logo}}" width="70" height="70">
+        </td>
+        {%endif%}
+    </tr>
+</table>
+<div style="font-size:small">
+    <table>
+        <tr>
+            <td style="width:10%" class="title">CLIENTE(S)</td>
+            <td class='underline' style="width:60%;padding-left: 0.5em;">{{income.sale.first_owner.full_name.upper}}
+                {%if income.sale.second_owner.full_name != " "%}, {{income.sale.second_owner.full_name.upper}} {%endif%}
+                {%if income.sale.third_owner.full_name != " "%}, {{income.sale.third_owner.full_name.upper}} {%endif%}
+            </td>
+            <td style="width:8%" class="title text-center">FECHA</td>
+            <td class='underline text-center' style="width:22%">{{income.add_date|date:'F j, Y'}}</td>
+        </tr>
+    </table>
+    <table style="margin-top:0.8rem">
+        <tr>
+            <td style="width:12%" class="title">DIRECCION</td>
+            <td class='underline' style="width:43%">{{income.sale.first_owner.address.upper}}</td>
+            <td style="width:8%" class="title text-center">CIUDAD</td>
+            <td class='underline text-center' style="width:12%">{{income.sale.first_owner.city|countries:"city"}}</td>
+            <td style="width:11%" class="title text-center">TELEFONO</td>
+            <td class='underline text-center' style="width:14%">{{income.sale.first_owner.phone}}</td>
+            
+        </tr>
+    </table>
+    <table style="margin-top:0.8rem">
+        <tr>
+            <td style="width:12%" class="title">CONCEPTO</td>
+            <td class='underline' style="width:88%">{{income.description.upper}}</td>        
+        </tr>
+    </table>
+</div>
+<table id='detail-table' style='margin-top: 1rem;margin-left: 2rem;
+    margin-right: 1.5rem;font-size:small'>
+    <thead>
+        <tr style="background-color: lightgray;">
+            <th>Fecha de transaccion</th>
+            <th>Forma de pago</th>
+            <th>Valor total</th>
+        </tr>
+    </thead>{%load sales_extras%}
+        <tr>
+            <td class='text-center'>{{income.payment_date|date:'F j, Y'}}</td>
+            <td class='text-center'>{{income.payment_method.name}}</td>
+            <td class='text-center'>{%if income.value1%}${{income.value1|format_number}}{%else%}${{income.value|format_number}}{%endif%}</td>
+        </tr>
+        {%if income.value2%}
+        <tr>
+            <td class='text-center'>{{income.payment_date|date:'F j, Y'}}</td>
+            <td class='text-center'>{{income.pm2.name}}</td>
+            <td class='text-center'>${{income.value2|format_number}}</td>
+        </tr>
+        {%endif%}
+    </tbody>
+</table>
+<table id='detail-table' style='margin-left: 2rem;margin-right: 2rem;font-size:small'>
+    <thead>
+        <tr style="background-color: lightgray;">
+            <th colspan="3">Abonos por propietarios</th>
+        </tr>
+        <tr style="background-color: lightgray;">
+            <th>Identificación</th>
+            <th>Cliente</th>
+            <th>Valor</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class='text-center'>{{income.sale.first_owner.pk}}</td>
+            <td class='text-center'>{{income.sale.first_owner.full_name.upper}}</td>
+            <td class='text-center'>${{divided_income}}</td>
+        </tr>
+        {%if income.sale.second_owner.full_name != " "%}<tr>
+            <td class='text-center'>{{income.sale.second_owner.pk}}</td>
+            <td class='text-center'>{{income.sale.second_owner.full_name.upper}}</td>
+            <td class='text-center'>${{divided_income}}</td>
+        </tr>{%endif%}
+        {%if income.sale.third_owner.full_name != " "%}<tr>
+            <td class='text-center'>{{income.sale.third_owner.pk}}</td>
+            <td class='text-center'>{{income.sale.third_owner.full_name.upper}}</td>
+            <td class='text-center'>${{divided_income}}</td>
+        </tr>{%endif%}
+    </tbody>
+</table>
+<table style="margin-top:1.2rem;font-size: small;">
+    <tr>
+        <td style="width:14%" class="title">OBSERVACIONES</td>
+        <td class='' style="width:86%"><u>Contrato <b>{{income.sale.contract_number}}</b>; Inmueble <b>{{income.sale.property_sold.description}}</b>&nbsp;</u></td>        
+    </tr>
+</table>
+<table style="margin-top:1.6rem">
+    <tr>
+        <td style="width:10%"></td>
+        <td style="width:33%" class='underline text-center'>
+        {{income.user.username}}</td>
+        <td></td>
+        <td style="width:33%" class='underline'></td>
+        <td style="width:10%"></td>
+    </tr>
+    <tr style="font-size:small;">
+        <td></td>
+        <td class='text-center' style="padding-top:0.3rem">Elaborado por</td>
+        <td></td>
+        <td class='text-center' style="padding-top:0.3rem">Firma</td>
+        <td></td>
+    </tr>
+</table>
+{%endblock%}
+{%block css%}
+<style>
+    @page{
+        size: a6 landscape;
+        margin: 0.5cm;
+    }
+    table{
+        font-family: Arial, Helvetica, sans-serif
+    }
+    #encabezados-logos p{
+        padding:0px;
+        margin:0px;
+        font-size: medium;
+    }
+    #detail-table th,#detail-table td{
+        padding:1.5px;
+    }
+    .underline{
+        border-bottom: 0.5px solid gray;
+    }
+    .text-center{
+        text-align: center;
+    }
+    .title{
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

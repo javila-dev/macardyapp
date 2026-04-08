@@ -1,0 +1,74 @@
+{% load humanize %}
+<div>
+    <h4 class="ui header">
+        Contrato: CTR{{ restructuring.sale.contract_number }} | Proyecto: {{ restructuring.sale.project }}
+        <div class="sub header">
+            <strong>Solicitado por:</strong> {{ restructuring.created_by.get_full_name }} el <strong>{{ restructuring.created_at|date:"d/m/Y H:i" }}</strong><br>
+            <strong>Estado:</strong>
+            <span class="ui label {% if restructuring.status == 'Aprobado' %}green{% elif restructuring.status == 'Rechazado' %}red{% else %}yellow{% endif %}">
+                {{ restructuring.status }}
+            </span>
+            {% if restructuring.status == 'Aprobado' and restructuring.approved_by %}
+                <strong>{{ restructuring.approved_by.get_full_name }}</strong> el <strong>{{ restructuring.approved_at|date:"d/m/Y H:i" }}</strong>
+            {% endif %}
+        </div>
+    </h4>
+    <div class="ui segment" id="historial-cambios-segment">
+        <h5 class="ui header"><i class="history icon"></i>Modificaciones realizadas</h5>
+        <div class="ui list" id="historial-cambios-list">
+            {% if restructuring.observations %}
+                <div class="item">{{ restructuring.observations|safe }}</div>
+            {% else %}
+                <div class="item">No hay cambios registrados.</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="ui scrolling container" style="max-height: 22em !important;">
+        <table class="ui celled structured compact very relaxed small table">
+            <thead style="text-align: center;">
+                <tr>
+                    <th>Cuota</th>
+                    <th>Tipo</th>
+                    <th>Fecha</th>
+                    <th>Capital</th>
+                    <th>Interés</th>
+                    <th>Otros</th>
+                    <th>Total</th>
+                    <th>Saldo</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in detalles_con_saldo %}
+                {% with d=item.detalle saldo=item.saldo %}
+                <tr class="{% if d.tipo == 'pagada' %}positive{% endif %}">
+                    <td>{{ d.id_quota }}</td>
+                    <td>{{ d.quota_type }}</td>
+                    <td>{{ d.pay_date|date:"d/m/Y" }}</td>
+                    <td class="right aligned">{{ d.capital|intcomma }}</td>
+                    <td class="right aligned">{{ d.interest|intcomma }}</td>
+                    <td class="right aligned">{{ d.others|intcomma }}</td>
+                    <td class="right aligned">{{ d.total|intcomma }}</td>
+                    <td class="right aligned">{{ saldo|intcomma }}</td>
+                    <td>
+                        {% if d.tipo == 'pagada' %}
+                            <span class="ui green label">Pagada</span>
+                        {% elif d.tipo == 'split' %}
+                            <span class="ui yellow label">Split</span>
+                        {% elif d.tipo == 'nueva' %}
+                            <span class="ui blue label">Nueva</span>
+                        {% else %}
+                            <span class="ui grey label">Pendiente</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="center aligned">No hay cuotas registradas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

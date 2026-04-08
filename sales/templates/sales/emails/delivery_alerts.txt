@@ -1,0 +1,35 @@
+<!-- filepath: /code/sales/templates/sales/emails/delivery_alerts.txt -->
+ALERTAS DE ENTREGA Y ESCRITURACIÓN
+Fecha del reporte: {{ fecha_reporte|date:"d/m/Y" }}
+Alertas configuradas para: {{ days_ahead }} días de anticipación
+
+{% if entregas_vencidas %}
+⚠️ ENTREGAS VENCIDAS ({{ entregas_vencidas.count }}):
+{% for sale in entregas_vencidas %}
+- CTR{{ sale.contract_number }} | {{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }} | {{ sale.property_sold.description }} | Vencida: {{ sale.scheduled_delivery_date|date:"d/m/Y" }}
+{% endfor %}
+
+{% endif %}
+{% if entregas_vencen %}
+📅 ENTREGAS PRÓXIMAS A VENCER ({{ entregas_vencen.count }}):
+{% for sale in entregas_vencen %}
+- CTR{{ sale.contract_number }} | {{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }} | {{ sale.property_sold.description }} | Vence: {{ sale.scheduled_delivery_date|date:"d/m/Y" }}
+{% endfor %}
+
+{% endif %}
+{% if escrituras_vencidas %}
+⚠️ ESCRITURACIONES VENCIDAS ({{ escrituras_vencidas.count }}):
+{% for sale in escrituras_vencidas %}
+- CTR{{ sale.contract_number }} | {{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }} | {{ sale.property_sold.description }} | Vencida: {{ sale.scheduled_deed_date|date:"d/m/Y" }}
+{% endfor %}
+
+{% endif %}
+{% if escrituras_vencen %}
+📅 ESCRITURACIONES PRÓXIMAS A VENCER ({{ escrituras_vencen.count }}):
+{% for sale in escrituras_vencen %}
+- CTR{{ sale.contract_number }} | {{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }} | {{ sale.property_sold.description }} | Vence: {{ sale.scheduled_deed_date|date:"d/m/Y" }}
+{% endfor %}
+
+{% endif %}
+
+Sistema Administrativo 2ASoft

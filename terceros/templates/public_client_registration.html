@@ -1,0 +1,146 @@
+<!-- filepath: /code/terceros/templates/terceros/public_client_registration.html -->
+{% extends 'base_simple.html' %}{% load crispy_forms_tags %}{% load static %}
+{% block title %}Registro de Clientes{% endblock %}
+{% block content %}
+<div class="ui raised segment" style="max-width: 600px; max-height: 95%; overflow-y: auto; text-overflow: ellipsis;">
+    <h2 class="ui dividing header" style="text-align: center;">
+        <img src="{% static 'img/cobranding-alianza.png' %}" alt="Cobranding Alianza" style="margin-bottom: 10px;width: 8.5em;">
+        <br>Bienvenido
+    </h2>
+    {% crispy form %}
+    <div id="form-message" class="ui hidden message"></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+    $(document).ready(function () {
+        var today = new Date();
+        $('.ui.dropdown').dropdown({
+            'clearable': true,
+        });
+        $('.ui.calendar').calendar({
+            type: 'date',
+            maxDate: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+            formatter: {
+            date: 'YYYY-MM-DD'
+            }
+        });
+
+        $('#public-client-form').on('submit', function (e) {
+            e.preventDefault();
+            const form = $(this);
+            const formData = form.serialize();
+            const submitButton = form.find('button[type="submit"]');
+            form.addClass('loading')
+            
+            $.ajax({
+                type: 'POST',
+                url: '',
+                data: formData,
+                success: function (response) {
+                    if (response.type === 'success') {
+                        // Ocultar el formulario y mostrar mensaje de éxito
+                        form.hide();
+                        
+                        // Crear y mostrar el contenido de éxito
+                        const successContent = `
+                            <div class="ui success message" style="text-align: center; border: none; box-shadow: none;">
+                                <div class="header" style="font-size: 1.5em; margin-bottom: 15px;">
+                                    <i class="check circle outline green icon" style="font-size: 2em; display: block; margin-bottom: 10px;"></i>
+                                    ${response.title}
+                                </div>
+                                <p style="font-size: 1.1em; line-height: 1.5;">${response.msj}</p>
+                            </div>
+                        `;
+                        
+                        // Insertar el contenido después del header
+                        $('.ui.dividing.header').after(successContent);
+                        
+                        // Ocultar el mensaje de formulario original
+                        $('#form-message').addClass('hidden');
+                    } else {
+                        $('#form-message')
+                            .removeClass('hidden success')
+                            .addClass('error')
+                            .html(`<div class="header">${response.title}</div><p>${response.msj}</p>`);
+                    }
+                },
+                error: function () {
+                    $('#form-message')
+                        .removeClass('hidden success')
+                        .addClass('error')
+                        .html('<div class="header">Error</div><p>Ocurrió un error inesperado. Por favor intenta nuevamente.</p>');
+                },
+                complete: function () {
+                    form.removeClass('loading');
+                }
+            });
+        });
+
+        function loadcountries() {
+            $.ajax({
+                type: 'get',
+                url: '/ajax/getdatacountries',
+                data: {
+                    'tipo': 'countries',
+                },
+                success: function (response) {
+                    var paises = response['paises']
+                    for (pais in paises) {
+                        $('#id_country').append(
+                            `<option value=${paises[pais][0]}>${paises[pais][1]}</option>`
+                        )
+                    }
+                }
+            })
+            $('#id_country').on('change', function () {
+                let pais = $(this).val()
+                $('#id_state').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'states',
+                        'pais': pais
+                    },
+                    success: function (response) {
+                        var estados = response['estados']
+                        $('#id_state').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (estado in estados) {
+                            $('#id_state').append(
+                                `<option value=${estados[estado][0]}>${estados[estado][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+            $('#id_state').on('change', function () {
+                let estado = $(this).val()
+                $('#id_city').empty()
+                $.ajax({
+                    type: 'get',
+                    url: '/ajax/getdatacountries',
+                    data: {
+                        'tipo': 'cities',
+                        'estado': estado
+                    },
+                    success: function (response) {
+                        var ciudades = response['ciudades']
+                        $('#id_city').append(
+                            `<option value="">Selecciona...</option>`
+                        )
+                        for (ciudad in ciudades) {
+                            $('#id_city').append(
+                                `<option value=${ciudades[ciudad][0]}>${ciudades[ciudad][1]}</option>`
+                            )
+                        }
+                    }
+                })
+            })
+        };
+        loadcountries();
+    });
+</script>
+{% endblock %}

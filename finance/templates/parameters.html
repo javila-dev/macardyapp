@@ -1,0 +1,246 @@
+{% extends "site_base.html" %}{%load finance_extras%}
+{% block title %}Cartera | Parámetros{% endblock %}
+{% block submenu %}
+<div class='header item'>Cartera</div>
+<div class='header item'>
+  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget/administrativa">Cartera Administrativa</a>
+<a class='item submenu' href="/finance/{{project.name}}/comisiones/">Comisiones</a>
+<a class='item submenu' href="{% url 'abonos_capital_periodo' project=project.name %}">Abonos a capital</a>
+<a class='item active submenu' href="/finance/{{project.name}}/parametros">Parámetros</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui dividing header">Parámetros de Cartera</h2>
+<div class="ui grid">
+  <div class="eight wide column">
+    <div class="ui raised card" id="card-tasa-mora">
+      <div class="content">
+        <div class="header">Tasa de mora mensual: <span class="ui error text" id="tasa-mora-value">{{ tasa_mora }} %</span></div>
+      </div>
+      <div class="extra content">
+        <div class="ui action input">
+          <input type="number" min="0" max="100" step="0.01" id="input-tasa-mora" placeholder="Nueva tasa" style="width:120px;">
+          <button class="ui primary button" id="btn-guardar-tasa">Guardar</button>
+        </div>
+      </div>
+    </div>
+    {% with rangos_comision=rangos_comision_json %}
+    <script id="rangos-data" type="application/json">{{ rangos_comision|default:"[]"|safe }}</script>
+    {% endwith %}
+    <div class="ui fluid raised card">
+      <div class="content">
+        <div class="header">Rangos comisión abonos a capital</div>
+        <div class="description">
+          <table class="ui celled compact small table" id="tabla-rangos-comision">
+            <thead>
+              <tr>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>% Comisión</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button class="ui tiny button" id="add-rango">Agregar rango</button>
+          <button class="ui primary button" id="save-rangos">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="eight wide column">
+    <div class="ui message">
+      Para que un gestor aparezca en este listado debe tener un rol como <strong>gestor cartera comercial</strong> o <strong>gestor cartera administrativa</strong>.
+    </div>
+    <div class="ui fluid raised card">
+      <div class="content">
+        <div class="header">Gestores cartera comercial</div>
+        <div class="description">
+          <table class="ui very basic compact table">
+            <tbody>
+              {% for g in gestores_comercial %}
+              <tr>
+                <td>{{ g.usuario.get_full_name.title|default:g.usuario.username.capitalize }}</td>
+                <td style="width:120px;">
+                  <div class="ui right labeled input">
+                    <input type="number" min="0" max="100" step="0.01" class="input-comision text-center" data-id="{{ g.id }}" 
+                      data-tipo="comercial" value="{{ g.porcentaje_comision|comma_to_point }}">
+                    <div class="ui label">%</div>
+                  </div>
+                </td>
+                <td>
+                  <button class="ui tiny primary button btn-save-comision" data-id="{{ g.id }}" data-tipo="comercial">Guardar</button>
+                </td>
+              </tr>
+              {%empty%}
+              <tr>
+                <td colspan="3" class="text-center">No hay gestores asignados</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="ui fluid raised card">
+      <div class="content">
+        <div class="header">Gestores cartera administrativa</div>
+        <div class="description">
+          <table class="ui very basic compact table">
+            <tbody>
+              {% for g in gestores_administrativa %}
+              <tr>
+                <td style="width:35%;">{{ g.usuario.get_full_name.title|default:g.usuario.username.capitalize }}</td>
+                <td style="width:120px;">
+                  <div class="ui right labeled input">
+                    <input type="number" min="0" max="100" step="0.01" class="input-comision text-center" data-id="{{ g.id }}" 
+                      data-tipo="administrativa" value="{{ g.porcentaje_comision|comma_to_point }}">
+                    <div class="ui label">%</div>
+                  </div>
+                </td>
+                <td>
+                  <button class="ui tiny primary button btn-save-comision" data-id="{{ g.id }}" data-tipo="administrativa">Guardar</button>
+                </td>
+                <td style="width:30%;">
+                  <div class="ui radio checkbox" 
+                    data-tooltip="Este es el gestor al que le será asignado por defecto en presupuesto 
+                    los clientes que pasen desde cartera comercial" data-variation="tiny wide" data-position="top right">
+                    <input type="radio" name="default_admin_collector" value="{{ g.usuario.pk }}"
+                      {% if project.default_admin_collector and g.usuario.pk == project.default_admin_collector.pk %}checked{% endif %}>
+                    <label>Gestor por defecto</label>
+                  </div>
+                </td>
+              </tr>
+              {%empty%}
+              <tr>
+                <td colspan="3" class="text-center">No hay gestores asignados</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+$('.input-comision').each(function(){
+  let v = $(this).val().replace(',','.');
+  console.log(v)
+  if(!isNaN(v)) $(this).val((v));
+});
+$('#btn-guardar-tasa').click(function(){
+  let val = $('#input-tasa-mora').val();
+  if(!val) return;
+  $('#card-tasa-mora').addClass('loading');
+  $.ajax({
+    url: "{% url 'ajax_set_tasa_mora' project.name %}",
+    method: "POST",
+    data: { tasa: val, csrfmiddlewaretoken: getCookie('csrftoken') },
+    success: function(resp){
+      if(resp.status === 'ok'){
+        $('#tasa-mora-value').text(resp.tasa + ' %');
+        $('body').toast({class:'success', message:'Tasa de mora actualizada'});
+        $('#input-tasa-mora').val(''); // Clear input
+      }else{
+        $('body').toast({class:'error', message:resp.msg});
+      }
+    },
+    error: function(){
+      $('body').toast({class:'error', message:'Error al actualizar'});
+    },
+    complete: function(){
+      $('#card-tasa-mora').removeClass('loading');
+    }
+  });
+});
+$('.btn-save-comision').click(function(){
+  let id = $(this).data('id');
+  let tipo = $(this).data('tipo');
+  let val = $('.input-comision[data-id="'+id+'"][data-tipo="'+tipo+'"]').val();
+  if(!val) return;
+  $(this).addClass('loading');
+  $.ajax({
+    url: "{% url 'ajax_set_comision_gestor' project.name %}",
+    method: "POST",
+    data: { id: id, tipo: tipo, valor: val, csrfmiddlewaretoken: getCookie('csrftoken') },
+    success: function(resp){
+      if(resp.status === 'ok'){
+        $('body').toast({class:'success', message:'Comisión actualizada'});
+      }else{
+        $('body').toast({class:'error', message:resp.msg});
+      }
+    },
+    error: function(){
+      $('body').toast({class:'error', message:'Error al actualizar'});
+    },
+    complete: () => $('.btn-save-comision[data-id="'+id+'"][data-tipo="'+tipo+'"]').removeClass('loading')
+  });
+});
+const rangos = JSON.parse(document.getElementById('rangos-data').textContent || '[]');
+function renderTabla() {
+  let html = '';
+  rangos.forEach((r, i) => {
+    html += `<tr>
+      <td><div class="ui input"><input type="number" min="0" value="${r.min||''}" class="min text-center"></div></td>
+      <td><div class="ui input"><input type="number" min="0" value="${r.max||''}" class="max text-center"></div></td>
+      <td><div class="ui input"><input type="number" min="0" step="0.01" value="${r.porc||''}" class="porc text-center"></div></td>
+      <td><button class="ui red mini icon button del" data-i="${i}"><i class="trash icon"></i></button></td>
+    </tr>`;
+  });
+  $('#tabla-rangos-comision tbody').html(html);
+}
+renderTabla();
+$('#add-rango').click(function() {
+  rangos.push({min:'',max:'',porc:''});
+  renderTabla();
+});
+$('#tabla-rangos-comision').on('click', '.del', function() {
+  rangos.splice($(this).data('i'),1);
+  renderTabla();
+});
+$('#tabla-rangos-comision').on('input', 'input', function() {
+  const tr = $(this).closest('tr');
+  const i = tr.index();
+  rangos[i].min = parseInt(tr.find('.min').val()) || null;
+  rangos[i].max = parseInt(tr.find('.max').val()) || null;
+  rangos[i].porc = parseFloat(tr.find('.porc').val()) || null;
+});
+$('#save-rangos').click(function() {
+  // Validación de solapamiento
+  let sorted = [...rangos].sort((a, b) => (a.min || 0) - (b.min || 0));
+  let overlap = false;
+  for(let i=1; i<sorted.length; i++) {
+    if(sorted[i].min <= (sorted[i-1].max || 0)) {
+      overlap = true;
+      break;
+    }
+  }
+  if(overlap) {
+    alert('Hay rangos que se solapan. Corrige antes de guardar.');
+    return;
+  }
+  $.post("{% url 'set_rangos_comision' project=project.name %}", {rangos: JSON.stringify(rangos), csrfmiddlewaretoken: '{{ csrf_token }}'}, function(resp){
+    if(resp.ok) alert('Guardado');
+  });
+});
+$('input[name="default_admin_collector"]').change(function() {
+  const val = $(this).val();
+  $.post("{% url 'set_default_admin_collector' project=project.name %}", {
+    id: val,
+    csrfmiddlewaretoken: '{{ csrf_token }}'
+  }, function(resp) {
+    if(resp.ok) {
+      $('body').toast({class:'success', message:'Gestor predeterminado actualizado'});
+    } else {
+      $('body').toast({class:'error', message:resp.msg || 'Error al actualizar'});
+    }
+  });
+});
+</script>
+{% endblock %}

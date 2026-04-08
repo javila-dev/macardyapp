@@ -1,0 +1,131 @@
+{% extends "registration/registration_base.html" %}
+{% load i18n %}{%load crispy_forms_tags%} {%load static%}
+
+{% block title %}{% trans "Log in" %}{% endblock %}
+{%block css%}
+<style>
+    #principal-container{
+        min-height: 100vh;
+        margin: 0px;
+        background-image: url('{%static "img/background-blur-blurred-1350-copy2.jpg"%}');
+        background-size:cover;
+    }
+    .ui.placeholder.segment{
+        height: 450px;
+    }
+    @media (max-width: 768px) {
+        .ui.placeholder.segment{
+            height: 680px;
+        }
+    }
+
+
+    .mb-1{
+        margin-bottom:0.5rem;
+    }
+    .mb-2{
+        margin-bottom:0.75rem;
+    }
+    .mb-3{
+        margin-bottom:1rem!important;
+    }
+    .mb-4{
+        margin-bottom:1.25rem;
+    }
+    .mb-5{
+        margin-bottom:1.5rem;
+    }
+    .mt-2{
+        margin-top:0.75rem;
+    }
+    .text-left{
+        text-align: left!important;
+    }
+
+
+</style>
+{%endblock%}
+{% block content %}
+<div class='ui middle aligned center aligned stackable grid' id='principal-container'>
+    <div class='row '>
+        <div class='seven wide tablet six wide computer five wide large screen column'>
+            <div class="ui placeholder segment">
+                <div class="ui three column very relaxed stackable mobile reversed grid">
+                  <div class="ten wide column">
+                    <div class="ui sizer vertical">
+                        <div class="ui large header mb-3">Bienvenido</div>
+                    </div>
+                    <form method="post" action="">{%csrf_token%}
+                        <div class="ui form">
+                            <div class='field'>
+                                <div class="ui left icon input">
+                                    <input type="text" name="username" autofocus="" autocapitalize="none" autocomplete="username" 
+                                    maxlength="150" placeholder='Usuario' class="textinput textInput" required="" id="id_username">
+                                    <i class="user icon"></i>
+                                </div>
+                            </div>
+                            <div class='field'>
+                                <div class="ui left icon input">
+                                    <input type="password" name="password" autocomplete="current-password" 
+                                    class="textinput textInput" placeholder='Contraseña' required="" id="id_password">
+                                    <i class="lock open icon"></i>
+                                </div>
+                            </div>
+                            <input type="submit" class='ui submit button fluid ui button' value="{% trans 'Log in' %}" />
+                            <input type="hidden" name="next" value="{{ next }}" />
+                          </div>
+                    </form>
+                    <div class="ui center aligned basic segment">
+                        <p>Si ya tienes un usuario y olvidaste tu contraseña<br><a href="{% url 'auth_password_reset' %}"> aqui</a>.</p>
+                    </div>
+                  </div>
+                  <div class="middle aligned column">
+                        <img class="ui medium centered image" src="{%static 'img/Macardy PNG.png'%}">  
+                  </div>
+                  
+                </div>
+              </div>
+            
+              </div>
+        </div>
+    </div>
+</div>
+<div class="ui dimmer">
+    <div class="ui text loader">Cargando</div>
+  </div>
+{% endblock %}
+{%block script%}
+{% if form.errors %} 
+<script>
+    $(document).ready(function(){
+        let msj = `
+        {% for field in form %} 
+        {% for error in field.errors %}
+            <li>{{ error|escape }}</li>
+        {% endfor %} {% endfor %} 
+        {% for error in form.non_field_errors %}
+            <li>{{ error|escape }}</li>
+        {% endfor %}
+        `
+        $('body')
+        .toast({
+            title: 'Error de autenticación',
+            message: msj,
+            class: 'error',
+            displayTime:5000,
+        })
+        ;
+    })
+</script>
+{% endif %}
+<script>
+    $(document).ready(function(){
+        $('form').on('submit',function(e){
+            $('.ui.placeholder.segment').addClass('blue double loading')
+        })
+    })
+</script>
+{%endblock%}
+
+
+

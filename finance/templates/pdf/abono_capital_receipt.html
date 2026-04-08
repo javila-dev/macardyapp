@@ -1,0 +1,315 @@
+{% load humanize %}{% load finance_extras %}{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo de Abono a Capital</title>
+    <style>
+        @page {
+            size: a4 portrait;
+            margin: 15mm;
+            @frame header_frame {
+                -pdf-frame-content: header_content;
+                left: 15mm; 
+                width: 180mm; 
+                top: 10mm; 
+                height: 30mm;
+            }
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                left: 15mm; 
+                width: 180mm; 
+                bottom: 10mm; 
+                height: 8mm;
+            }
+            @frame content_frame {
+                left: 15mm; 
+                width: 180mm; 
+                top: 45mm; 
+                height: 240mm;
+            }
+        }
+        
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            color: #333;
+        }
+        
+        .content {
+            margin-top: 5px;
+        }
+        
+        .info-section, .amounts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+            border: 1px solid #ccc;
+        }
+        
+        .info-section th, .info-section td,
+        .amounts-table th, .amounts-table td {
+            border: 1px solid #ccc;
+            padding: 3px 5px;
+            vertical-align: top;
+            font-size: 8pt;
+        }
+        
+        .section-title {
+            background-color: #4a90e2 !important;
+            color: white !important;
+            font-weight: bold;
+            text-align: center;
+            font-size: 9pt;
+            padding: 6px 4px;
+        }
+        
+        .comision-title {
+            background-color: #ff8c00 !important;
+            color: white !important;
+            font-weight: bold;
+            text-align: center;
+            font-size: 9pt;
+            padding: 6px 4px;
+        }
+        
+        .sub-header {
+            background-color: #f9f9f9 !important;
+            font-weight: bold;
+            text-align: center;
+            font-size: 8pt;
+            padding: 4px;
+        }
+        
+        .label {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            width: 25%;
+        }
+        
+        .value {
+            width: 25%;
+        }
+        
+        .amount {
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .highlight {
+            background-color: #e6f3ff;
+            color: #0066cc;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+        
+        .firmas-table {
+            border: none !important;
+            width: 100%;
+            margin-top: 20px;
+            position: absolute;
+            bottom: 20px;
+        }
+        
+        .firmas-table td {
+            border: none !important;
+            padding: 15px 10px;
+            vertical-align: bottom;
+            text-align: center;
+            font-size: 8pt;
+        }
+        
+        #header_content table {
+            border: none;
+        }
+        
+        #header_content td {
+            border: none;
+            padding: 0;
+        }
+        
+        #footer_content {
+            text-align: center;
+            font-size: 7pt;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header_content">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 25%; text-align: left; border: none; vertical-align: middle;">
+                    {% if project.name == 'altoscovenas' %}
+                    <img src="{% static 'img/logo-grupo-gibraltar.png' %}" width="150" height="55">
+                    {% else %}
+                    <img src='{% static "img/Macardy-PNG.png" %}' width="85" height="85">
+                    {% endif %}
+                </td>
+                <td style="width: 50%; border: none; text-align: center; vertical-align: middle;">
+                    <h1 style="margin: 0; font-size: 13pt; font-weight: bold;">RECIBO DE PAGO DE CATCH OUT</h1>
+                    <h3 style="margin: 2px 0 0 0; color: gray; font-size: 9pt;">{{project.name_to_show}}</h3>
+                </td>
+                <td style="width: 25%; text-align: right; border: none; vertical-align: middle;">
+                    {% if project.logo %}
+                    <img src='/media/{{project.logo}}' width="105" height="105">
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div id="footer_content">
+        Documento generado el {{now|date:"d/m/Y H:i"}} por {{user.get_full_name|default:user.username}} - Página <pdf:pagenumber> de <pdf:pagecount>
+    </div>
+
+    <div class="content">
+        <!-- Información Principal del Abono -->
+        <table class="info-section">
+            <tr>
+                <th colspan="4" class="section-title">INFORMACIÓN DEL ABONO A CAPITAL</th>
+            </tr>
+            <tr>
+                <td class="label">ID Abono:</td>
+                <td class="value">{{abono.id}}</td>
+                <td class="label">Fecha:</td>
+                <td class="value">{{abono.fecha|date:"d/m/Y"}}</td>
+            </tr>
+            <tr>
+                <td class="label">Tipo de Abono:</td>
+                <td class="value">{{abono.get_tipo_display}}</td>
+                <td class="label">Cuotas Afectadas:</td>
+                <td class="value">{{abono.cuotas_afectadas}}</td>
+            </tr>
+        </table>
+
+        <!-- Información del Cliente -->
+        <table class="info-section">
+            <tr>
+                <th colspan="4" class="section-title">DATOS DEL CLIENTE</th>
+            </tr>
+            <tr>
+                <td class="label">Cliente:</td>
+                <td class="value" colspan="3">{{cliente.full_name}}</td>
+            </tr>
+            <tr>
+                <td class="label">Contrato:</td>
+                <td class="value">{{sale.contract_number}}</td>
+                <td class="label">Inmueble:</td>
+                <td class="value">{{sale.property_sold.description|default:"N/A"}}</td>
+            </tr>
+            {% if gestor %}
+            <tr>
+                <td class="label">Gestor:</td>
+                <td class="value" colspan="3">{{gestor.get_full_name}}</td>
+            </tr>
+            {% endif %}
+        </table>
+
+        <!-- Información del Recibo -->
+        <table class="info-section">
+            <tr>
+                <th colspan="4" class="section-title">RECIBO ORIGEN</th>
+            </tr>
+            <tr>
+                <td class="label">No. Recibo:</td>
+                <td class="value">{{income.receipt}}</td>
+                <td class="label">Fecha Pago:</td>
+                <td class="value">{{income.payment_date|date:"d/m/Y"}}</td>
+            </tr>
+            <tr>
+                <td class="label">Valor Recibo:</td>
+                <td class="value amount">${{income.value|format_number}}</td>
+                <td class="label">Forma Pago:</td>
+                <td class="value">{{income.fp}}</td>
+            </tr>
+            <tr>
+                <td class="label">Descripción:</td>
+                <td class="value" colspan="3">{{income.description}}</td>
+            </tr>
+        </table>
+
+        <!-- Detalle del Abono -->
+        <table class="amounts-table">
+            <thead>
+                <tr>
+                    <th colspan="2" class="section-title">DETALLE DEL ABONO</th>
+                </tr>
+                <tr>
+                    <th class="sub-header" style="width: 70%;">Concepto</th>
+                    <th class="sub-header" style="width: 30%;">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Valor abonado a capital ({{abono.get_tipo_display}})</td>
+                    <td class="amount highlight">${{abono.capital_aplicado|floatformat:0|format_number}}</td>
+                </tr>
+                {% if abono.nueva_cuota %}
+                <tr>
+                    <td>Nueva Cuota Mensual</td>
+                    <td class="amount">${{abono.nueva_cuota|floatformat:0|format_number}}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td>Número de Cuotas Impactadas</td>
+                    <td class="amount">{{abono.cuotas_afectadas}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {% if abono.valor_comision %}
+        <!-- Información de Comisión -->
+        <table class="amounts-table">
+            <thead>
+                <tr>
+                    <th colspan="2" class="comision-title">COMISIÓN GENERADA</th>
+                </tr>
+                <tr>
+                    <th class="sub-header" style="width: 70%;">Concepto</th>
+                    <th class="sub-header" style="width: 30%;">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Comisión <b>({{abono.porcentaje_comision}}% sobre capital aplicado)</b></td>
+                    <td class="amount">${{abono.valor_comision|format_number}}</td>
+                </tr>
+                {% if abono.comision_pagado_a %}
+                <tr>
+                    <td>Pagado a</td>
+                    <td class="amount"><b>{{abono.comision_pagado_a.get_full_name}}</b></td>
+                </tr>
+                <tr>
+                    <td>Pagado el</td>
+                    <td class="amount">{{abono.comision_pagado_el|date:"d/m/Y"|default:"Pendiente"}}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <!-- Firmas -->
+        <table class="firmas-table">
+            <tr>
+                <td style="width: 50%;">
+                    _____________________________<br>
+                    <strong>APROBADO POR</strong><br>
+                    {{project.name_to_show}}<br>
+                    <small>Nombre: _____________________________</small><br>
+                    <small>Fecha: ____________________</small>
+                </td>
+                <td style="width: 50%;">
+                    _____________________________<br>
+                    <strong>RECIBIDO POR</strong><br>
+                    {{cliente.full_name}}<br>
+                    <small>Documento: {{cliente.document_number}}</small><br>
+                    <small>Fecha: ____________________</small>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

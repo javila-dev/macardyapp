@@ -1,0 +1,475 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Presupuesto Comercial{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | Presupuesto Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item active submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="hand holding circular teal usd icon"></i>
+            <div class="content">
+                Presupuestos
+            </div>
+        </h2>
+    </div>
+    <div class="ui basic center aligned segment">
+        <button class="ui circular teal icon button" id="add-budget"
+            data-tooltip="Agregar Presupuesto">
+            <i class="plus icon"></i>
+        </button>
+        <button class="ui circular yellow icon button disabled" id="edit-budget"
+            data-tooltip="Editar Presupeusto">
+            <i class="edit outline icon"></i>
+        </button>
+        <button class="ui circular green icon button disabled" id="approve-budget"
+            data-tooltip="Aprobar Presupuesto">
+            <i class="check icon"></i>
+        </button>
+        <button class="ui circular red icon button disabled" id="delete-budget"
+            data-tooltip="Eliminar Presupuesto">
+            <i class="close icon"></i>
+        </button>
+        <button class="ui circular brown icon button disabled" id="print-budget"
+            data-tooltip="Imprimir Presupuesto">
+            <i class="print icon"></i>
+        </button>
+    </div>
+    <div class="ui basic segment">
+        <table class="ui table" id="table-budgets" style="width: 100%;">
+            <thead>
+                <th>Fecha</th>
+                <th>Solicita</th>
+                <th>Valor</th>
+                <th>Estado</th>
+                <th>Aprueba</th>
+                <th>Fecha Aprueba</th>
+            </thead>
+        </table>
+    </div>
+</div>
+<div class="ui small modal" id="modalnewbudget">
+    <i class="close icon"></i>
+    <div class="header"><i class="plus teal circle icon"></i> Nuevo Presupuesto</div>
+    <div class="content"  style="max-height: 500px; overflow: auto;">
+        <form method="POST" class="ui form" id="formnewbudget">{%csrf_token%}
+            
+            <div class="ui basic segment">
+                <table id="tablebudgetdetail" class="ui table">
+                    <thead>
+                        <tr>
+                            <th style="width:70%">Concepto</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <input name="detail_description" type="text" required>
+                            </td>
+                            <td>
+                                <input name="detail_value" type="text" class="money"
+                                onkeyup="totalize();" required style="text-align: right;">
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>
+                                <div class="ui buttons"> 
+                                    <button type="button" id="button-remove-item" class="ui red icon button"> 
+                                        <i class="minus icon"></i> 
+                                    </button> 
+                                    <div class="or" data-text="O"></div> 
+                                    <button type="button" id="button-add-item" class="ui positive icon button"> 
+                                        <i class="plus icon"></i> 
+                                    </button> 
+                                </div>
+                            </th>
+                            <th style="text-align: right;">$ 0</th>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="ui field">
+                    <label>Notas</label>
+                    <input type="text" id="id-notes" name="observations">
+                </div>
+            </div>
+            <div class="ui basic right aligned segment">
+                <button type="submit" id='btn-add-budget' class="ui teal approve button">Solicitar</button>
+                <button type="button" id='btn-edit-budget' class="ui yellow disabled approve button">Modificar</button>
+                <button type="button" id='btn-approve-budget' class="ui green disabled approve button">Aprobar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="ui mini modal" id="modal-filetobank">
+    <i class="close icon"></i>
+    <h1 class="ui icon header">
+       <i class="file alternate circular yellow icon"></i>
+       <div class="content">
+           Generar archivo para bancolombia
+       </div>
+    </h1>
+    <div class="content center aligned">
+        <div class="ui selection dropdown">
+            <input type="hidden" name="pay-account" id="pay-account">
+            <i class="dropdown icon"></i>
+            <div class="default text">Cuenta de pago</div>
+            <div class="scrollhint menu">{%for account in pay_accounts%}
+                <div class="item" data-value="{{account.pk}}">{{account.account_number}}</div>
+            {%endfor%}</div>
+        </div>
+    </div>
+    <div class="actions">
+        <button class="ui ok green button" id="btn-get-filetobank">Generar</button>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+{%include 'datejs.html'%}
+<script>
+    const project = '{{project.name}}'
+</script>
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    $(document).ready(function(){
+        $('.ui.dropdown').dropdown();
+        $('.money').mask('#,##0', {reverse: true});
+        var tablebudgets = $('#table-budgets').DataTable({
+            info:   false,
+            processing:true,
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            ajax:{
+                url:window.location + '?todo=datatable',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'date_uk'},
+                {'data':'user_request.username'},
+                {'data':'totalize',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+                {'data':'status'},
+                {'data':'user_approve.username'},
+                {'data':'approve_date'},
+            ],
+            columnDefs: [
+                {targets:[1],className: 'center aligned'},
+                { "type": "date-uk", targets: [0] }
+            ]
+        })
+        $('#edit-budget').click(function(){
+            let row = tablebudgets.row($('tr.active')).data()
+            $.ajax({
+                type:'GET',
+                url:window.location,
+                data:{
+                    'budget':row.id,
+                    'todo':'view-budget'
+                },
+                success:function(xhr){
+                    $('#tablebudgetdetail tbody').empty()
+                    for (const i of xhr.data){
+                        let row = `
+                            <tr>
+                                <td>
+                                    <input name="detail_description" type="text" value="${i.concept}" required>
+                                </td>
+                                <td>
+                                    <input required name="detail_value" type="text" value="${i.value}" class="money"
+                                    onkeyup="totalize();" style="text-align: right;">
+                                </td>
+                            </tr>
+                            `
+                        $('#tablebudgetdetail tbody').append(row)
+                        $('.money').mask('#,##0', {reverse: true});
+                    }
+                    
+                    totalize();
+                    $('#btn-add-budget').addClass('disabled')
+                    $('#btn-edit-budget').removeClass('disabled')
+                    $('#btn-approve-budget').addClass('disabled')
+                    $('#button-add-item').removeClass('disabled')
+                    $('#button-remove-item').removeClass('disabled')
+                    $('#id-notes').val(xhr.data[0].budget.notes).prop('readonly',false)
+                    $('#modalnewbudget').modal('show')
+                    
+                },
+                error: function(xhr){
+                    if (xhr.status == 403){
+                        new_message('error','Error de permisos','No tienes los permisos suficientes para hacer esto :(')
+                    }
+                    else{
+                        new_message('error','Error','No pudimos cargar el detalle de este presupuesto, contacta a soporte.')
+                        console.log(xhr.responseText)
+                    }
+                }
+            })
+        })
+        $('#approve-budget').click(function(){
+            let row = tablebudgets.row($('tr.active')).data()
+            $.ajax({
+                type:'GET',
+                url:window.location,
+                data:{
+                    'budget':row.id,
+                    'todo':'view-budget'
+                },
+                success:function(xhr){
+                    $('#tablebudgetdetail tbody').empty()
+                    for (const i of xhr.data){
+                        let row = `
+                            <tr>
+                                <td>
+                                    <input name="detail_description" type="text" readonly value="${i.concept}" required>
+                                </td>
+                                <td>
+                                    <input required name="detail_value" type="text" readonly value="${i.value}" class="money"
+                                    style="text-align: right;">
+                                </td>
+                            </tr>
+                            `
+                        $('#tablebudgetdetail tbody').append(row)
+                        $('.money').mask('#,##0', {reverse: true});
+                    }
+                    totalize();
+                    $('#btn-add-budget').addClass('disabled')
+                    $('#btn-edit-budget').addClass('disabled')
+                    $('#btn-approve-budget').removeClass('disabled')
+                    $('#button-add-item').addClass('disabled')
+                    $('#button-remove-item').addClass('disabled')
+                    $('#id-notes').val(xhr.data[0].budget.notes).prop('readonly',true)
+                    $('#modalnewbudget').modal('show')
+                },
+                error: function(xhr){
+                    if (xhr.status == 403){
+                        new_message('error','Error de permisos','No tienes los permisos suficientes para hacer esto :(')
+                    }
+                    else{
+                        new_message('error','Error','No pudimos cargar el detalle de este presupuesto, contacta a soporte.')
+                        console.log(xhr.responseText)
+                    }
+                }
+            })
+        })
+        $('#add-budget').click(function(){
+            $('#tablebudgetdetail tbody').empty()
+            let row = `
+            <tr>
+                <td>
+                    <input name="detail_description" type="text" required>
+                </td>
+                <td>
+                    <input required name="detail_value" type="text" class="money"
+                    onkeyup="totalize();" style="text-align: right;">
+                </td>
+            </tr>
+            `
+            $('#tablebudgetdetail tbody').append(row)
+            $('.money').mask('#,##0', {reverse: true});
+            $('#btn-add-budget').removeClass('disabled')
+            $('#btn-edit-budget').addClass('disabled')
+            $('#btn-approve-budget').addClass('disabled')
+            $('#button-add-item').removeClass('disabled')
+            $('#button-remove-item').removeClass('disabled')
+            $('#id-notes').val('').prop('readonly',false)
+            $('#modalnewbudget').modal('show')
+        })
+        $('#delete-budget').click(function(){
+            let row = tablebudgets.row($('tr.active')).data()
+            $('body').modal({
+                title: 'Confirmar',
+                class: 'mini basic',
+                closeIcon: true,
+                content: '¿Estás segur@ que deseas eliminar esta solicitud?',
+                actions: [{
+                    text: 'Si',
+                    class: 'green ok'
+                    },{
+                    text: 'No',
+                    class: 'red'
+                }],
+                onApprove: function(){
+                    console.log('entra')
+                    $('body .ui.modal').find('button').addClass('loading disabled')
+                    $.ajax({
+                        type:'POST',
+                        url:window.location,
+                        data:{
+                            'csrfmiddlewaretoken':getCookie('csrftoken'),
+                            'budget':row.id,
+                            'todo':'delete-budget'
+                        },
+                        success:function(){
+                            window.location.reload()
+                        },
+                        error: function(xhr){
+                            if (xhr.status == 403){
+                                new_message('error','Error de permisos','No tienes los permisos suficientes para hacer esto :(')
+                            }
+                            else{
+                                console.log(xhr.responseText)
+                            }
+                            $('body .ui.modal').find('button').removeClass('loading disabled')
+                        }
+
+                    })
+                    return false;
+                }
+            }).modal('show');
+        })
+        $('#print-budget').click(function(){
+            $(this).addClass('loading disabled')
+            let row = tablebudgets.row($('tr.active')).data()
+            $.ajax({
+                url:window.location,
+                tyoe:'GET',
+                data:{
+                    'budget':row.id,
+                    'todo':'print-budget'
+                },
+                success: function(xhr){
+                    new_message(xhr.type,xhr.title,xhr.msj)
+                },
+                complete: function(xhr){
+                    $('#print-budget').removeClass('loading disabled')
+                }
+            })
+        })
+        $('#button-add-item').click(function(){
+            let row = `
+            <tr>
+                <td>
+                    <input name="detail_description" type="text" required>
+                </td>
+                <td>
+                    <input required name="detail_value" type="text" class="money"
+                    onkeyup="totalize();" style="text-align: right;">
+                </td>
+            </tr>
+            `
+            $('#tablebudgetdetail tbody').append(row)
+            $('.money').mask('#,##0', {reverse: true});
+             totalize();
+        })
+        $('#button-remove-item').click(function(){
+            let count = $('#tablebudgetdetail tbody tr').length
+            if (count == 1) return;
+            $('#tablebudgetdetail tbody tr').last().remove()
+            totalize();
+        })
+        $('#table-budgets tbody').on('click','tr',function(){
+            $('#table-budgets tr.active').removeClass('active')
+            $(this).addClass('active')
+            let row = tablebudgets.row(this).data()
+
+            if (row.status == 'Pendiente'){
+                $('#delete-budget').removeClass('disabled')
+                $('#edit-budget').removeClass('disabled')
+                $('#approve-budget').removeClass('disabled')
+                $('#print-budget').addClass('disabled')
+            }
+            else {
+                $('#delete-budget').addClass('disabled')
+                $('#edit-budget').addClass('disabled')
+                $('#approve-budget').addClass('disabled')
+                $('#print-budget').removeClass('disabled')
+            }
+            
+        })
+        $('#formnewbudget').submit(function(e){
+            $(this).addClass('double teal loading')
+
+        })
+        $('#btn-edit-budget').click(function(){
+            $('#formnewbudget').addClass('double teal loading')
+            let row = tablebudgets.row($('tr.active')).data()
+            formdata = new FormData($('#formnewbudget')[0])
+            formdata.append('budget',row.id)
+            formdata.append('todo','edit-budget')
+            $.ajax({
+                url: window.location,
+                type:'POST',
+                data:formdata,
+                contentType: false,
+                processData: false,
+                success: function(xhr){
+                    window.location.reload()
+                },
+                error: function(xhr){
+                    if (xhr.status == 403){
+                        new_message('error','Error de permisos','No tienes los permisos suficientes para hacer esto :(')
+                    }
+                    else{
+                        new_message('error','Error','No editar este presupuesto, contacta a soporte.')
+                        console.log(xhr.responseText)
+                    }
+                    $('#formnewbudget').removeClass('double teal loading')
+                }
+            })
+        })
+        $('#btn-approve-budget').click(function(){
+            $('#formnewbudget').addClass('double teal loading')
+            let row = tablebudgets.row($('tr.active')).data()
+            $.ajax({
+                url: window.location,
+                type:'POST',
+                data:{
+                    'csrfmiddlewaretoken':getCookie('csrftoken'),
+                    'budget':row.id,
+                    'todo':'approve-budget'
+                },
+                success: function(xhr){
+                    window.location.reload()
+                },
+                error: function(xhr){
+                    console.log('reconoce el errror')
+                    console.log(xhr.status)
+                    if (xhr.status == 403){
+                        new_message('error','Error de permisos','No tienes los permisos suficientes para hacer esto :(')
+                    }
+                    else{
+                        new_message('error','Error','No pudimos aprobar este presupuesto, contacta a soporte.')
+                        console.log(xhr.responseText)
+                    }
+                    $('#formnewbudget').removeClass('double teal loading')
+                }
+            })
+        })
+        
+    })
+    function totalize(){
+            var total = 0
+            $('input[name="detail_value"]').each(function(index,element){
+                /* date = Date(date.calendar('get date')) */
+                let value = $(element).val()
+                total += value.replace(/[\$,]/g,'')*1
+            })
+            total = new Intl.NumberFormat('en-EN').format(total)
+            $('#tablebudgetdetail tfoot th').last().text('$'+total)
+        }
+        
+</script>
+{%endblock%}
+{%block css%}
+<style>
+  tr {
+    text-align: center;
+    cursor: pointer;
+  }
+</style>
+{%endblock%}

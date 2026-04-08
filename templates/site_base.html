@@ -1,0 +1,72 @@
+{%load static%}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="{% static 'img/Macardy PNG.png'%}">
+  <title>{%block title%}{%endblock%}</title>
+<!--   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.css">
+  <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.3.1/semantic.min.css"> -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.2/dist/semantic.min.css">
+  <link rel="stylesheet" type="text/css" href="{%static 'css/mcd_site.css'%}">
+  {%block css%}{%endblock%}
+</head>
+<body>
+  {% if request.session.impersonator_id %}
+  <div class="ui orange inverted segment" style="margin:0; border-radius:0; text-align:center; padding:8px;">
+    <i class="user secret icon"></i>
+    <strong>MODO IMPERSONACIÓN:</strong> Navegando como {{ request.user.username }} 
+    <a href="/impersonate/stop/" class="ui tiny inverted button" style="margin-left:20px;">
+      <i class="sign out icon"></i> Volver a mi usuario
+    </a>
+  </div>
+  {% endif %}
+  <main>
+    {%include 'messages.html'%}
+    <div class="overflow-auto" id='page-segment'>
+      {%include 'sidebar.html'%}
+        <div class="ui basic segment" id='main-segment' style="left:150px">
+            <div class="ui pointing stackable menu" id='principal-submenu'>
+              <a class="item" id='sidebar-closer'>
+                <i class='sidebar icon'></i>
+              </a>
+              {%block submenu%}
+              {%endblock%}
+              <div class="right menu">
+                <div class="ui pointing dropdown link item">
+                  <img class="ui avatar image" src="/media/{{request.user.user_profile.avatar}}">
+                  <span>{{request.user.username}}</span>
+                  <i class="dropdown icon"></i>
+                  <div class="menu">
+                    <div class="header">Opciones</div>
+                    <a class='item' href="/accounts/password/change">Cambiar contraseña</a>
+                    {%if request.user.is_staff%}
+                    <a class='item' href="/admin" target="_blank">Administracion</a>
+                    {%endif%}
+                    <a class="item" href='/accounts/logout'>
+                      <i class="sign out alternate icon"></i>
+                      Salir</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class='ui basic segment' id="content-segment" style='height:inherit'>
+              {%block content%}
+              {%endblock%}
+            </div>
+        </div>
+    </div>
+    {%block contextmenu%}
+    {%endblock%}
+</main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.js"
+    integrity="sha512-n/4gHW3atM3QqRcbCn6ewmpxcLAHGaDjpEBu4xZd47N0W2oQ+6q7oc3PXstrJYXcbNU1OHdQ1T7pAP+gi5Yu8g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.8/dist/semantic.min.js"></script> -->
+     <script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.2/dist/semantic.min.js"></script>
+    <script src='{%static "js/mcd_site.js"%}'></script>
+  {%block script%}{%endblock%}
+</body>
+
+</html>

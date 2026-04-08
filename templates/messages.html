@@ -1,0 +1,11 @@
+{%load static%}<div id="message-container" 
+  style="position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index: 1056;max-width: 35vw;">
+  {% if messages %}
+    {%for message in messages%}
+    <div class="ui {{message.tags}} floating message">
+        <i class="close icon"></i>
+          {{message|safe}}
+      </div>
+    {% endfor %}
+{% endif %}
+</div>

@@ -1,0 +1,201 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            {%if project.name == 'altoscovenas' %}
+            <th style=" vertical-align: top!important;">
+                <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="160" height="60">     
+                           
+            </th>
+            <th><h1 style="margin:1px">HOJA DE RADICACIÓN</h1>
+                </th>
+            <th style=" vertical-align: top!important;">
+                <img src='/media/{{project.logo}}' width="150" height="140"></th>
+            
+            {%else%}
+            <th>
+                <img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140">
+            </th>
+            <th><h1 style="margin:1px">HOJA DE RADICACIÓN</h1>
+            </th>
+            <th style=" vertical-align: top!important;">
+                <img src='/media/{{project.logo}}' width="150" height="140"></th>
+            {%endif%}
+        </tr>
+    </table>
+</div>
+<div id="footer_content">
+    <p style="font-size: 9px;text-align: center;">Reporte generado el <b>{{now}}</b> por el usuario <b>{{user}}</b></p>
+</div>
+<div>
+    <h2>PROMITENTE(S) COMPRADOR(ES)</h2>
+    <ol style="font-size: 12px;">
+        <li>
+           <b>Nombre: </b> <u>{{sale.first_owner.full_name.upper}}</u> <b>C.C:</b> <u>{{sale.first_owner.client_document}}</u> 
+                <b>Ciudad:</b> 
+                <u>
+                    {{sale.first_owner.city|countries:"city"}},
+                    {{sale.first_owner.state|countries:"state"}}, 
+                    {{sale.first_owner.country|countries:"country"}}
+                </u>            
+        </li>
+        {%if sale.second_owner.full_name != ' '%}
+        <li>
+            <b>Nombre:</b> <u>{{sale.second_owner.full_name.upper}}</u> <b>C.C:</b> <u>{{sale.second_owner.client_document}}</u> 
+                 <b>Ciudad:</b> 
+                 <u>
+                    {{sale.second_owner.city|countries:"city"}},
+                    {{sale.second_owner.state|countries:"state"}}, 
+                    {{sale.second_owner.country|countries:"country"}}
+                </u>           
+         </li>
+        {%endif%}
+        {%if sale.third_owner.full_name != ' '%}
+        <li>
+            <b>Nombres:</b> <u>{{sale.third_owner.full_name.upper}}</u> <b>C.C:</b> <u>{{sale.third_owner.client_document}}</u> 
+                 <b>Ciudad:</b> 
+                 <u>
+                    {{sale.third_owner.city|countries:"city"}},
+                    {{sale.third_owner.state|countries:"state"}}, 
+                    {{sale.third_owner.country|countries:"country"}}
+                </u>            
+        </li>        
+         </li>
+        {%endif%}
+    </ol>
+    <h2>INFORMACIÓN DEL CONTRATO</h2>
+    <p style="font-size: 12px;">
+        <b>Numero de contrato</b> <u>{{sale.contract_number}}</u>
+        <b>Fecha contrato</b> <u>{{sale.add_date}}</u>
+        <b>Precio</b> <u>$ {{sale.value|format_number}}</u> 
+        <b>Base Comisión</b> <u>$ {{sale.comission_base|format_number}}</u>
+    </p>
+    <h2>INFORMACIÓN DEL INMUEBLE</h2>
+    <p style="font-size: 12px;">
+        <b>Etapa</b> <u>{{sale.property_sold.stage}}</u> <b>Manzana</b> <u>{{sale.property_sold.block}}</u>
+        <b>Lote</b> <u>{{sale.property_sold.location}}</u>
+        
+        
+    </p>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+        <tr style="background-color: lightblue;">
+            <th>BONO (%)</th>
+            <th>CARGO</th>
+            <th style="width:40%">NOMBRE Y APELLIDO</th>
+            <th>VALOR</th>
+        </tr>
+        {%for comission in comissions_exec%}<tr>
+            <td style="text-align: center">{{comission.comission}}%</td>
+            <td>{{comission.position.name}}</td>
+            <td>{{comission.seller.full_name}}</td>
+            <td style="text-align: right;padding-right: 2px;">$ {{comission.comission_total_value}}</td>
+        </tr>{%endfor%}
+        <tr>
+            <th colspan="3" style="text-align: right;padding-right: 2px;">TOTAL</th>
+            <th style="text-align: right;padding-right: 2px;">$ {{total_exec}}</th>
+        </tr>
+</table><br>
+<table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+    <tr style="background-color: lightblue;">
+        <th>BONO (%)</th>
+        <th>CARGO</th>
+        <th style="width:40%">NOMBRE Y APELLIDO</th>
+        <th>VALOR</th>
+    </tr>
+    {%for comission in comissions_basic%}<tr {%if comission.state == 'Inactivo'%}background-color: red;{%endif%}>
+        <td style="text-align: center">{{comission.comission}}%</td>
+        <td>{{comission.position.name}}</td>
+        <td>{{comission.seller.full_name}}</td>
+        <td style="text-align: right;padding-right: 2px;">$ {{comission.comission_total_value}}</td>
+    </tr>{%endfor%}
+    <tr>
+        <th colspan="3" style="text-align: right;padding-right: 2px;">TOTAL</th>
+        <th style="text-align: right;padding-right: 2px;">$ {{total_basic}}</th>
+    </tr>
+</table><br><br>
+<h3>NOTAS: <br><br>___________________________________________________________________________________________________________________<br><br>
+    ___________________________________________________________________________________________________________________
+</h3><br><br><br><br><br><br>
+
+<table>
+    <tr style="text-align: center;">
+        <th>
+            _______________________________<br>
+            RESPONSABLE
+        </th>
+        <th>
+            _______________________________<br>
+            AUTORIZA
+        </th>
+    </tr>
+</table>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+
+        @frame header_frame {           /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 150px;
+        }
+        @frame footer_frame {           /* Another static Frame */
+            -pdf-frame-content: footer_content;
+            left: 50pt; width: 512pt; top: 790pt; height: 30pt;
+        }
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 170px; 
+            height: 600pt;
+        }
+
+    }
+
+
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+    }
+    td{
+        vertical-align: top!important;
+    }
+    
+    .text-muted{
+        color: gray;
+        
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+        color: lightslategray;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

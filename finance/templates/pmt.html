@@ -1,0 +1,378 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | PMT{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | PMT
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item active submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="user tie circular teal icon"></i>
+          <div class="content">
+            PMT
+          </div>
+        </h2>
+      </div>
+      <div class="ui segment">
+        <div class="ui two column very relaxed grid">
+          <div class="column">
+            <div class="ui basic segment" style="max-height: 70vh;overflow: auto;">
+                    <button class="ui teal labeled icon button" id="btnnewpmt">
+                        <i class="plus icon"></i>
+                        Nuevo
+                    </button>
+                    <table id="tableListPMT" class="ui selectable compact table">
+                        <thead>
+                            <tr class="center aligned">
+                                <th>Fecha</th>
+                                <th>Nº</th>
+                                <th>Valor</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {%for pmt in pmts%}<tr class="center aligned">
+                              <td>{{pmt.add_date|date:'d/m/Y'}}</td>
+                              <td>{{pmt.sellers_quanty}}</td>
+                              <td>{{pmt.total|format_number}}</td>
+                              <td>{{pmt.state}}</td>
+                            </tr>{%endfor%}
+                        </tbody>
+                    </table>
+                  </div>
+          </div>
+          <div class="column">
+              <div class="ui basic center aligned segment">
+                <button class="ui circular teal icon button disabled" id="printpmt"
+                    data-tooltip="Exportar PDF">
+                    <i class="file pdf outline icon"></i>
+                </button>
+                <button class="ui circular teal icon button disabled" id="excelpmt"
+                    data-tooltip="Exportar Excel">
+                    <i class="file excel outline icon"></i>
+                </button>
+                <button class="ui circular yellow icon button disabled" id="filetobank"
+                    data-tooltip="Exportar Banco">
+                    <i class="file alternate outline icon"></i>
+                </button>
+                <button class="ui circular red icon button disabled" id="deletepmt"
+                    data-tooltip="Eliminar PMT">
+                    <i class="close icon"></i>
+                </button>
+                <button class="ui circular green icon button disabled" id="approvepmt"
+                    data-tooltip="Aprobar PMT">
+                    <i class="check icon"></i>
+                </button>
+              </div>
+              <div class="ui basic segment" style="overflow: auto;">
+                <table id="tabledetailPMT" class="ui selectable compact table">
+                    <thead>
+                        <tr class="center aligned">
+                            <th>Asesor</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+            
+          </div>
+          </div>
+          <div class="ui vertical icon divider">
+            <i class="arrow alternate circle right outline icon"></i>
+          </div>
+        </div>
+        
+      </div>
+</div>
+<div class="ui small modal" id="modalnewpmt">
+    <i class="close icon"></i>
+    <div class="header"><i class="plus teal circle icon"></i> Nuevo PMT</div>
+    <div class="content"  style="max-height: 500px; overflow: auto;">
+        <form method="POST" class="ui form" id="formnewpmt">{%csrf_token%}
+            <div class="ui required field">
+                <label>Observaciones</label>
+                <input type="text" name="observations" required placeholder="Fecha Desde - Fecha Hasta">
+            </div>
+            <div class="ui basic segment">
+                <table id="tablepmtdetail" class="ui table">
+                    <thead>
+                        <tr class="center aligned">
+                            <th>Vendedor</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {%for seller in active_pmt_sellers%}
+                        <tr>
+                            <td style="width: 60%;">
+                                <input hidden name="seller_pk" value="{{seller.pk}}">
+                                <div class="ui fluid transparent input">
+                                    <input type="text" C data-ms-editor="true" value="{{seller.full_name}}" readonly>
+                                </div>
+                            </td>
+                            <td class="center aligned">
+                                <div class="ui input">
+                                    <input name="pmt_value" required class="money text-center" type="text" data-ms-editor="true" value="{{pmt_val|format_number}}">
+                                </div>
+                            </td>
+                        </tr>{%endfor%}
+                    </tbody>
+                </table>
+            </div>
+            <div class="ui basic right aligned segment">
+                <button type="submit" class="ui green approve button">Agregar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="ui mini modal" id="modal-filetobank">
+    <i class="close icon"></i>
+    <h1 class="ui icon header">
+       <i class="file alternate circular yellow icon"></i>
+       <div class="content">
+           Generar archivo para bancolombia
+       </div>
+    </h1>
+    <div class="content center aligned">
+        <div class="ui selection dropdown">
+            <input type="hidden" name="pay-account" id="pay-account">
+            <i class="dropdown icon"></i>
+            <div class="default text">Cuenta de pago</div>
+            <div class="scrollhint menu">{%for account in pay_accounts%}
+                <div class="item" data-value="{{account.pk}}">{{account.account_number}}</div>
+            {%endfor%}</div>
+        </div>
+    </div>
+    <div class="actions">
+        <button class="ui ok green button" id="btn-get-filetobank">Generar</button>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script>
+    const project = '{{project.name}}'
+</script>
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    $(document).ready(function(){
+        $('.ui.dropdown').dropdown();
+        $('.money').mask('#,##0', {reverse: true});
+        var tabledetailPMT = $('#tabledetailPMT').DataTable({
+            info:   false,
+            searching: false,
+            paging: false,
+            processing:true,
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            ajax:{
+                url:'/finance/'+project+'/pmt?date=01/01/2000',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'seller_fullname'},
+                {'data':'value',
+                'render': DataTable.render.number( ',', '.',0, '$' )},
+            ],
+            columnDefs: [
+                {targets:[1],className: 'center aligned'},
+            ]
+        })
+        $('#tableListPMT tbody').on('click','tr',function(){
+            $('#tableListPMT tr.active').removeClass('active')
+            $(this).addClass('active')
+
+
+            let row = $(this)[0]
+            let date = row.cells[0].innerHTML
+            let state = row.cells[3].innerHTML
+            let url = '/finance/'+project+'/pmt?date='+date
+            tabledetailPMT.ajax.url(url).load()
+
+            if(state == 'Pendiente'){
+                $('#approvepmt').removeClass('disabled')
+                $('#printpmt').addClass('disabled')
+                $('#excelpmt').addClass('disabled')
+                $('#filetobank').addClass('disabled')
+                $('#deletepmt').removeClass('disabled')
+            }
+            else {
+                $('#approvepmt').addClass('disabled')
+                $('#excelpmt').removeClass('disabled')
+                $('#printpmt').removeClass('disabled')
+                $('#filetobank').removeClass('disabled')
+                $('#deletepmt').removeClass('disabled')
+            }
+        })
+        $('#tabledetailPMT tbody').on('click','tr',function(){
+            let row = tabledetailPMT.row(this).data()
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+            console.log(row)
+            $.ajax({
+                type:'GET',
+                url:'/finance/ajax/'+project+'/pmt/print',
+                data:{
+                    'date':date,
+                    'todo':'print-document-support',
+                    'detail_pk': row.id,
+                },
+                success:function(xhr){
+                        new_message(xhr.type,xhr.title,xhr.msj,true)
+                    },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                    console.log(xhr.responseText)
+                }
+            })
+        })
+        $('#btnnewpmt').click(function(){
+            $('#modalnewpmt').modal('show')
+        })
+        $('#formnewpmt').submit(function(){
+            $(this).addClass('teal loading')
+        })
+        $('#approvepmt').click(function(){
+            let btn = $(this)
+            btn.addClass('disabled loading')
+            let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+            $.ajax({
+                url:'/finance/'+project+'/pmt',
+                type:'POST',
+                data:{
+                    'action':'approve',
+                    'date':date,
+                    'csrfmiddlewaretoken':getCookie('csrftoken')
+                },
+                success:function(xhr){
+                    window.location.href=window.location.href
+                },
+                error:function(xhr){
+                    btn.removeClass('disabled loading')
+                    if (xhr.status == 401){
+                        new_message('error','Ups!','Tu usuario no tiene privilegios suficientes para hacer esto.')
+                    }
+                    else{
+                        new_message('error','Error','Ha ocurrido un error inesperado por favor contacta al administrador.')
+                        console.log(xhr.responseText)
+                    }
+                },
+            })
+        })
+        $('#deletepmt').click(function(){
+            let btn = $(this)
+            btn.addClass('disabled loading')
+            let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+            $.ajax({
+                url:'/finance/'+project+'/pmt',
+                type:'POST',
+                data:{
+                    'action':'delete',
+                    'date':date,
+                    'csrfmiddlewaretoken':getCookie('csrftoken')
+                },
+                success:function(xhr){
+                    window.location.href=window.location.href
+                },
+                error:function(xhr){
+                    btn.removeClass('disabled loading')
+                    if (xhr.status == 401){
+                        new_message('error','Ups!','Tu usuario no tiene privilegios suficientes para hacer esto.')
+                    }
+                    else{
+                        new_message('error','Error','Ha ocurrido un error inesperado por favor contacta al administrador.')
+                        console.log(xhr.responseText)
+                    }
+                },
+            })
+        })
+        $('#printpmt').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+            $.ajax({
+                type:'GET',
+                url:'/finance/ajax/'+project+'/pmt/print',
+                data:{
+                    'date':date,
+                    'todo':'print-pdf'
+                },
+                success:function(xhr){
+                        new_message(xhr.type,xhr.title,xhr.msj,true)
+                    },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                    console.log(xhr.responseText)
+                }
+            })
+        })
+        $('#excelpmt').click(function(){
+            new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos generando el documento')
+            let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+            $.ajax({
+                type:'GET',
+                url:'/finance/ajax/'+project+'/pmt/print',
+                data:{
+                    'date':date,
+                    'todo':'print-excel'
+                },
+                success:function(xhr){
+                        new_message(xhr.type,xhr.title,xhr.msj,true)
+                    },
+                error:function(xhr){
+                    new_message('error','Error',
+                    'Ha ocurrido un error por favor notifica al administrador del sistema',
+                    true)
+                    console.log(xhr.responseText)
+                }
+            })
+        })
+        
+        $('#filetobank').click(function(){
+            $('#modal-filetobank')
+            .modal({
+                onApprove: function(){
+                    new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    let pay_account = $('#pay-account').val()
+                    let date = $('#tableListPMT tr.active')[0].cells[0].innerHTML
+                    $.ajax({
+                        type:'GET',
+                        url:'/finance/ajax/'+project+'/printfilebank',
+                        data:{
+                            'type_of':'pmt',
+                            'pay_account':pay_account,
+                            'date':date,
+                        },
+                        success: (xhr) => {
+                            new_message(xhr.type,xhr.title,xhr.msj,true)
+                        },
+                        error: (xhr) => {
+                            error_message(xhr)
+                        },
+                    })
+                }
+            })
+            .modal('show')
+        })
+    })
+</script>
+{%endblock%}

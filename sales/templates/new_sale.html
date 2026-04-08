@@ -1,0 +1,448 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}
+{%block title%}Ventas | Nueva venta{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Ventas
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item active submenu' href="/sales/{{project.name}}/new_sale"  data-tab='tab-clientes'>Nueva venta</a>
+<a class='item submenu' href="/sales/{{project.name}}/nonapprovedsales" data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item submenu' href="/sales/{{project.name}}/toadjudicatesales" data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item submenu' href="/sales/{{project.name}}/adjudicatesales" data-tab='tab-gestores'>Adjudicadas</a>
+<a class='item submenu' href="/sales/{{project.name}}/reestructuraciones">Reestructuraciones</a>
+<a class='item submenu' href="/sales/{{project.name}}/fechas-entrega">Entregas y Escrituras</a>
+<a class='item submenu' href="/sales/{{ project.name }}/planes-pago/">Planes de pago</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    
+      <div id='div_table_properties'>
+        <div class='ui center aligned basic segment' id='div_sale'>
+            <h2 class="ui icon dividing header">
+                <i class="tasks circular teal icon"></i>
+              <div class="content">
+                Listado de lotes disponibles
+              </div>
+            </h2>
+          </div>
+        <div class='ui two column centered very padded grid' >
+            <div class='column'>
+                <table id='tableProperties' class='ui selectable striped collapsing table'
+                    style="width: 100%;">
+                    <thead>
+                        <tr class="center aligned">
+                            <th>Inmueble</th>
+                            <th>Area</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+      <div class='ui container' id='div_new_sale' style='display: none;'>
+        <div class='ui center aligned basic segment' id='div_sale'>
+            <h2 class="ui icon dividing header">
+                <i class="plus circle teal icon"></i>
+              <div class="content">
+                Crear nuevo contrato
+              </div>
+            </h2>
+          </div>
+          {%crispy form_sale%}
+      </div>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    th{
+        text-align: center;
+    }
+    .ui.table thead tr:first-child > th {
+        position: sticky !important;
+        top: 0;
+        z-index: 2;
+    }
+</style>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+{%include 'datejs.html'%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    var project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('.money').mask('#,##0', {reverse: true});
+        $('.ui.calendar').calendar({
+                type: 'date',
+                text: calendar_spanish()
+            })
+        var tableProperties = $('#tableProperties').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            scrolling:true,
+            scrollY:400,
+            paging: false,
+            processing: true,
+            ajax:{
+                url:window.location + '?todo=getporopsforsale',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'description_to_search'},
+                {'data':'area'},
+                {'data':'property_price.formated'}
+            ]
+        })
+        var tableClients = $('#tableClients').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            },
+            ajax:{
+                url:'/partners/ajax/clientsinfo',
+                dataSrc: "data"
+            },
+            columns:[
+                {'data':'client_document'},
+                {'data':'full_name'},
+                {'data':'phone'}
+            ]
+        })
+        $('#tableProperties tbody').on('click','tr',function(){
+            let row = tableProperties.row(this).data()
+            let prop = row.description
+            let prop_val = row.property_price.formated
+            $('#div_table_properties').fadeOut(500)
+            setTimeout(function(){
+                $('#div_new_sale').fadeIn(500)
+            },500)
+            $('#id_id_property').val(prop)
+            $('#id_sale_value').val(prop_val)
+        })
+        $('.dropdown').dropdown({
+            action:'activate',
+            clearable:true
+        })
+        $('#button-add-ci').click(function(){
+            let id_calendar = $('.ci-row').length
+            
+            let new_row = `
+            <tr class="ci-row">
+                <td>
+                    <div class="ui input">
+                        <input type="number" class="text-center" name="quanty_ci_quota" min="1"
+                        onchange="totalizeCI();">
+                    </div>
+                </td>
+                <td>
+                    <div class="ui calendar" id="calendar_${id_calendar}">
+                        <div class="ui input left icon">
+                            <i class="calendar icon"></i>
+                            <input type="text" name="date_ci_quota" onkeypress="return false;">
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="ui input">
+                        <input type="text" class="text-center money" name="value_ci_quota"
+                        onchange="totalizeCI();">
+                    </div>
+                </td>
+            </tr>
+            `
+            let previous_row = $('.ci-row').last()
+            let new_date = null
+            if (previous_row.length>0) {
+                let last_date = previous_row.find('.ui.calendar').calendar('get date')
+                let last_quanty = previous_row.find('input[name="quanty_ci_quota"]').val()
+                if (last_quanty == 0 || last_quanty == "") {
+                    new_message('warning','Revisalo','Debes ingresar la cantidad antes de agregar una nueva linea')
+                    return;
+                }
+                else if (last_date[0] == null){
+                    new_message('warning','Revisalo','Debes ingresar una fecha antes de agregar una nueva linea')
+                    return;
+                }
+                let date_utc = new Date(last_date)
+                new_date = date_utc.add(parseInt(last_quanty)).months()
+            }
+            $('#tableCI tbody').first().append(new_row)
+            $('#calendar_'+id_calendar).calendar({
+                type: 'date',
+                text: calendar_spanish(),
+                initialDate: new_date
+            })
+            $('.money').mask('#,##0', {reverse: true});
+        })
+        $('#button-remove-ci').click(function(){
+             $('#tableCI tbody tr.ci-row').last().remove()
+             totalizeCI();
+        })
+        $('#id_sale_plan').on('change',function(){
+            let plan_element = $(this)
+            let plan = $(this).val()
+            plan_element.parent('div.select.dropdown').addClass('loading')
+            $.ajax({
+                url:'/sales/ajax/salesplansinfo',
+                type:'get',
+                data:{
+                    'plan':plan,
+                },
+                success:function(response){
+                    let data = response.data[0]
+                    $('#id_rate').val(
+                        parseFloat(data.rate)
+                    )
+                    $('#id_initial_rate').val(
+                        parseFloat(data.initial_payment)
+                    ).prop(
+                        'min',parseFloat(data.initial_payment)
+                    ).prop('readonly',false)
+                    if (data.initial_payment == 100){
+                        $('#div_regular_quotas input').prop('disabled',true)
+                    }
+                    else {
+                        $('#div_regular_quotas input').prop('disabled',false)
+                    }
+                    calculate_initial_tofinance('percent')
+                    $('#id_initial_value').prop('readonly',false)
+                },
+                complete: function(){
+                    plan_element.parent('div.select.dropdown').removeClass('loading')
+                }
+            })
+            $('#div_saldo input').val('')
+        })
+        $('#id_type_of_payment').on('change',function(){
+            let type = $(this).val()
+            $('#id_quanty_to_finance_quota').val('')
+            $('#id_initial_date_to_finance_quota').val('')
+            $('#id_value_to_finance_quota').val('')
+            if (type == 'Extraordinario') {
+                $('#id_value_to_finance_quota').prop('readonly',false)
+                $('#id_periodicity_extra_quota').prop('disabled',false)
+                $('#id_periodicity_extra_quota').parent('div.dropdown').removeClass('disabled')
+                $('#id_quanty_extra_quota').prop('disabled',false)
+                $('#id_initial_date_extra_quota').prop('disabled',false)
+                $('#id_value_extra_quota').prop('disabled',false)
+            }
+            else {
+                $('#id_value_to_finance_quota').prop('readonly',true).val('')
+                $('#id_periodicity_extra_quota').val('').prop('disabled',true)
+                $('#id_periodicity_extra_quota').parent('div.dropdown').addClass('disabled')
+                $('#id_quanty_extra_quota').val('').prop('disabled',true)
+                $('#id_initial_date_extra_quota').val('').prop('disabled',true)
+                $('#id_value_extra_quota').val('').prop('disabled',true)
+            }
+            $('#div_saldo input').val('')
+        })
+        $('#id_quanty_to_finance_quota').on('change',function(){
+            let payment_type = $('#id_type_of_payment').val()
+            if (payment_type == 'Extraordinario') return;
+            let quanty = $(this).val()
+            let to_finance = $('#id_to_finance').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_normal',
+                    'rate':rate,
+                    'vp':to_finance,
+                    'nper':quanty
+                },
+                success: function(response){
+                    $('#id_value_to_finance_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota)
+                    )
+                }
+            })
+        })
+        $('#id_quanty_to_finance_quota').focusout(function(){
+            let last_row = $('.ci-row').last()
+            let last_date = last_row.find('.ui.calendar').calendar('get date')
+            
+            let last_quanty = last_row.find('input[name="quanty_ci_quota"]').val()
+            if (last_quanty == 0 || last_quanty == "") {
+                return;
+            }
+            let date_utc = new Date(last_date)
+            new_date = date_utc.add(parseInt(last_quanty)).months()
+            if (last_date.length > 0) {
+                $('#div_id_initial_date_to_finance_quota').calendar({
+                    type: 'date',
+                    text: calendar_spanish(),
+                    initialDate: new_date
+                })
+            }
+            else {
+                $('#div_id_initial_date_to_finance_quota').calendar({
+                    type: 'date',
+                    text: calendar_spanish()
+                })
+            }
+            
+            
+
+            let payment_type = $('#id_type_of_payment').val()
+            if (payment_type == 'Extraordinario') return;
+            let quanty = $(this).val()
+            let to_finance = $('#id_finance_to_change').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_normal',
+                    'rate':rate,
+                    'vp':to_finance,
+                    'nper':quanty
+                },
+                success: function(response){
+                    $('#id_value_to_finance_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota)
+                    )
+                }
+            })
+        })
+        $('#id_quanty_extra_quota').on('change',function(){
+            let quanty_regular = $('#id_quanty_to_finance_quota').val()
+            let regular_quota = $('#id_value_to_finance_quota').val().replace(/[\$,]/g,'') *1
+            let quanty_extra = $(this).val()
+            let periodicity = $('#id_periodicity_extra_quota').val() * 1
+            let to_finance = $('#id_to_finance').val()
+            to_finance = to_finance.replace(/[\$,]/g,'')*1
+            let rate = $('#id_rate').val()
+            $.ajax({
+                type:'get',
+                url:'/ajax/amortizationcalc',
+                data:{
+                    'tipo':'cuota_extra',
+                    'rate':rate,
+                    'totalamount':to_finance,
+                    'pmt':regular_quota,
+                    'nper':quanty_regular,
+                    'nper_extra':quanty_extra,
+                    'period_extra':periodicity,
+                },
+                success: function(response){
+                    $('#id_value_extra_quota').val(
+                        new Intl.NumberFormat('en-EN').format(response.cuota_extra)
+                    )
+                }
+            })
+        })
+        $('#id_periodicity_extra_quota').on('change',function(){
+            let periodicity = $('#id_periodicity_extra_quota').val() * 1
+            let date = new Date(
+                $('#div_id_initial_date_to_finance_quota').calendar('get date')
+            )
+            let new_date = date.add(periodicity).months()
+            $('#div_id_initial_date_extra_quota').calendar('set date',new_date)
+
+            let quanty_regular = $('#id_quanty_to_finance_quota').val()
+            let max_extra_quotas = parseInt(quanty_regular/periodicity)
+            $('#id_quanty_extra_quota').attr('max',max_extra_quotas)
+        })
+        $('#id_sale_value').on('change',function(){
+            calculate_initial_tofinance('percent')
+            $('#div_saldo input').val('')
+            totalizeCI();
+        })
+        $('#form-sale').on('submit',function(){
+            let total_ci_added = $('#tableCI tfoot th').last().text().replace(/[\$,]/g,'') * 1
+            let total_ci = $('#id_initial_value').val().replace(/[\$,]/g,'') * 1
+            let ci_difference = new Intl.NumberFormat('en-EN').format(total_ci - total_ci_added)
+            let first_owner = $('#id_id_first_owner').val()
+            let second_owner = $('#id_id_second_owner').val()
+            let third_owner = $('#id_id_third_owner').val()
+            if (first_owner == ''){
+                new_message('error','Ocurrio un error','Debes seleccionar por lo menos un primer titular')
+                $('#id_id_first_owner').focus()
+                return false;
+            }
+            if (first_owner == second_owner || first_owner == third_owner || first_owner == fourth_owner ||
+                second_owner == third_owner || second_owner == fourth_owner || third_owner == fourth_owner) {
+                new_message('error', 'Ocurrió un error', 'Un titular no puede estar más de una vez en un contrato.');
+                return false;
+            }
+            if (second_owner == '' && third_owner!= ''){
+                new_message('error','Ocurrio un error','Para agregar un 3er titular el 2do no puede estar vacio.')
+                $('#id_id_first_owner').focus()
+                return false;
+            }
+            if ((third_owner == '' || second_owner == '') && fourth_owner != '') {
+                new_message('error', 'Ocurrió un error', 'Para agregar un 4to titular, los campos anteriores no pueden estar vacíos.');
+                return false;
+            }
+            if (total_ci_added != total_ci){
+                new_message('error','Ocurrio un error',
+                `El total del detalle de cuotas iniciales no es igual a la cuota inicial seleccionada,
+                <br>tienes una diferencia de ${ci_difference}`)
+                return false;
+            }
+            $(this).addClass('loading')
+        })
+        $('#id_initial_rate').on('change',function(){
+            calculate_initial_tofinance('percent')
+        })
+        $('#id_initial_value').on('change',function(){
+            calculate_initial_tofinance('value')
+        })
+    })
+    function totalizeCI(){
+        var total = 0
+        $('input[name="value_ci_quota"]').each(function(index,element){
+            /* date = Date(date.calendar('get date')) */
+            let tr = $(element).parents('tr')
+            let value = $(element).val()
+            let quanty = $(tr).find('input[name="quanty_ci_quota"]').val()
+            $(element).find('input[name="date_ci_quota"]')
+            total += quanty * (value.replace(/[\$,]/g,'')*1)
+        })
+        total = new Intl.NumberFormat('en-EN').format(total)
+        $('#tableCI tfoot th').last().text('$'+total)
+    }
+    function calculate_initial_tofinance(type){
+        let total_value = $('#id_sale_value').val().replace(/[\$,]/g,'')*1
+        if (type == 'percent'){
+            let ci_percent = parseFloat($('#id_initial_rate').val())
+            let ci_value = parseInt(ci_percent * total_value/100)
+            let to_finance = total_value - ci_value
+            $('#id_initial_value').val(
+                new Intl.NumberFormat('en-EN').format(ci_value)
+            )
+            $('#id_to_finance_rate').val(
+                100 - ci_percent
+            )
+            $('#id_to_finance').val(
+                new Intl.NumberFormat('en-EN').format(to_finance)
+            )
+        }
+        else if (type == 'value'){
+            let ci_value = $('#id_initial_value').val().replace(/[\$,]/g,'')*1
+            let ci_percent = (ci_value / total_value)*100
+            ci_percent = Math.round(ci_percent)
+            let to_finance = total_value - ci_value
+            $('#id_initial_rate').val(
+                ci_percent
+            )
+            $('#id_to_finance_rate').val(
+                100 - ci_percent
+            )
+            $('#id_to_finance').val(
+                new Intl.NumberFormat('en-EN').format(to_finance)
+            )
+        }
+        $('#div_saldo input').val('')
+    }
+</script>
+{%endblock%}

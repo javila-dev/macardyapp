@@ -1,0 +1,53 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}
+{%block title%}Ventas | Seleccion de proyecto{%endblock%}
+{%block submenu%}{%if menu == 'ventas'%}
+<div class='header item'>
+    Ventas
+</div>
+<a class='item disabled submenu' data-tab='tab-clientes'>Nueva venta</a>
+<a class='item disabled submenu' data-tab='tab-gestores'>Sin aprobar</a>
+<a class='item disabled submenu' data-tab='tab-gestores'>Por adjudicar</a>
+<a class='item disabled submenu' data-tab='tab-gestores'>Adjudicadas</a>
+{%elif menu == 'admin'%}
+<div class='header item'>
+    Admin
+</div>
+<a class='item disabled submenu' data-tab='tab-clientes'>Inventario</a>
+{%endif%}{%endblock%}
+{%block content%}
+<div class='ui basic segment'>
+    <h2 class="ui center aligned icon header mb-4">
+        <i class="arrow alternate circle down outline teal icon"></i>
+        Selecciona un proyecto
+    </h2>
+    <!-- <div class="ui three stackable column grid">{%for project in projects%}
+        <div class="column">
+          <div class="ui fluid raised link card">
+            <a class="image" href="/sales/{{project.name}}">
+              <img src="/media/{{project.logo}}" class="image medium">
+            </a>
+          </div>
+        </div>{%endfor%}
+    </div> -->
+    <div class="ui three stackable raised link cards">{%for project in projects%}
+        <div class='card'>
+            <div class='mt-3'>
+                <a href="/sales/{{project.name}}/{{next}}" class="image">
+                    <img src="/media/{{project.logo}}" class='ui centered medium image'>
+                </a>
+            </div>
+        </div>
+        {%endfor%}
+    </div>
+</div>
+
+
+{%endblock%}
+{%block script%}
+<script>
+    $(document).ready(function(){
+        
+    })
+    
+</script>
+{%endblock%}

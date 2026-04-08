@@ -1,0 +1,224 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th>
+                {%if project.name == 'altoscovenas' %}
+                <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="160" height="60">
+                {%else%}
+                <img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140"></th>
+                {%endif%}
+            <th></th>
+            <th><img src='/media/{{project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+<div id="footer_content">(c) - pagina <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.username}} el {{now}}
+</div>
+<div>
+    <br>
+    <h1 style="margin:1px">Resumen liquidación de comisiones</h1>
+                <h3 class="text-muted" style="margin:1px">Liquidadas el {{date|date:'d/m/Y'}} por {{user}}</h3><br><br>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+        <thead>
+            <tr style="background-color: lightblue;">
+                <th style="width: 20%;">Identificacion</th>
+                <th style="width: 35%;">Nombre</th>
+                <th>Estado</th>
+                <th>Comision</th>
+                <th>Provision</th>
+                <th>Neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for pay in comissions%}<tr style="font-size: 11px;{%if pay.assign_paid__state == 'Inactivo'%}background-color: red;{%endif%}">
+                <td style="text-align: center;">{{pay.assign_paid__seller}}</td>
+                <td>{{pay.seller_name}}</td>
+                <td style="text-align: center;">{{pay.assign_paid__state}}</td>
+                <td style="text-align: right;padding-right: 2px;">{{pay.total_comission|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.total_provision|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.total_net|format_number}}</td>
+            </tr>{%endfor%}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="3" style="text-align: right;padding-right: 2px;">TOTALES</th>
+                <th>${{totals.total_comission|format_number}}</th>
+                <th>${{totals.total_provision|format_number}}</th>
+                <th>${{totals.total_net|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table><br><br><br><br><br><br>
+    <table>
+        <tr style="text-align: center;">
+            <th>
+                _______________________________<br>
+                RESPONSABLE
+            </th>
+            <th>
+                _______________________________<br>
+                AUTORIZA
+            </th>
+        </tr>
+    </table>
+</div>
+{%if ant_exists%}
+<pdf:nextpage />
+<div>
+    <br>
+    <h1 style="margin:1px">Resumen liquidación de anticipos</h1>
+                <h3 class="text-muted" style="margin:1px">Liquidadas el {{date|date:'d/m/Y'}} por {{user}}</h3><br><br>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+        <thead>
+            <tr style="background-color: lightblue;">
+                <th style="width: 20%;">Identificacion</th>
+                <th style="width: 35%;">Nombre</th>
+                <th>Estado</th>
+                <th>Anticipo</th>
+                <th>Provision</th>
+                <th>Neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for pay in ant_detail%}<tr style="font-size: 11px;{%if pay.assign_paid__state == 'Inactivo'%}background-color: red;{%endif%}">
+                <td style="text-align: center;">{{pay.assign_paid__seller}}</td>
+                <td>{{pay.seller_name}}</td>
+                <td style="text-align: center;">{{pay.assign_paid__state}}</td>
+                <td style="text-align: right;padding-right: 2px;">{{pay.total_comission|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.total_provision|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.total_net|format_number}}</td>
+            </tr>{%endfor%}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="3" style="text-align: right;padding-right: 2px;">TOTALES</th>
+                <th>${{totals_ant.total_comission|format_number}}</th>
+                <th>${{totals_ant.total_provision|format_number}}</th>
+                <th>${{totals_ant.total_net|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table><br><br><br><br><br><br>
+    <table>
+        <tr style="text-align: center;">
+            <th>
+                _______________________________<br>
+                RESPONSABLE
+            </th>
+            <th>
+                _______________________________<br>
+                AUTORIZA
+            </th>
+        </tr>
+    </table>
+</div>
+{%endif%}
+<pdf:nextpage />
+<div>
+    <br>
+    <h1 style="margin:1px">Detalle liquidación de comisiones</h1>
+                <h3 class="text-muted" style="margin:1px">Liquidadas el {{date|date:'d/m/Y'}} por {{user}}</h3><br><br>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;">
+        <thead>
+            <tr style="background-color: lightblue;">
+                <th>Ctr</th>
+                <th style="width: 18%;">Cliente</th>
+                <th style="width: 18%;">Asesor</th>
+                <th>Cargo</th>
+                <th>%</th>
+                <th>Tipo</th>
+                <th>Comision</th>
+                <th>Provision</th>
+                <th>Neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for pay in full_comissions%}<tr style="font-size: 11px;{%if pay.assign_paid.state == 'Inactivo'%}background-color: red;{%endif%}">
+                <td style="text-align: center;">{{pay.assign_paid.sale.contract_number}}</td>
+                <td>{{pay.assign_paid.sale.first_owner.full_name}}</td>
+                <td>{{pay.assign_paid.seller.full_name}}</td>
+                <td>{{pay.assign_paid.position.name}}</td>
+                <td style="text-align: center;">{{pay.assign_paid.comission}}%</td>
+                <td style="text-align: center;">{{pay.type_of_payment}}</td>
+                <td style="text-align: right;padding-right: 2px;">{{pay.comission|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.provision|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px">{{pay.net_payment|format_number}}</td>
+            </tr>{%endfor%}
+        </tbody>
+        <!-- <tfoot>
+            <tr>
+                <th colspan="3" style="text-align: right;padding-right: 2px;">TOTALES</th>
+                <th>${{totals_ant.total_comission|format_number}}</th>
+                <th>${{totals_ant.total_provision|format_number}}</th>
+                <th>${{totals_ant.total_net|format_number}}</th>
+            </tr>
+        </tfoot> -->
+    </table>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+
+        @frame header_frame {           /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 150px;
+        }
+        @frame footer_frame {           /* Another static Frame */
+            -pdf-frame-content: footer_content;
+            left: 50pt; width: 512pt; top: 800pt; height: 20pt;
+        }
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 170px; 
+            height: 670pt;
+        }
+
+    }
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+    }
+    td{
+        vertical-align: top!important;
+    }
+    
+    .text-muted{
+        color: gray;
+        
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+        color: lightslategray;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

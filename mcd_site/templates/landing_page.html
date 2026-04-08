@@ -1,0 +1,122 @@
+{%extends 'site_base.html'%}{%load static%}
+{%block title%}MacardyApp{%endblock%}
+{%block content%}
+<div class="ui stackable grid" style="height: 86vh;">
+    <div class="center aligned row">
+        <div class="twelve wide middle aligned column">
+            <img width="600" height="219" src="{%static 'img/cobranding-alianza.png'%}" 
+            class="ui middle aligned image" alt="" loading="lazy">
+        </div>
+        <div class="four wide column">
+            <div class="ui inverted calendar" id="inline_calendar"></div>
+            <div class="ui left aligned segment" style="max-height: 29vh;overflow: auto;">
+                <h3 class="ui center aligned header">
+                    <em data-emoji=":partying_face:" class="small"></em> Fechas especiales
+                </h3>
+                <div class="ui tiny list">{%for sp in special_dates%}
+                    <div class="item">
+                        <div class="content">
+                          <a class="header">{{sp.profile.full_name.capitalize}}</a>
+                          <div class="description">
+                            {%if sp.type == "birthday"%}
+                            Cumple años el <span class="ui text teal">{{sp.profile.birth_date.day}}</span> de este mes.
+                            {%endif%}
+                            {%if sp.type == "aniversary"%}
+                            Cumple <span class="ui text teal">{{sp.years}}</span> año{{sp.years|pluralize}} de hacer parte del equipo, el <span class="ui text teal">{{sp.profile.last_contract.initial_date.day}}</span> de este mes
+                            {%endif%}
+                            </div>
+                        </div>
+                      </div>
+                {%endfor%}</div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom aligned row">
+        <div class="column">
+            <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <div class="tradingview-widget-copyright"><a href="https://es.tradingview.com" rel="noopener" target="_blank"><span class="blue-text">Cotizaciones</span></a> por TradingView</div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-tickers.js" async>
+                    {
+                    "symbols": [
+                      {
+                        "proName": "FX_IDC:EURUSD",
+                        "title": "EUR/USD"
+                      },
+                      {
+                        "proName": "BITSTAMP:BTCUSD",
+                        "title": "Bitcoin"
+                      },
+                      {
+                        "proName": "BITSTAMP:ETHUSD",
+                        "title": "Ethereum"
+                      },
+                      {
+                        "description": "COP/USD",
+                        "proName": "FX_IDC:USDCOP"
+                      }
+                    ],
+                    "colorTheme": "light",
+                    "isTransparent": false,
+                    "showSymbolLogo": true,
+                    "locale": "es"
+                  }
+                    </script>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="ui basic tiny modal">
+    <div class="content center aligned">
+        <h1 class="wave">👋</h1>
+        <h2>Bienvenid@ <span class="ui teal text">{{request.user.get_full_name}}</span>, me alegra verte de nuevo  </h2>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+<script>
+    $(document).ready(function(){
+        let prevURL = document.referrer;
+        if (prevURL.includes('accounts/login')){
+            $('.ui.modal')
+                .modal({
+                    blurring: true
+                })
+                .modal('show')
+                ;
+            setTimeout(() =>{
+                $('.ui.modal').modal('hide')
+            },2800)
+        }
+        $('.ui.calendar').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+        })
+    })
+</script>
+{%endblock%}
+{%block css%}
+<style>
+    #content-segment{
+        height: 85vh;
+    }
+    .wave {
+  animation-name: wave-animation;  
+  animation-duration: 2.5s;     
+  animation-iteration-count: infinite; 
+  transform-origin: 70% 70%;       
+  display: inline-block;
+}
+
+@keyframes wave-animation {
+    0% { transform: rotate( 0.0deg) }
+   10% { transform: rotate(14.0deg) }
+   20% { transform: rotate(-8.0deg) }
+   30% { transform: rotate(14.0deg) }
+   40% { transform: rotate(-4.0deg) }
+   50% { transform: rotate(10.0deg) }
+   60% { transform: rotate( 0.0deg) }
+  100% { transform: rotate( 0.0deg) }
+}
+</style>
+{%endblock%}

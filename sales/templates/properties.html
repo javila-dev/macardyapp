@@ -1,0 +1,452 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}
+{%block title%}Admin | Inventario{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Administración
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item active submenu' href="/sales/{{project.name}}/properties">Inventario</a> 
+<a class='item submenu' href="/finance/{{project.name}}/collectionbudget">Cartera</a> 
+<a class='item submenu' href="/finance/{{project.name}}/expenses">Gastos</a> 
+{%endblock%}
+{%block content%}
+<div class='ui center aligned segment'>
+  <div class='ui container' id='div_sale'>
+    <h2 class="ui icon dividing header">
+      <i class="mountain teal icon"></i>
+      <div class="content">
+        Inventario de propiedades
+      </div>
+    </h2>
+  </div>
+  <div class="ui basic segment">
+    {%if project.name == "altoscovenas"%}
+    <div class="ui floating dropdown labeled icon button" id="dropdown-stage">
+      <i class="filter icon"></i>
+      <span class="text">Etapa</span>
+      <div class="menu">
+        <div class="ui icon search input">
+          <i class="search icon"></i>
+          <input type="text" placeholder="Buscar etapa...">
+        </div>
+        <div class="divider"></div>
+        <div class="header">
+          <i class="sort numeric up icon"></i>
+          Etapas
+        </div>
+        <div class="scrolling menu">
+          {%for stage in stages%}<div class="item">
+            {{stage.stage}}
+          </div>{%endfor%}
+        </div>
+      </div>
+    </div>
+    {%endif%}
+    <div class="ui floating dropdown labeled icon button" id="dropdown-block">
+      <i class="filter icon"></i>
+      <span class="text">{%if project.name == "nutrias" %} Etapa {%elif project.name == "altoscovenas"%} Manzana {%elif project.name == "mangata"%} Bloque {%endif%}</span>
+      <div class="menu">
+        <div class="ui icon search input">
+          <i class="search icon"></i>
+          <input type="text" placeholder="Buscar etapa...">
+        </div>
+        <div class="divider"></div>
+        <div class="header">
+          <i class="sort numeric up icon"></i>
+          {%if project.name == "nutrias"%}Etapas{%elif project.name == "altoscovenas"%}Manzanas{%elif project.name == "mangata"%}Bloques{%endif%}
+        </div>
+        <div class="scrolling menu">
+          {%for block in blocks%}<div class="item">
+            {{block.block}}
+          </div>{%endfor%}
+        </div>
+      </div>
+    </div>
+    <div class="ui floating dropdown labeled icon button" id="dropdown-property">
+      <i class="filter icon"></i>
+      <span class="text">Lote</span>
+      <div class="menu">
+        <div class="ui icon search input">
+          <i class="search icon"></i>
+          <input type="text" placeholder="Buscar Inmueble...">
+        </div>
+        <div class="divider"></div>
+        <div class="header">
+          <i class="sort numeric up icon"></i>
+          Lotes
+        </div>
+        <div class="scrolling menu">
+          {%for prop in properties%}<div class="item">
+            {{prop.description}}
+          </div>{%endfor%}
+        </div>
+      </div>
+    </div>
+    <button type="button" class="ui text-center tertiary button" id="btn-clear-search">
+      <i class="times icon"></i>
+    </button>
+    <div class="ui basic segment" id="div-actions">
+      <button type="button" class="ui circular teal button disabled" id="openmodalchangeprice">Precio m2</button>
+      <button type="button" class="ui circular red button disabled" id="btn-block">Bloquear</button>
+      <button type="button" class="ui circular green button disabled" id="btn-relase">Liberar</button>
+      {% if request.user.is_superuser %}
+      <button type="button" class="ui circular orange button" id="btn-review-status">
+        <i class="sync icon"></i>Revisar Estados
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  <div class="ui basic segment" id="div-table-prop">
+    <table class="ui table small compact selectable" id="table-prop" style="width:100%">
+      <thead>
+        <tr class="center aligned">
+          <th>Inmueble</th>
+          <th>{%if project.name == "altoscovenas"%}Etapa (de entrega){%endif%}</th>
+          <th>{%if project.name == "nutrias" %} Etapa {%elif project.name == "altoscovenas"%} Manzana {%elif project.name == "mangata"%} Bloque {%endif%}</th>
+          <th>Lote</th>
+          <th>Area</th>
+          <th>Precio m2</th>
+          <th>Matricula</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+    </table>
+  </div>
+</div>
+<div class="ui mini modal" id="modalchangeprice">
+  <i class="close icon"></i>
+  <div class="header">
+    Cambiar precio m2
+  </div>
+  <div class="content center aligned">
+    <div class="ui input">
+      <input type="text" id="newprice" placeholder="Nuevo precio m2" class="money text-center"/> 
+    </div>
+  </div>
+  <div class="actions">
+    <div class="ui green ok button">OK</div>
+  </div>
+</div>
+
+<!-- Modal de revisión de estados -->
+<div class="ui modal" id="modal-review-status">
+  <i class="close icon"></i>
+  <div class="header">
+    <i class="sync icon"></i>
+    Revisión de Estados de Inmuebles
+  </div>
+  <div class="content">
+    <div class="ui segment" id="review-loading" style="display:none;">
+      <div class="ui active inverted dimmer">
+        <div class="ui text loader">Analizando inmuebles...</div>
+      </div>
+      <p style="min-height:100px;"></p>
+    </div>
+    
+    <div id="review-results" style="display:none;">
+      <div class="ui icon message" id="no-changes-msg" style="display:none;">
+        <i class="check circle icon green"></i>
+        <div class="content">
+          <div class="header">¡Todo en orden!</div>
+          <p>No se encontraron inconsistencias en los estados de los inmuebles.</p>
+        </div>
+      </div>
+      
+      <div id="changes-found" style="display:none;">
+        <div class="ui warning message">
+          <div class="header">
+            <i class="exclamation triangle icon"></i>
+            Se encontraron <span id="changes-count">0</span> inconsistencias
+          </div>
+          <p>Revisa los cambios propuestos y confirma o rechaza la actualización.</p>
+        </div>
+        
+        <table class="ui celled striped table" id="table-changes">
+          <thead>
+            <tr>
+              <th>Inmueble</th>
+              <th>Manzana</th>
+              <th>Estado Actual</th>
+              <th><i class="arrow right icon"></i></th>
+              <th>Nuevo Estado</th>
+              <th>Motivo</th>
+              <th>Contrato</th>
+            </tr>
+          </thead>
+          <tbody id="changes-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="ui red deny button" id="btn-reject-changes">
+      <i class="times icon"></i>
+      Cancelar
+    </div>
+    <div class="ui green approve button" id="btn-confirm-changes" style="display:none;">
+      <i class="check icon"></i>
+      Confirmar Cambios
+    </div>
+  </div>
+</div>
+
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script>
+  const project = '{{project.name}}'
+</script>
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+$(document).ready(function(){
+  $('.money').mask('#,##0', {reverse: true});
+  var tableprop = $('#table-prop').DataTable({
+      paging:true,
+      processing: true,
+      language:{
+          url:'/ajax/datatable_spanish'
+      },
+      ajax:{
+          url:'/sales/'+project+'/properties',
+          dataSrc: "data"
+      },
+      columns:[
+          {'data':'description'},
+          {'data':'stage'},
+          {'data':'block'},
+          {'data':'location'},
+          {'data':'area'},
+          {'data':'m2_price','render': $.fn.dataTable.render.number( ',', '.', 0,'$')},
+          {'data':'prop_registry'},
+          {'data':'state'},
+      ],
+      columnDefs: [
+          {targets:[0,1,2,3,4,5,6,7],className: 'center aligned'},
+      ],
+      order:[[2,'asc'],[3,'asc']],
+  })
+
+  $('#table-prop tbody').on('click','tr',function(){
+    let row = tableprop.row(this).data()
+    $('#dropdown-property').dropdown('set text',row.description)
+    $('button.disabled').removeClass('disabled')
+    $('#dropdown-stage').dropdown('restore defaults')
+    $('#dropdown-block').dropdown('restore defaults')
+    let url = '/sales/'+project+'/properties?search_by=property&value='+row.description
+    tableprop.ajax.url(url).load()
+    $('.ui.dropdown').removeClass('green')
+    $('#dropdown-property').addClass('green')
+
+  })
+
+  $('#openmodalchangeprice').click(function(){
+    
+    $('#modalchangeprice').modal('show').modal({
+      onApprove:function(){
+        let new_price = $('#newprice').val()
+        if (new_price == "") {
+          new_message('error','Error','Debes ingresar un valor') 
+          return;
+        }
+        actionsProperties('changeprice',new_price)
+        $('#modalchangeprice').modal('hide')
+        return false;
+      }
+    })
+  })
+
+  $('#dropdown-stage').dropdown({
+      'onChange':function(value,text){
+        if (text == null) return
+        $('button.disabled').removeClass('disabled')
+        $('#dropdown-block').dropdown('restore defaults')
+        $('#dropdown-property').dropdown('restore defaults')
+        let url = '/sales/'+project+'/properties?search_by=stage&value='+text
+        tableprop.ajax.url(url).load()
+        $('.ui.dropdown').removeClass('green')
+        $('#dropdown-stage').addClass('green')  
+    }
+  })
+  $('#dropdown-block').dropdown({
+    'onChange':function(value,text){
+      if (text == null) return
+      $('button.disabled').removeClass('disabled')
+      $('#dropdown-stage').dropdown('restore defaults')
+      $('#dropdown-property').dropdown('restore defaults')
+      let url = '/sales/'+project+'/properties?search_by=block&value='+text
+      tableprop.ajax.url(url).load()
+      $('.ui.dropdown').removeClass('green')
+      $('#dropdown-block').addClass('green')
+    }
+  })
+  $('#dropdown-property').dropdown({
+    'onChange':function(value,text){
+      if (text == null) return
+      $('button.disabled').removeClass('disabled')
+      $('#dropdown-stage').dropdown('restore defaults')
+      $('#dropdown-block').dropdown('restore defaults')
+      let url = '/sales/'+project+'/properties?search_by=property&value='+text
+      tableprop.ajax.url(url).load()
+      $('.ui.dropdown').removeClass('green')
+      $('#dropdown-property').addClass('green')
+    }
+  })
+  $('#btn-clear-search').click(function(){
+    $('.ui.dropdown').dropdown('restore defaults')
+    $('.ui.dropdown').removeClass('green')
+    $('#div-actions button').addClass('disabled')
+    let url = '/sales/'+project+'/properties'
+      tableprop.ajax.url(url).load()
+  })
+  $('#btn-relase').click(() => actionsProperties('relase') )
+  $('#btn-block').click(() => actionsProperties('block') )
+  $('#btn-changeprice').click(() => actionsProperties('changeprice') )
+
+  function actionsProperties(to_do,new_price=""){
+    
+    let url = '/sales/'+project+'/properties'
+    let value = $('.ui.dropdown.green').dropdown('get text')
+    let id= $('.ui.dropdown.green').attr('id')
+    let to_change = id.split('-')[1]
+    data = {
+      'to_change':to_change,
+      'value':value,
+      'to_do':to_do,
+      'new_price':new_price,
+      'csrfmiddlewaretoken':getCookie('csrftoken')
+    }
+    new_message('info','Cargando <i class="asterisk loading icon"></i>',
+                        'Estamos procesando tu solicitud')
+      $.ajax({
+          type:'POST',
+          url:url,
+          data:data,
+          success:function(xhr){
+             new_message(xhr.type,xhr.title,xhr.msj,true) 
+             tableprop.ajax.reload()
+            },
+          error:(xhr) => error_message(xhr)
+      })
+   }
+
+  // Funcionalidad de revisión de estados
+  let pendingChanges = [];
+  
+  $('#btn-review-status').click(function() {
+    $('#modal-review-status').modal({
+      closable: false,
+      onShow: function() {
+        reviewPropertiesStatus();
+      },
+      onDeny: function() {
+        pendingChanges = [];
+        return true;
+      },
+      onApprove: function() {
+        confirmChanges();
+        return false;
+      }
+    }).modal('show');
+  });
+
+  function reviewPropertiesStatus() {
+    $('#review-loading').show();
+    $('#review-results').hide();
+    $('#btn-confirm-changes').hide();
+    
+    $.ajax({
+      type: 'POST',
+      url: '/sales/ajax/' + project + '/review-properties-status',
+      data: {
+        'action': 'preview',
+        'csrfmiddlewaretoken': getCookie('csrftoken')
+      },
+      success: function(response) {
+        $('#review-loading').hide();
+        $('#review-results').show();
+        
+        if (response.total === 0) {
+          $('#no-changes-msg').show();
+          $('#changes-found').hide();
+        } else {
+          $('#no-changes-msg').hide();
+          $('#changes-found').show();
+          $('#changes-count').text(response.total);
+          $('#btn-confirm-changes').show();
+          
+          pendingChanges = response.changes;
+          displayChanges(response.changes);
+        }
+      },
+      error: function(xhr) {
+        $('#review-loading').hide();
+        error_message(xhr);
+        $('#modal-review-status').modal('hide');
+      }
+    });
+  }
+
+  function displayChanges(changes) {
+    const tbody = $('#changes-tbody');
+    tbody.empty();
+    
+    changes.forEach(function(change) {
+      const stateColors = {
+        'Libre': 'green',
+        'Asignado': 'orange',
+        'Bloqueado': 'red'
+      };
+      
+      const row = `
+        <tr>
+          <td><strong>${change.description}</strong></td>
+          <td>${change.block}</td>
+          <td><span class="ui ${stateColors[change.current_state] || 'grey'} label">${change.current_state}</span></td>
+          <td class="center aligned"><i class="arrow right icon"></i></td>
+          <td><span class="ui ${stateColors[change.new_state] || 'grey'} label">${change.new_state}</span></td>
+          <td><small>${change.reason}</small></td>
+          <td>${change.sale_contract || '-'}</td>
+        </tr>
+      `;
+      tbody.append(row);
+    });
+  }
+
+  function confirmChanges() {
+    if (pendingChanges.length === 0) {
+      $('#modal-review-status').modal('hide');
+      return;
+    }
+    
+    $('#review-loading').show();
+    $('#review-results').hide();
+    $('#btn-confirm-changes').addClass('loading disabled');
+    
+    $.ajax({
+      type: 'POST',
+      url: '/sales/ajax/' + project + '/review-properties-status',
+      data: {
+        'action': 'confirm',
+        'changes': JSON.stringify(pendingChanges),
+        'csrfmiddlewaretoken': getCookie('csrftoken')
+      },
+      success: function(response) {
+        $('#modal-review-status').modal('hide');
+        new_message('success', '¡Éxito!', response.message, true);
+        tableprop.ajax.reload();
+        pendingChanges = [];
+      },
+      error: function(xhr) {
+        $('#review-loading').hide();
+        $('#review-results').show();
+        $('#btn-confirm-changes').removeClass('loading disabled');
+        error_message(xhr);
+      }
+    });
+  }
+})
+</script>{%endblock%}

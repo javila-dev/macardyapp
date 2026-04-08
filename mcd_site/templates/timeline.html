@@ -1,0 +1,53 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Historial de acciones{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Historial
+</div>
+{%endblock%}
+{%block content%}
+<div class="ui basic segment">
+    <div class="ui icon center aligned header">
+        <i class="history circular teal icon"></i>
+            <div class="content">
+                Historial de acciones
+                <div class="sub header">Encuentra el historial de acciones ejecutados en la aplicacion.</div>
+            </div>
+      </div>
+    <table class="ui selectable compact table" id="history-table">
+        <thead>
+            <tr class="center aligned">
+                <th>Id</th>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Aplicacion</th>
+                <th>Proyecto</th>
+                <th>Accion</th>
+            </tr>
+        </thead>
+        <tbody>
+            {%for action in timeline%}<tr  class="center aligned">
+                <td>{{action.pk}}</td>
+                <td>{{action.date}}</td>
+                <td>{{action.user.username}}</td>
+                <td>{{action.aplication}}</td>
+                <td>{{action.project.name_to_show}}</td>
+                <td class="left aligned">{{action.action}}</td>
+            </tr>{%endfor%}
+        </tbody>
+    </table>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script>
+    $(document).ready(function(){
+        $('#history-table').DataTable({
+                language:{
+                url:'/ajax/datatable_spanish'
+            },
+            order: [[0, 'desc']]
+        })
+    })
+</script>
+{%endblock%}

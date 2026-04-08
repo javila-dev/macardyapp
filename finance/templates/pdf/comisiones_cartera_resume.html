@@ -1,0 +1,166 @@
+{% extends 'base.html' %}{% load static %}{% load finance_extras %}
+{% block content %}
+<div id="header_content">
+    <table style="width: 100%; border: none;">
+        <tr>
+            <td style="width: 25%; text-align: left; border: none; vertical-align: middle;">
+                {% if project.name == 'altoscovenas' %}
+                <img src="{% static 'img/logo-grupo-gibraltar.png' %}" width="180" height="68">
+                {% else %}
+                <img src='{% static "img/Macardy-PNG.png" %}' width="150" height="150">
+                {% endif %}
+            </td>
+            <td style="width: 50%; border: none; text-align: center; vertical-align: middle;">
+                <h1 style="margin: 0; font-size: 18pt; font-weight: bold;">Comisiones de Gestores de Cartera</h1>
+                <h3 style="margin: 5px 0 0 0; color: gray; font-size: 12pt;">{{mes_nombre}} {{anio}} - {{project.name_to_show}}</h3>
+                {% if filtros_aplicados %}
+                <h4 style="margin: 3px 0 0 0; color: gray; font-size: 10pt;">Filtros: {% for filtro in filtros_aplicados %}{{filtro}}{% if not forloop.last %}, {% endif %}{% endfor %}</h4>
+                {% endif %}
+            </td>
+            <td style="width: 25%; text-align: right; border: none; vertical-align: middle;">
+                <img src='/media/{{project.logo}}' width="150" height="150">
+            </td>
+        </tr>
+    </table>
+</div>
+<div id="footer_content">(c) - página <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.username}} el {{now}}
+</div>
+<div>
+    <br><br>
+    
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;width: 100%;">
+        <thead>
+            <tr style="background-color: lightblue;">
+                <th style="width: 22%;">Gestor</th>
+                <th style="width: 10%;">Tipo Cartera</th>
+                <th style="width: 13%;">Presupuesto</th>
+                <th style="width: 13%;">Cobrado</th>
+                <th style="width: 13%;">Abonos Capital</th>
+                <th style="width: 13%;">Base Comisión</th>
+                <th style="width: 8%;">%</th>
+                <th style="width: 13%;">Comisión Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for gestor in gestores %}
+            <tr style="font-size: 10px;">
+                <td>{{gestor.nombre.upper}}</td>
+                <td style="text-align: center;">{{gestor.tipo_cartera|capfirst}}</td>
+                <td style="text-align: right;padding-right: 2px;">${{gestor.presupuesto|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px;">${{gestor.cobrado|format_number}}</td>
+                <td class="abono-capital" style="text-align: right;padding-right: 2px;">-${{gestor.abonos_capital|format_number}}</td>
+                <td style="text-align: right;padding-right: 2px;">${{gestor.base_comision|format_number}}</td>
+                <td style="text-align: center;">{{gestor.porcentaje_comision}}%</td>
+                <td style="text-align: right;padding-right: 2px;">${{gestor.comision_total|format_number}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #f0f0f0;">
+                <th colspan="2" style="text-align: right;padding-right: 2px;">TOTALES</th>
+                <th style="text-align: right;padding-right: 2px;">${{totales.total_presupuesto|format_number}}</th>
+                <th style="text-align: right;padding-right: 2px;">${{totales.total_cobrado|format_number}}</th>
+                <th class="abono-capital" style="text-align: right;padding-right: 2px;">-${{totales.total_abonos|format_number}}</th>
+                <th style="text-align: right;padding-right: 2px;">${{totales.total_base_comision|format_number}}</th>
+                <th style="text-align: center;">—</th>
+                <th style="text-align: right;padding-right: 2px;">${{totales.total_comision|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table>
+    <br><br><br><br>
+    <table class="firmas-table" style="width: 100%;">
+        <tr style="text-align: center;">
+            <td style="width: 33%;">
+                _______________________________<br>
+                RESPONSABLE
+            </td>
+            <td style="width: 34%;">
+                _______________________________<br>
+                AUTORIZA
+            </td>
+            <td style="width: 33%;">
+                _______________________________<br>
+                RECIBE
+            </td>
+        </tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block css %}
+<style>
+    @page {
+        size: a4 landscape;
+        @frame header_frame {
+            -pdf-frame-content: header_content;
+            left: 30pt; 
+            width: 780pt; 
+            top: 10pt; 
+            height: 120pt;
+        }
+        @frame footer_frame {
+            -pdf-frame-content: footer_content;
+            left: 30pt; 
+            width: 780pt; 
+            top: 520pt; 
+            height: 20pt;
+        }
+        @frame content_frame {
+            left: 30pt; 
+            width: 780pt; 
+            top: 140pt; 
+            height: 360pt;
+        }
+    }
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+        border-collapse: collapse;
+    }
+    
+    th, td {
+        vertical-align: top;
+        border: 0.5px solid #ccc;
+        padding: 4px 2px;
+    }
+    
+    thead th {
+        font-weight: bold;
+        background-color: #e6f3ff;
+    }
+    
+    tfoot th {
+        font-weight: bold;
+        background-color: #f5f5f5;
+    }
+    
+    .abono-capital {
+        color: red;
+        font-weight: bold;
+    }
+    
+    .text-muted {
+        color: gray;
+    }
+    
+    #header_content table {
+        border: none;
+    }
+    
+    #header_content td {
+        border: none;
+        padding: 0;
+    }
+    
+    .firmas-table {
+        border: none !important;
+    }
+    
+    .firmas-table td {
+        border: none !important;
+        padding: 10px;
+    }
+</style>
+{% endblock %}

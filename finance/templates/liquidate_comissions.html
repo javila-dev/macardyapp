@@ -1,0 +1,171 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Liquidar comisiones{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item active submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/parameters">Parámetros de cargos</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='comission-segment'>
+    {%if not selected%}
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="percent circular teal icon"></i>
+            Liquidar comisiones
+        </h2>
+      </div>
+      <div class='ui basic segment'>
+          <table id='tableComissions' class='ui fluid celled selectable compact table'
+            style='font-size: small;'>
+              <thead>
+                  <tr class='center aligned'>
+                      <th>Contrato</th>
+                      <th>Cliente</th>
+                      <th>Valor</th>
+                      <th>Base</th>
+                      <th>Cuota Inicial</th>
+                      <th>Recaudo</th>
+                      <th>Metodo</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {%for sale in comissions%}{%if sale.check_comissions.perc_to_pay > 0%}<tr class='center aligned'>
+                    <td>{{sale.contract_number}}</td>
+                    <td>{{sale.first_owner.full_name.upper}}</td>
+                    <td>{{sale.value|format_number}}</td>
+                    <td>{{sale.comission_base|format_number}}</td>
+                    <td>{{sale.portfolio_values.initial|format_number}}</td>
+                    <td>{{sale.total_payment|format_number}}</td>
+                    <td>{{sale.check_comissions.type}}</td>
+                  </tr>{%endif%}{%endfor%}
+              </tbody>
+          </table>
+      </div>
+      {%else%}
+        <h2 class="ui header">
+            <i class="percent teal icon"></i>
+                Liquidar comision contrato {{sale.contract_number}} - {{sale.first_owner.full_name}}
+        </h2>
+        <div class="ui container">
+            <div class="ui basic container">
+                <p><strong>Pagado a la fecha:</strong> {{total_payment|format_number}}</p>
+                <p><strong>Ultimo pago:</strong> {{last_pay}}</p>
+                {% if base_info %}
+                <div class="ui segment">
+                    <h4 class="ui header">Resumen de cálculo</h4>
+                    <div class="ui three column stackable grid">
+                        <div class="column">
+                            <p><strong>Método:</strong> {{ base_info.method }}</p>
+                            <p><strong>Base comisionable:</strong> {{ base_info.commission_base|format_number }}</p>
+                            <p><strong>Recaudo total:</strong> {{ base_info.recaudo_total|format_number }}</p>
+                        </div>
+                        <div class="column" {% if base_info.method == 'Fracciones clásicas' %}style="display:none;"{% endif %}>
+                            <p><strong>Valor mínimo para iniciar:</strong> {{ base_info.min_value|format_number }}</p>
+                            <p><strong>Porcentaje de avance configurado:</strong> {{ base_info.advance_percent }}%</p>
+                            <p><strong>Meta de recaudo ({{ base_info.advance_percent }}% de la venta):</strong> {{ base_info.avance_objetivo|format_number }}</p>
+                        </div>
+                        <div class="column" {% if base_info.method == 'Fracciones clásicas' %}style="display:none;"{% endif %}>
+                            <p><strong>Avance real:</strong> {{ base_info.avance_real|floatformat:2 }}%</p>
+                            <p><strong>Recaudo cumple mínimo:</strong> {% if base_info.meets_minimum %}Sí{% else %}No{% endif %}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <br>
+            <form class="ui form" method="post" id="form-liquidate-comissions">{%csrf_token%}
+                {% if not has_payable_scale %}
+                <div class="ui info message">
+                    <div class="header">Sin comisiones disponibles</div>
+                    <p>No hay cargos de comisión con valor para liquidar en este momento. Revisa el método de liquidación, el valor mínimo configurado o la escala asignada.</p>
+                </div>
+                {% endif %}
+                {%for pos, calc in scale_data%}{%if calc.net_pay > 0%}
+                <div class="fields">
+                    <input type="text" name="position_pk" value="{{pos.pk}}" hidden>
+                    <input type="text" name="type" value="{{calc.type}}" hidden>
+                    <div class="one wide field">
+                    <div class="ui toggle checkbox">
+                        <input type="checkbox" checked="checked">
+                        </div>
+                    </div>
+                    <div class="seven wide field">
+                        <label>Tercero</label>
+                        <input type="text" name="seller_name" class="transparent"
+                            value="{{pos.seller.full_name}}" readonly>
+                    </div>
+                    <div class="five wide field">
+                        <label>Cargo</label>
+                        <input type="text" name="position_name" class="transparent"
+                            value="{{pos.position.name}} ({{pos.comission}}%)" readonly>
+                    </div>
+                    <div class="two wide field">
+                        <label>Estado</label>
+                        <input type="text" name="state_name" class="transparent"
+                            value="{{pos.state}}" readonly>
+                    </div>
+                    <div class="three wide field">
+                        <label>Comision</label>
+                        <input type="text" name="comission" class="text-right"
+                            value="{{calc.comission_to_pay|format_number}}" readonly>
+                    </div>
+                    <div class="three wide field">
+                        <label>Provision</label>
+                        <input type="text" name="provision" class="text-right"
+                            value="{{calc.provision|format_number}}" readonly>
+                    </div>
+                    <div class="three wide field">
+                        <label>Pago</label>
+                        <input type="text" name="net_pay" class="text-right"
+                            value="{{calc.net_pay|format_number}}" readonly>
+                    </div>
+                </div>
+                <div class="ui divider"></div>{%endif%}{%endfor%}
+                <div class="ui basic segment right aligned">
+                    <input type="submit" class="ui green button" value="Liquidar"> 
+                </div>
+            </form>
+        </div>
+      {%endif%}
+</div>
+{%endblock%}
+{%block script%}
+<script>
+    const project = '{{project.name}}'
+    const sale = '{{sale.pk}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('#tableComissions tbody').on('click','tr',function(){
+            let contract_number = this.cells[0].innerText
+            window.location.href = '/finance/'+project+'/comissions/liquidate?contract_number='+contract_number
+            $('#tableComissions').parents('.ui.basic.segment').first()
+            .addClass('loading')
+        })
+        $('#form-liquidate-comissions').on('submit',function(e){
+            $(this).addClass('teal loading')
+        })
+        $('.ui.checkbox').checkbox()
+        .checkbox({
+            onChecked: function() {
+                let container = $(this).parents('.fields').first()
+                container.find('input[type="text"]').prop('disabled',false)
+                },
+            onUnchecked: function() {
+                let container = $(this).parents('.fields').first()
+                container.find('input[type="text"]').prop('disabled',true)
+            },  
+        })
+    })
+</script>
+{%endblock%}

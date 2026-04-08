@@ -1,0 +1,305 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Validar Solicitud{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | Validar Solicitud de Recibo
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/solicitudes/">Solicitudes</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    <!-- ✅ Info de la solicitud -->
+    <div class='ui info message'>
+        <div class="header">
+            <i class="file alternate icon"></i>
+            Validando Solicitud #{{ solicitud.pk }}
+        </div>
+        <ul class="list">
+            <li><strong>Solicitado por:</strong> {{ solicitud.creado_por.get_full_name }}</li>
+            <li><strong>Cliente:</strong> {{ solicitud.sale.first_owner.full_name }} - CTR{{ solicitud.sale.contract_number }}</li>
+            <li><strong>Estado de venta:</strong> <span class="ui label">{{ solicitud.sale.get_status_display }}</span></li>
+            <li><strong>Monto total:</strong> ${{ solicitud.total_solicitud|floatformat:0|format_number }}</li>
+            {% if solicitud.soporte %}
+            <li><strong>Soporte:</strong> <a href="{{ solicitud.soporte.url }}" target="_blank"><i class="file pdf icon"></i>Ver archivo adjunto</a></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    {% if validacion_solicitud %}
+    <!-- Modal de confirmación de cambio de fecha -->
+    <div class="ui small modal" id="modal-confirmar-fecha">
+        <div class="header">
+          <i class="warning sign yellow icon"></i>
+          Cambio de fecha detectado
+        </div>
+        <div class="content">
+          <div class="ui warning message">
+            <p>La fecha de pago que estás ingresando es diferente a la fecha de la solicitud original.</p>
+          </div>
+          <table class="ui very basic table">
+            <tbody>
+              <tr>
+                <td><strong>Fecha en la solicitud:</strong></td>
+                <td><span id="fecha-solicitud-modal"></span></td>
+              </tr>
+              <tr>
+                <td><strong>Fecha que estás ingresando:</strong></td>
+                <td><span id="fecha-nueva-modal"></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p><strong>¿Deseas continuar con esta fecha diferente?</strong></p>
+        </div>
+        <div class="actions">
+          <div class="ui red deny button">
+            <i class="times icon"></i>
+            Cancelar y corregir
+          </div>
+          <div class="ui green approve button">
+            <i class="checkmark icon"></i>
+            Sí, continuar con esta fecha
+          </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="money bill wave circular teal icon"></i>
+          <div class="content">
+            Validar recibo para venta {{ solicitud.sale.get_status_display }}
+          </div>
+        </h2>
+      </div>
+      <div class='ui segment'>
+        {%crispy form%}
+      </div>
+</div>
+{%endblock%}
+{%block script%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+{%include 'datatables.html'%}
+{%include 'datejs.html'%}
+<script>
+    var project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('.money').mask('#,##0', {reverse: true});
+
+        // ✅ Deshabilitar campo de venta (ya viene de la solicitud)
+        $('#id_sale').parent().addClass('disabled');
+        $('#id_sale').attr('readonly', true);
+
+        // ✅ Deshabilitar fecha de registro (viene de la solicitud)
+        $('#div_id_add_date').addClass('disabled');
+        $('#id_add_date').attr('readonly', true);
+
+        // Calendarios
+        $('#div_id_add_date').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+        })
+
+        $('#div_id_payment_date').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+            maxDate: new Date(),
+        })
+
+        $('.ui.dropdown').dropdown({
+            clearable: true,
+            ignoreDiacritics: true,
+            sortSelect: true,
+            fullTextSearch:'exact',
+        });
+
+        $('#form_new_sale_income').on('submit',function(e){
+            $(this).addClass('loading')
+            let sale = $('#id_sale').val()
+            if (sale == ''){
+                e.preventDefault()
+                new_message('error','Encontramos un problema','Debes escoger un cliente')
+            }
+        })
+
+        // Sistema de confirmación de cambio de fecha (solo en validación de solicitud)
+        {% if validacion_solicitud and solicitud %}
+        setTimeout(function() {
+            console.log('Sistema de confirmación de fecha iniciado');
+            const fechaOriginal = '{{ solicitud.payment_date|date:"Y-m-d" }}';
+            console.log('Fecha original:', fechaOriginal);
+
+            const $inputFecha = $('#id_payment_date');
+            const $form = $('#form_new_sale_income');
+            const $modal = $('#modal-confirmar-fecha');
+
+            console.log('Input fecha encontrado:', $inputFecha.length);
+            console.log('Form encontrado:', $form.length);
+            console.log('Modal encontrado:', $modal.length);
+
+            if ($inputFecha.length === 0 || $form.length === 0 || $modal.length === 0) {
+                console.error('Elementos no encontrados, abortando inicialización');
+                return;
+            }
+
+            let fechaConfirmada = false;
+
+            // Normalizar fecha a formato ISO (YYYY-MM-DD)
+            function normalizarFecha(fechaStr) {
+                if (!fechaStr) return '';
+
+                // Limpiar espacios
+                fechaStr = fechaStr.trim();
+
+                // Si ya está en formato ISO (YYYY-MM-DD)
+                if (/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
+                    return fechaStr;
+                }
+
+                // Si está en formato DD/MM/YYYY
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
+                    const partes = fechaStr.split('/');
+                    return partes[2] + '-' + partes[1] + '-' + partes[0];
+                }
+
+                // Si está en formato D/M/YYYY (sin ceros)
+                if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaStr)) {
+                    const partes = fechaStr.split('/');
+                    const dia = partes[0].padStart(2, '0');
+                    const mes = partes[1].padStart(2, '0');
+                    return partes[2] + '-' + mes + '-' + dia;
+                }
+
+                // Si está en formato "Mes DD, YYYY" o "Mes D, YYYY" (ej: "Enero 6, 2026")
+                const mesesEspanol = {
+                    'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+                    'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+                    'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+                };
+                const regexMesEspanol = /^(\w+)\s+(\d{1,2}),?\s+(\d{4})$/i;
+                const matchEspanol = fechaStr.match(regexMesEspanol);
+                if (matchEspanol) {
+                    const mes = mesesEspanol[matchEspanol[1].toLowerCase()];
+                    if (mes) {
+                        const dia = matchEspanol[2].padStart(2, '0');
+                        const año = matchEspanol[3];
+                        return año + '-' + mes + '-' + dia;
+                    }
+                }
+
+                // Intentar parsear como fecha y convertir a ISO
+                try {
+                    const fecha = new Date(fechaStr);
+                    if (!isNaN(fecha.getTime())) {
+                        const año = fecha.getFullYear();
+                        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                        const dia = String(fecha.getDate()).padStart(2, '0');
+                        return año + '-' + mes + '-' + dia;
+                    }
+                } catch(e) {
+                    console.error('Error parseando fecha:', e);
+                }
+
+                return fechaStr;
+            }
+
+            // Formatear fecha para mostrar (DD/MM/YYYY)
+            function formatearFecha(fechaISO) {
+                if (!fechaISO) return '';
+
+                // Normalizar primero
+                const fechaNormalizada = normalizarFecha(fechaISO);
+
+                // Si está en formato ISO
+                if (/^\d{4}-\d{2}-\d{2}$/.test(fechaNormalizada)) {
+                    const partes = fechaNormalizada.split('-');
+                    return partes[2] + '/' + partes[1] + '/' + partes[0];
+                }
+
+                return fechaISO;
+            }
+
+            // Verificar si hay diferencia de fechas
+            function hayDiferenciaFecha() {
+                const fechaNuevaRaw = $inputFecha.val();
+
+                if (!fechaNuevaRaw || !fechaOriginal) {
+                    return false;
+                }
+
+                const fechaNuevaNormalizada = normalizarFecha(fechaNuevaRaw);
+                const fechaOriginalNormalizada = normalizarFecha(fechaOriginal);
+
+                console.log('Comparación de fechas:');
+                console.log('  Raw nueva:', fechaNuevaRaw);
+                console.log('  Normalizada nueva:', fechaNuevaNormalizada);
+                console.log('  Original:', fechaOriginal);
+                console.log('  Normalizada original:', fechaOriginalNormalizada);
+                console.log('  Son diferentes:', fechaNuevaNormalizada !== fechaOriginalNormalizada);
+
+                return fechaNuevaNormalizada !== fechaOriginalNormalizada;
+            }
+
+            // Interceptar el submit del formulario (ANTES que otros listeners)
+            if ($form[0]) {
+                $form[0].addEventListener('submit', function(e) {
+                    console.log('Submit interceptado, fechaConfirmada:', fechaConfirmada);
+                    console.log('Hay diferencia:', hayDiferenciaFecha());
+
+                    // Si la fecha ya fue confirmada o no hay diferencia, dejar continuar
+                    if (fechaConfirmada || !hayDiferenciaFecha()) {
+                        return true;
+                    }
+
+                    // Prevenir el submit y mostrar modal de confirmación
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const fechaNuevaRaw = $inputFecha.val();
+
+                    // Actualizar contenido del modal
+                    $('#fecha-solicitud-modal').text(formatearFecha(fechaOriginal));
+                    $('#fecha-nueva-modal').text(formatearFecha(fechaNuevaRaw));
+
+                    // Mostrar modal
+                    $modal.modal({
+                        closable: false,
+                        onApprove: function() {
+                            // Usuario confirmó el cambio de fecha
+                            console.log('Usuario aprobó el cambio de fecha');
+                            fechaConfirmada = true;
+                            // Reenviar el formulario
+                            $form.trigger('submit');
+                            return true;
+                        },
+                        onDeny: function() {
+                            // Usuario canceló, enfocar el campo de fecha
+                            console.log('Usuario canceló');
+                            $inputFecha.focus();
+                            return true;
+                        }
+                    }).modal('show');
+
+                    return false;
+                }, true); // true = captura en fase de captura (se ejecuta primero)
+
+                console.log('Listener de submit agregado exitosamente');
+            }
+
+            // Resetear la confirmación si el usuario cambia la fecha de nuevo
+            $inputFecha.on('change', function() {
+                fechaConfirmada = false;
+                console.log('Fecha cambiada, reseteando confirmación');
+            });
+
+            console.log('Sistema de confirmación de fecha configurado exitosamente');
+        }, 500);
+        {% endif %}
+    });
+</script>
+{%endblock%}

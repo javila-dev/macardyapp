@@ -1,0 +1,110 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th>
+                {%if project.name == 'altoscovenas' %}
+                <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="130" height="90">
+                {%else%}
+                <img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140">
+                {%endif%}
+            </th>
+            <th><h1 style="margin:1px">PRESUPUESTO COMERCIAL</h1>
+                <h3>{{project.name_to_show.upper}}</h3>
+                <h3 class="text-muted" style="margin:1px">Fecha: {{budget.add_date}}</h3></th>
+            <th><img src='/media/{{project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+<div id="footer_content">(c) - pagina <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.username}} el {{now}}
+</div>
+<div>
+    <br>
+    <table style="border: 0.5px solid;border-color:gray;padding-top: 2px;padding-left: 2px;width:250pt">
+        <tr style="background-color: lightblue;">
+                <th style="width: 60%;">CONCEPTO</th>
+                <th>VALOR</th>
+            </tr>
+            {%for concept in budget_detail%}<tr>
+                <td style="text-align: center;">{{concept.concept}}</td>
+                <td style="text-align: center;padding-right: 2px">{{concept.value|format_number}}</td>
+            </tr>{%endfor%}
+            <tr  style="background-color: lightgray;">
+                <th style="text-align: center;padding-right: 2px;">TOTAL</th>
+                <th style="text-align: center;">$ {{budget.totalize|format_number}}</th>
+            </tr>
+    </table><br><br>
+    <p style="font-size: 11px;"><b>Notas: </b>{{budget.notes}}</h3>
+    <br>
+    <p style="font-size: 12px;"><strong>Solicitado por:</strong> {{budget.user_request.username}} 
+        <strong>Aprobado por:</strong> {{budget.user_approve.username}} el {{budget.approve_date}}</p2>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+        @frame header_frame {           /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 150px;
+        }
+        @frame footer_frame {           /* Another static Frame */
+            -pdf-frame-content: footer_content;
+            left: 50pt; width: 512pt; top: 800pt; height: 20pt;
+        }
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 170px; 
+            height: 600pt;
+        }
+
+    }
+
+
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+    }
+    td{
+        vertical-align: top!important;
+    }
+    
+    .text-muted{
+        color: gray;
+        
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+        color: lightslategray;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

@@ -1,0 +1,158 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Recaudos{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Finanzas | Recaudos
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<!-- ⚠️ DEPRECADO: Este template ya no debería mostrarse - ahora se usa el sistema de solicitudes -->
+<!-- <a class='item active submenu' href="/finance/{{project.name}}/incomes/new_sales">Ventas nuevas</a> -->
+<a class='item submenu' href="/finance/{{project.name}}/incomes/list">Listados</a>
+<a class='item submenu' href="/finance/{{project.name}}/availablecash">Disponibilidad</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="money bill wave circular teal icon"></i>
+          <div class="content">
+            Recaudo de ventas no adjudicadas
+          </div>
+        </h2>
+      </div>
+      <div class='ui segment'>
+        {%crispy form%}
+      </div>
+      <div class='ui basic segment'>
+          <table class='ui celled selectable table' id='tableRcdosVentasNR'>
+            <thead>
+                <tr class='center aligned'>
+                    <th>Fecha</th>
+                    <th>Recibo</th>
+                    <th>Cliente</th>
+                    <th>Contrato</th>
+                    <th>Forma de pago</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody>{%for r in receipts%}
+                <tr class='center aligned {%if r.value < 0%}error{%endif%}'>
+                    <td>{{r.add_date}}</td>
+                    <td>{{r.receipt|unlocalize}}</td>
+                    <td>{{r.sale.first_owner.full_name}}</td>
+                    <td>{{r.sale.contract_number}}</td>
+                    <td>{{r.payment_method.name}}</td>
+                    <td>${{r.value|format_number}}</td>
+                </tr>
+            {%endfor%}</tbody>
+          </table>
+      </div>
+</div>
+{%endblock%}
+{%block contextmenu%}
+<div class="ui popup bottom left " id='popup-incomes' style="position: absolute; 
+    padding:0px; left: 0px;top:0px;max-width: 15rem;">
+    <div class='ui basic vertical menu'>
+        <a class="item" id='imprimir'>
+            Imprimir
+            <i class="print circular teal icon" style='margin-top:-7px'></i>
+          </a>
+          <a class="item" id=anular>
+            Anular
+            <i class="ban circular teal icon" style='margin-top:-7px'></i>
+          </a>
+        </a>
+    </div>
+</div>
+{%endblock%}
+{%block script%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script src="{%static 'js/tablesort.js'%}"></script>
+{%include 'datatables.html'%}
+<script>
+    var project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('.money').mask('#,##0', {reverse: true});
+        $('.ui.calendar').calendar({
+            type: 'date',
+            text: calendar_spanish(),
+        })
+        $('.ui.dropdown').dropdown();
+        $('#btnAgregarRcdo').click(function(){
+            $('#modalnuevoRcdo').modal('show')
+        })
+        var tableRcdosVentasNR = $('#tableRcdosVentasNR').DataTable({
+            language:{
+                url:'/ajax/datatable_spanish'
+            }
+        })
+        $('#tableRcdosVentasNR tbody').on('click','tr',function(){
+            $('#tableRcdosVentasNR tbody tr').removeClass('active')
+            $(this).addClass('active')
+        })
+        $('#form_new_sale_income').on('submit',function(){
+            $(this).addClass('loading')
+        })
+        $('#tableRcdosVentasNR tbody').on('contextmenu','tr',function(e){
+            tableRcdosVentasNR.$('tr.active').removeClass('active');
+            $(this).addClass('active')
+            side = 'left'
+            side_to_remove='right'
+            var width = $(document).width()
+            var positionX = e.pageX -20
+            if (positionX>=width*3/4){
+                positionX -= 173
+                side = 'right'
+                side_to_remove='left'
+            }
+            positionY = e.pageY+15
+            $('#popup-incomes').css({
+                'left':positionX+'px',
+                'top':positionY+'px',
+            }).addClass('transition visible')
+            .removeClass(side_to_remove)
+            .addClass(side)
+            return false;
+        })
+        $("#popup-incomes").click(function(e){
+            let row = tableRcdosVentasNR.row($('tr.active')).data()
+            switch(e.target.id){
+                case "imprimir":
+                    new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    $.ajax({
+                        type:'GET',
+                        url:'/finance/'+project+'/print/receipt',
+                        data:{
+                            'receipt_number':row[1],
+                        },
+                        success:function(xhr){
+                            new_message(xhr.type,xhr.title,xhr.msj,true)
+                        }
+                    })
+                    break; 
+                case "anular":
+                new_message('teal','Cargando <i class="asterisk loading icon"></i>','Estamos preparando tu solicitud')
+                    $.ajax({
+                        type:'POST',
+                        url:'/finance/ajax/'+project+'/incomes_actions',
+                        data:{
+                            'csrfmiddlewaretoken':'{{csrf_token}}',
+                            'receipt_number':row[1],
+                            'action':'nullify',
+                            'reload':true,
+                        },
+                        success:function(xhr){
+                            window.location.reload()
+                        }
+                    })   
+            }
+        });
+        
+    });
+</script>
+{%endblock%}

@@ -1,0 +1,209 @@
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{%load sales_extras%}
+{%block content%}
+<div id="header_content">
+    <table>
+        <tr>
+            <th><img src='{%static "img/Macardy-PNG.png"%}' width="140" height="140"></th>
+            <th><h1 style="margin:1px">Estado de cuenta</h1>
+                    <small class='text-muted'>
+                        Generado el {{now}}
+                    </small></th>
+            <th><img src='/media/{{sale.project.logo}}' width="150" height="140"></th>
+        </tr>
+    </table>
+</div>
+<div id="footer_content">(c) - pagina <pdf:pagenumber>
+    de <pdf:pagecount>; Reporte generado por {{user.username}}
+</div>
+<div>
+    <table>
+        <tr>
+            <td>
+                <h2>Titular(es):</h2>
+                {%if sale.first_owner.full_name != " "%}1. {{sale.first_owner.full_name}}<br>{%endif%}
+                {%if sale.second_owner.full_name != " "%}2. {{sale.second_owner.full_name}}<br>{%endif%}
+                {%if sale.third_owner.full_name != " "%}3. {{sale.third_owner.full_name}}<br>{%endif%}
+                {%if sale.fourth_owner.full_name != " "%}4. {{sale.fourth_owner.full_name}}<br>{%endif%}
+
+                <h2>Datos de contacto:</h2>
+                Residencia: {{sale.first_owner.address}}<br>
+                Ciudad: {{sale.first_owner.city|countries:"city"}},  {{sale.first_owner.state|countries:"state"}},  {{sale.first_owner.country|countries:"country"}}<br>
+                Celular: {{sale.first_owner.phone}}<br>
+                Email: {{sale.first_owner.email}}<br>
+            </td>
+            <td>
+                <h2>Informacion del contrato:</h2>
+                <strong>Fecha de contrato:</strong> {{sale.add_date}}<br>
+                <strong>Valor:</strong> ${{sale.value|format_number}}<br>
+                <strong>Cuota inicial:</strong> ${{plan_resume.total_initial_payment|format_number}}<br>
+                <strong>Saldo:</strong> ${{plan_resume.total_to_finance|format_number}}<br><br>
+
+                <strong>Capital pagado:</strong> ${{sale_extra_info.basic_info.paid_capital|format_number}}<br>
+                <strong>Pendiente por pagar:</strong> ${{sale_extra_info.basic_info.remaining_value|format_number}}<br>
+            </td>
+        </tr>
+    </table>
+    <br>
+    <table style="border: solid 0.5px;border-color: gray;padding-top: 3px;" id="table-detail">
+        <thead>
+            <tr>
+                <th colspan="6" style="background-color: lightblue;"><h2>Cuotas vencidas</h2></th>
+            </tr>
+            <tr style="text-align: center;vertical-align: middle;">
+                <th>Fecha</th>
+                <th>Cuota</th>
+                <th>Valor</th>
+                <th>Dias de mora</th>
+                <th>Intereses de mora</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quota in expired_rows %}
+                <tr style="text-align: center;">
+                    <td>{{ quota.pay_date|date:"d/m/Y" }}</td>
+                    <td>{{ quota.id_quota }}</td>
+                    <td>${{ quota.pending_total|format_number }}</td>
+                    <td>{{ quota.arrears_days }}</td>
+                    <td>${{ quota.arrears_value|format_number }}</td>
+                    <td>${{ quota.total_due|format_number }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2" style="text-align: right;padding-right: 2px;">TOTAL</th>
+                <th>${{totals.total_value|format_number}}</th>
+                <th></th>
+                <th>${{totals.total_arrears|format_number}}</th>
+                <th>${{totals.total_general|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table>
+    <br><br>
+    <table style="border: solid 0.5px;border-color: gray;padding-top: 3px;" id="table-detail">
+        <thead>
+            <tr>
+                <th colspan="3" style="background-color: lightblue;"><h2>Cuotas proximas a vencer</h2></th>
+            </tr>
+            <tr style="text-align: center;vertical-align: middle;">
+                <th>Fecha</th>
+                <th>Cuota</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quota in prox_quotas %}
+                <tr style="text-align: center;">
+                    <td>{{ quota.pay_date|date:"d/m/Y" }}</td>
+                    <td>{{ quota.id_quota }}</td>
+                    <td>${{ quota.pending_total|format_number }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2" style="text-align: right;padding-right: 2px;">TOTAL</th>
+                <th>${{totals.total_value_prox|format_number}}</th>
+            </tr>
+        </tfoot>
+    </table>
+    <br><br>
+    <table style="border: solid 0.5px;border-color: gray;padding-top: 3px;" id="table-detail">
+        <thead>
+            <tr>
+                <th colspan="7" style="background-color: lightblue;"><h2>Plan de pagos</h2></th>
+            </tr>
+            <tr style="text-align: center;vertical-align: middle;">
+                <th>Fecha</th>
+                <th>Cuota</th>
+                <th>Capital</th>
+                <th>Interés</th>
+                <th>Valor cuota</th>
+                <th>Pagado</th>
+                <th>Pendiente</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quota in plan_rows %}
+                <tr style="text-align: center;">
+                    <td>{{ quota.pay_date|date:"d/m/Y" }}</td>
+                    <td>{{ quota.id_quota }}</td>
+                    <td>${{ quota.capital|format_number }}</td>
+                    <td>${{ quota.interest|format_number }}</td>
+                    <td>${{ quota.total_payment|format_number }}</td>
+                    <td>${{ quota.paid_total|format_number }}</td>
+                    <td>${{ quota.pending_total|format_number }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{%endblock%}
+{%block css%}
+<style>
+    @page {
+        size: a4;
+
+        @frame header_frame {           /* Static Frame */
+            -pdf-frame-content: header_content;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
+            height: 150px;
+        }
+        @frame footer_frame {           /* Another static Frame */
+            -pdf-frame-content: footer_content;
+            left: 50pt; width: 512pt; top: 800pt; height: 20pt;
+        }
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 170px; 
+            height: 600pt;
+        }
+
+    }
+
+
+    
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9.5pt;
+    }
+    td{
+        vertical-align: top!important;
+    }
+    
+    .text-muted{
+        color: gray;
+        
+    }
+
+    #encabezados-logos p {
+        padding: 0px;
+        margin: 0px;
+        font-size: large;
+        color: lightslategray;
+    }
+
+    #detail-table th,
+    #detail-table td {
+        padding: 2px;
+        width: 50%;
+        height: 50%;
+    }
+
+    .underline {
+        border-bottom: 0.5px solid gray;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .title {
+        font-weight: bold;
+    }
+</style>
+{%endblock%}

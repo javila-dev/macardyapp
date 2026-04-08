@@ -1,0 +1,26 @@
+# Local env
+.env
+
+# Editor and assistant local config
+.claude/
+.vscode/
+*.code-workspace
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local data and generated media
+static_media/
+data/
+postgres_data/
+auxiliares/
+
+# Local helper outputs
+log_importacion.txt
+exclude-file.txt
+
+# OS-specific noise
+desktop.ini
+.DS_Store

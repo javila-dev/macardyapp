@@ -1,0 +1,112 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Finanzas | Liquidar anticipos{%endblock%}
+{%block submenu%}
+<div class='header item'>
+    Comercial
+</div>
+<div class='header item'>
+    <img class='avatar image' src='/media/{{project.logo}}'>
+    {{project.name_to_show}}
+</div>
+<a class='item active submenu' href="/finance/{{project.name}}/comissions/advances">Liquidar anticipos</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/liquidate">Liquidar comisiones</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/list">Comisiones pagadas</a>
+<a class='item submenu' href="/finance/{{project.name}}/comissions/parameters">Parámetros de cargos</a>
+<a class='item submenu' href="/finance/{{project.name}}/pmt">PMT</a>
+<a class='item submenu' href="/finance/{{project.name}}/commercialbudget">Presupuestos</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment' id='comission-segment'>
+    {%if not selected%}
+    <div class='ui center aligned basic segment' id='div_sale'>
+        <h2 class="ui icon dividing header">
+            <i class="percent circular teal icon"></i>
+          <div class="content">
+            Liquidar anticipos de comisiones
+          </div>
+        </h2>
+      </div>
+      <div class='ui basic segment'>
+          <table id='tableComissions' class='ui fluid celled selectable compact table'
+            style='font-size: small;'>
+              <thead>
+                  <tr class='center aligned'>
+                      <th>Contrato</th>
+                      <th>Cliente</th>
+                      <th>Fecha</th>
+                      <th>Valor</th>
+                      <th>Base</th>
+                      <th>Plan</th>
+                      <th>Recaudo</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {%for sale in advances%}{%if sale.check_comission_advance%}<tr class='center aligned'>
+                    <td>{{sale.contract_number}}</td>
+                    <td>{{sale.first_owner.full_name.upper}}</td>
+                    <td>{{sale.add_date}}</td>
+                    <td>{{sale.value|format_number}}</td>
+                    <td>{{sale.comission_base|format_number}}</td>
+                    <td>{{sale.sale_plan.name}}</td>
+                    <td>{{sale.total_payment|format_number}}</td>
+                  </tr>{%endif%}{%endfor%}
+              </tbody>
+          </table>
+      </div>
+      {%else%}
+      <h2 class="ui header">
+        <i class="percent teal icon"></i>
+        <div class="content">
+            Liquidar anticipo comision contrato {{sale.contract_number}} - {{sale.first_owner.full_name}}
+        </div>
+        </h2>
+        <div class="ui container">
+            <form class="ui form" method="post" id="form-liquidate-advance">{%csrf_token%}
+                {%for pos in advance_detail%}{%if pos.liquidate_advance > 0%}
+                <div class="fields">
+                    <input type="text" name="position_pk" value="{{pos.pk}}" hidden>
+                    <div class="six wide field">
+                        <label>Tercero</label>
+                        <input type="text" name="seller_name" class="transparent"
+                            value="{{pos.seller.full_name}}" readonly>
+                    </div>
+                    <div class="four wide field">
+                        <label>Cargo</label>
+                        <input type="text" name="position_name" class="transparent"
+                            value="{{pos.position.name}}" readonly>
+                    </div>
+                    <div class="four wide field">
+                        <label>Anticipo</label>
+                        <input type="text" name="comission" class="text-right money"
+                            value="{{pos.liquidate_advance|format_number}}" required>
+                    </div>
+                </div>
+                <div class="ui divider"></div>{%endif%}{%endfor%}
+                <div class="ui basic segment right aligned">
+                    <input type="submit" class="ui green button" value="Liquidar"> 
+                </div>
+            </form>
+        </div>
+      {%endif%}
+</div>
+{%endblock%}
+{%block script%}
+<script src="{%static 'js/jquery.mask.js'%}"></script>
+<script>
+    const project = '{{project.name}}'
+</script>
+<script>
+    $(document).ready(function(){
+        $('#tableComissions tbody').on('click','tr',function(){
+            let contract_number = this.cells[0].innerText
+            window.location.href = '/finance/'+project+'/comissions/advances?sale='+contract_number
+            $('#tableComissions').parents('.ui.basic.segment').first()
+            .addClass('loading')
+        })
+        $('#form-liquidate-advance').on('submit',function(e){
+            $(this).addClass('teal loading')
+        })
+        $('.money').mask('#,##0', {reverse: true});
+    })
+</script>
+{%endblock%}

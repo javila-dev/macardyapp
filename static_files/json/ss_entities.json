@@ -1,0 +1,120 @@
+{
+    "eps": [{
+            "id": 1,
+            "name": "Aliansalud"
+        },
+        {
+            "id": 2,
+            "name": "Cafam EPS"
+        },
+        {
+            "id": 3,
+            "name": "Capital Salud EPS"
+        },
+        {
+            "id": 4,
+            "name": "Capresoca"
+        },
+        {
+            "id": 5,
+            "name": "Colsubsidio"
+        },
+        {
+            "id": 6,
+            "name": "COMFANDI"
+        },
+        {
+            "id": 7,
+            "name": "Compensar"
+        },
+        {
+            "id": 8,
+            "name": "Coomeva"
+        },
+        {
+            "id": 9,
+            "name": "Coosalud"
+        },
+        {
+            "id": 10,
+            "name": "EPS Sanitas"
+        },
+        {
+            "id": 11,
+            "name": "EPS Sura"
+        },
+        {
+            "id": 12,
+            "name": "Famisanar"
+        },
+        {
+            "id": 13,
+            "name": "Medimas"
+        },
+        {
+            "id": 14,
+            "name": "Mutual SER"
+        },
+        {
+            "id": 15,
+            "name": "Nueva EPS"
+        },
+        {
+            "id": 16,
+            "name": "Salud Total"
+        },
+        {
+            "id": 17,
+            "name": "Savia Salud EPS"
+        },
+        {
+            "id": 13,
+            "name": "Medimas"
+        }
+    ],
+    "pension":[
+        {
+            "id": 1,
+            "name": "Proteccion"
+        },
+        {
+            "id": 2,
+            "name": "Porvenir"
+        },
+        {
+            "id": 3,
+            "name": "Colfondos"
+        },
+        {
+            "id": 4,
+            "name": "Skandia"
+        },
+        {
+            "id": 5,
+            "name": "Colpensiones"
+        }
+    ],
+    "cesantias":[
+        {
+            "id": 1,
+            "name": "Proteccion"
+        },
+        {
+            "id": 2,
+            "name": "Porvenir"
+        },
+        {
+            "id": 3,
+            "name": "Colfondos"
+        },
+        {
+            "id": 4,
+            "name": "Skandia"
+        },
+        {
+            "id": 5,
+            "name": "Fondo Nacional del Ahorro"
+        }
+    ]
+
+}

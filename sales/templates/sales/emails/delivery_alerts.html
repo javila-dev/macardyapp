@@ -1,0 +1,151 @@
+<!-- filepath: /code/sales/templates/sales/emails/delivery_alerts.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Alertas de Entrega y Escrituración</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        .alert-danger { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .alert-warning { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .text-danger { color: #dc3545; font-weight: bold; }
+        .text-warning { color: #ffc107; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>🚨 Alertas de Entrega y Escrituración</h2>
+        <p><strong>Fecha del reporte:</strong> {{ fecha_reporte|date:"d/m/Y" }}</p>
+        <p><strong>Alertas configuradas para:</strong> {{ days_ahead }} días de anticipación</p>
+    </div>
+
+    {% if entregas_vencidas %}
+    <div class="alert-danger">
+        <h3 class="text-danger">⚠️ ENTREGAS VENCIDAS ({{ entregas_vencidas.count }})</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Contrato</th>
+                    <th>Cliente</th>
+                    <th>Proyecto</th>
+                    <th>Inmueble</th>
+                    <th>Fecha Programada</th>
+                    <th>Días Vencidos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sale in entregas_vencidas %}
+                <tr>
+                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
+                    <td>{{ sale.property_sold.project.name_to_show }}</td>
+                    <td>{{ sale.property_sold.description }}</td>
+                    <td>{{ sale.scheduled_delivery_date|date:"d/m/Y" }}</td>
+                    <td class="text-danger">{{ sale.scheduled_delivery_date|timesince }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if entregas_vencen %}
+    <div class="alert-warning">
+        <h3 class="text-warning">📅 ENTREGAS PRÓXIMAS A VENCER ({{ entregas_vencen.count }})</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Contrato</th>
+                    <th>Cliente</th>
+                    <th>Proyecto</th>
+                    <th>Inmueble</th>
+                    <th>Fecha Programada</th>
+                    <th>Días Restantes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sale in entregas_vencen %}
+                <tr>
+                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
+                    <td>{{ sale.property_sold.project.name_to_show }}</td>
+                    <td>{{ sale.property_sold.description }}</td>
+                    <td>{{ sale.scheduled_delivery_date|date:"d/m/Y" }}</td>
+                    <td class="text-warning">{{ sale.scheduled_delivery_date|timeuntil }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if escrituras_vencidas %}
+    <div class="alert-danger">
+        <h3 class="text-danger">⚠️ ESCRITURACIONES VENCIDAS ({{ escrituras_vencidas.count }})</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Contrato</th>
+                    <th>Cliente</th>
+                    <th>Proyecto</th>
+                    <th>Inmueble</th>
+                    <th>Fecha Programada</th>
+                    <th>Días Vencidos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sale in escrituras_vencidas %}
+                <tr>
+                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
+                    <td>{{ sale.property_sold.project.name_to_show }}</td>
+                    <td>{{ sale.property_sold.description }}</td>
+                    <td>{{ sale.scheduled_deed_date|date:"d/m/Y" }}</td>
+                    <td class="text-danger">{{ sale.scheduled_deed_date|timesince }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if escrituras_vencen %}
+    <div class="alert-warning">
+        <h3 class="text-warning">📅 ESCRITURACIONES PRÓXIMAS A VENCER ({{ escrituras_vencen.count }})</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Contrato</th>
+                    <th>Cliente</th>
+                    <th>Proyecto</th>
+                    <th>Inmueble</th>
+                    <th>Fecha Programada</th>
+                    <th>Días Restantes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sale in escrituras_vencen %}
+                <tr>
+                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
+                    <td>{{ sale.property_sold.project.name_to_show }}</td>
+                    <td>{{ sale.property_sold.description }}</td>
+                    <td>{{ sale.scheduled_deed_date|date:"d/m/Y" }}</td>
+                    <td class="text-warning">{{ sale.scheduled_deed_date|timeuntil }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 30px; padding: 15px; background-color: #e9ecef; border-radius: 5px;">
+        <p><strong>Nota:</strong> Este es un reporte automático del sistema. Para más detalles, ingrese al módulo de Fechas de Entrega.</p>
+        <p><small>Sistema Administrativo 2ASoft</small></p>
+    </div>
+</body>
+</html>

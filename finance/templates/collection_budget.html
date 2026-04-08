@@ -1,0 +1,1061 @@
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%block title%}Cartera | Presupuesto{%endblock%}
+{%block submenu%}
+<div class='header item'>
+  Cartera
+</div>
+<div class='header item'>
+  <img class='avatar image' src='/media/{{project.logo}}'>{{project.name_to_show}}
+</div>
+<a class='item submenu' href="/finance/{{project.name}}/solicitudes">Solicitar recibos</a>
+<a class='item {%if portfolio_type == "comercial" %}active{%endif%} submenu' href="/finance/{{project.name}}/collectionbudget/comercial">Cartera comercial</a>
+<a class='item {%if portfolio_type == "administrativa" %}active{%endif%} submenu' href="/finance/{{project.name}}/collectionbudget/administrativa">Cartera Administrativa</a>
+<a class='item submenu' href="/finance/{{project.name}}/comisiones/">Comisiones</a>
+<a class='item submenu' href="{% url 'abonos_capital_periodo' project=project.name %}">Abonos a capital</a>
+<a class='item submenu' href="/finance/{{project.name}}/parametros">Parámetros</a>
+{%endblock%}
+{%block content%}
+<div class='ui segment'>
+<div class="ui form">
+  <div class="fields inline">
+    
+    <!-- Año -->
+    <div class="field">
+      <label>Año</label>
+      <div class="ui dropdown selection" id="dropdown-ano">
+        <input type="hidden" name="ano" value="{{ year }}">
+        <i class="dropdown icon"></i>
+        <div class="default text">Año</div>
+        <div class="menu">
+          {% for y in 2023|rango:2025 %}
+            <div class="item" data-value="{{ y }}">{{ y }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mes -->
+    <div class="field">
+      <label>Mes</label>
+      <div class="ui dropdown selection" id="dropdown-mes">
+        <input type="hidden" name="mes" value="{{ month }}">
+        <i class="dropdown icon"></i>
+        <div class="default text">Mes</div>
+        <div class="menu">
+          {% for m in 1|rango:12 %}
+            <div class="item" data-value="{{ m }}">{{ m }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% if can_reassign or can_recalculate %}
+      {% if can_reassign %}
+    <!-- Filtro Gestor -->
+    <div class="field">
+      <label>Gestor</label>
+      <div class="ui dropdown selection" id="dropdown-collector" style="width:300px">
+        <input type="hidden" name="gestor">
+        <i class="dropdown icon"></i>
+        <div class="default text">Gestor</div>
+        <div class="menu">
+          {% for collector in users_collectors %}
+            <div class="item" data-value="{{ collector.usuario.pk }}">{{ collector.usuario.get_full_name }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Botón limpiar filtros -->
+    <div class="field">
+      <label>&nbsp;</label>
+      <button type="button" class="ui icon basic button" id="btn-clear-search" title="Limpiar filtros">
+        <i class="times icon"></i>
+      </button>
+    </div>
+      {% endif %}
+
+    <!-- Botones de acción -->
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="ui buttons">
+        {% if can_recalculate %}
+        <button type="button" class="ui circular yellow button disabled" id="btn-recalculate">Recalcular</button>
+        <button type="button" class="ui circular orange button" id="btn-recalculate-all">Recalcular periodo</button>
+        {% endif %}
+        {% if can_reassign %}
+        <button type="button" class="ui circular teal button disabled" id="openmodalchangecollector">Reasignar</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {%endif%}
+</div>
+
+  <div class='ui center aligned container' id='div_sale'>
+
+    <div class="ui stackable {%if portfolio_type == 'administrativa'%}five{%else%}four{%endif%} raised cards">
+      <div class="card">
+        <div class="content">
+          <div class="header">Total recaudo</div>
+          <div class="description">
+            <h2 class="ui teal header" id="kpi-total-cartera"><i class="notched circle loading icon"></i></h2>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="content">
+          <div class="header">Cumplimiento</div>
+          <div class="description">
+            <h2 class="ui green header" id="kpi-cumplimiento"><i class="notched circle loading icon"></i></h2>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="content">
+          <div class="header">Mora Leve < 60 días</div>
+          <div class="description">
+            <h2 class="ui yellow header" id="kpi-en-mora"><i class="notched circle loading icon"></i></h2>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="content">
+          <div class="header">Mora grave &gt; 60 días</div>
+          <div class="description">
+            <h2 class="ui red header" id="kpi-mora-grave"><i class="notched circle loading icon"></i></h2>
+          </div>
+        </div>
+      </div>
+      {%if portfolio_type == 'administrativa'%}
+      <div class="card">
+        <div class="content">
+          <div class="header">Clientes Nuevos</div>
+          <div class="description">
+            <a href="#" id="view-new-clients">
+            <h2 class="ui green header" id="kpi-leaving-entering"><i class="notched circle loading icon"></i></h2>
+            </a>
+          </div>
+        </div>
+      </div>
+      {%endif%}
+    </div>
+
+  </div>
+
+
+  <div class="ui scrolling container" style="margin: 2em 0.5em 2em 0.5em;width:100%;max-height: 30em!important;">
+    <table class="ui structured small compact first last head foot stuck unstackable table" id="table-budget-detail"
+      style="width:140%;font-size: x-small;cursor: pointer;">
+      <thead>
+        <tr class="center aligned">
+          <th rowspan="2">Cliente</th>
+          <th rowspan="2">Contrato</th>
+          <th rowspan="2">Gestor</th>
+          <th colspan="5">Edades (en dias)</th>
+          <th colspan="4">Recaudo</th>
+          <th rowspan="2">Restante</th>
+          <th rowspan="2">%</th>
+          <th rowspan="2">Estado</th>
+
+        </tr>
+        <tr class="center aligned">
+          <th>
+            < 30 </th>
+          <th> 30 a 60</th>
+          <th>60 a 90</th>
+          <th>> 90</th>
+          <th>Total</th>
+          <th>Regular</th>
+          <th>Mora</th>
+          <th>No esperado</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tfoot>
+        <th colspan="3" class="right aligned">Totales:</th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+        <th></th>
+      </tfoot>
+    </table>
+  </div>
+</div>
+<div class="ui mini modal" id="modal-add-budget">
+  <i class="close icon"></i>
+  <div class="ui icon header">
+    <i class="calendar plus icon"></i>
+    <div class="content">
+      Agregar presupuesto de cobro
+      <div class="sub header">Registra el presupuesto de cobro para un mes y año determinado.</div>
+    </div>
+  </div>
+  <div class="content center aligned">
+    <form method="post" id="form-add-budget" class="ui form">{%csrf_token%}
+      <div class="ui input">
+        <div class="ui selection dropdown">
+          <input type="hidden" name="month-to-add">
+          <i class="dropdown icon"></i>
+          <div class="default text">Mes</div>
+          <div class="menu">
+            <div class="item" data-value="1">Enero</div>
+            <div class="item" data-value="2">Febrero</div>
+            <div class="item" data-value="3">Marzo</div>
+            <div class="item" data-value="4">Abril</div>
+            <div class="item" data-value="5">Mayo</div>
+            <div class="item" data-value="6">Junio</div>
+            <div class="item" data-value="7">Julio</div>
+            <div class="item" data-value="8">Agosto</div>
+            <div class="item" data-value="9">Septiembre</div>
+            <div class="item" data-value="10">Octubre</div>
+            <div class="item" data-value="11">Noviembre</div>
+            <div class="item" data-value="12">Diciembre</div>
+          </div>
+        </div>
+      </div>
+      <div class="ui input" style="margin-top: 0.5rem;">
+        <input type="number" class="text-center" name="year-to-add" placeholder="Año" required>
+      </div>
+      <div class="ui basic right aligned segment">
+        <input class="ui button green" type="submit" value="Registrar">
+      </div>
+    </form>
+  </div>
+</div>
+<div class="ui mini modal" id="modal-change-collector">
+  <i class="close icon"></i>
+  <div class="ui icon header">
+    <i class="sync alternate icon"></i>
+    <div class="content">
+      Asignar nuevo gestor
+    </div>
+  </div>
+  <div class="content center aligned">
+    <form method="post" id="form-change-collector" class="ui form">{%csrf_token%}
+      <div class="ui input" style="min-width: 250px;">
+        <div class="ui selection dropdown">
+          <input type="hidden" name="new-user-to-budget">
+          <i class="dropdown icon"></i>
+          <div class="default text">Gestor</div>
+          <div class="menu">{%for collector in users_collectors%}
+            <div class="item" data-value="{{collector.usuario.pk}}">{{collector.usuario.get_full_name}}</div>
+            {%endfor%}
+          </div>
+        </div>
+      </div>
+      <div class="ui basic right aligned segment">
+        <input class="ui button green" type="submit" value="Registrar">
+      </div>
+    </form>
+  </div>
+</div>
+<div class="ui tiny modal" id='modal-feed'>
+  <i class="close icon"></i>
+  <div class="header">
+    <i class="comment dots icon"></i>
+    Seguimientos
+  </div>
+  <div class="content">
+    {%crispy form_collection_feed%}
+  </div>
+</div>
+{%endblock%}
+{%block contextmenu%}
+<div class="ui popup bottom left " id='popup-budget' style="position: absolute; 
+    padding:0px; left: 0px;top:0px;max-width: 15rem;">
+  <div class='ui basic vertical menu'>
+    <a class="item" id='add-tracing'>
+      Seguimiento
+      <i class="comment dots teal icon"></i>
+    </a>
+{% comment %}     <a class="item" id='collect-letter'>
+      Carta cobro
+      <i class="mail bulk teal icon"></i>
+    </a> {% endcomment %}
+    <a class="item" id='credit-resume'>
+      Extracto
+      <i class="file pdf outline teal icon"></i>
+    </a>
+    <a class="item" id='go-to-sale'>
+      Ir a contrato
+      <i class="share square teal icon"></i>
+    </a>
+    <a class="item" id="action-reasign">Reasignar <i class="sync alternate icon"></i></a>
+    <a class="item" id="action-remove">Quitar <i class="trash alternate outline red icon"></i></a>
+    <a class="item" id="action-recalculate">Recalcular <i class="redo alternate icon"></i></a>
+  </div>
+</div>
+<div class="ui large modal" id="modal-client-detail">
+  <i class="close icon"></i>
+  <div class="header">
+    Detalle del cliente: <span id="cliente-detalle-nombre" class="ui blue text">—</span>
+  </div>
+  <div class="scrolling content">
+
+    <!-- KPIs rápidos -->
+    <div class="ui five cards">
+      <div class="ui raised card">
+      <div class="content">
+        <div class="header">Total Adeudado</div>
+        <div class="description">
+          <h2 class="ui orange header center aligned" id="total-adeudado"></h2>
+        </div>
+      </div>
+    </div>
+      <div class="ui raised card">
+        <div class="content">
+          <div class="header">Días de mora</div>
+          <div class="description">
+            <h2 id="dias-mora" class="ui red header center aligned">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="ui raised card">
+        <div class="content">
+          <div class="header">Cuotas en mora</div>
+          <div class="description" style="margin-top: 0.5rem;">
+            <h2 class="ui brown header center aligned" id="cuotas-mora">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="ui raised card">
+        <div class="content">
+          <div class="header">Último pago</div>
+          <div class="description" style="margin-top: 0.5rem;">
+            <h2 class="ui blue header center aligned" id="fecha-ultimo-pago">—</h2>
+          </div>
+        </div>
+      </div>
+      <div class="ui raised card">
+        <div class="content">
+          <div class="header">Días prom. de pago</div>
+          <div class="description">
+            <h2 id="dias-promedio" class="ui blue text center aligned">—</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfico de comportamiento -->
+    <div class="ui segment">
+      <h4 class="ui dividing header">Comportamiento de pago (últimos 6 meses)</h4>
+      <div style="height: 180px;">
+        <canvas id="grafico-pagos"></canvas>        
+      </div>
+    </div>
+
+    <!-- Seguimientos -->
+    <div class="ui segment">
+      <h4 class="ui dividing header">Últimos seguimientos</h4>
+      <div class="ui feed" id="seguimientos-feed">
+        <div class="ui placeholder">
+          <div class="paragraph">
+            <div class="medium line"></div>
+            <div class="short line"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cuotas pactadas -->
+
+  </div>
+</div>
+<div class="ui small modal" id="modal-clientes-nuevos">
+  <div class="header">Clientes nuevos en cartera administrativa</div>
+  <div class="content"></div>
+  <div class="actions">
+    <div class="ui approve button">Cerrar</div>
+  </div>
+</div>
+{%endblock%}
+{%block script%}
+{%include 'datatables.html'%}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const project = '{{project.name}}'
+  const year = '{{year}}'
+  const month = '{{month}}'
+</script>
+<script>
+  $(document).ready(function () {
+    $('.ui.dropdown').dropdown()
+    $('#btn-add-budget').click(function () {
+      $('#modal-add-budget').modal('show')
+    })
+    $('#table-budgets tbody').on('click', 'tr', function () {
+      $('#table-budgets tr.active').removeClass('active')
+      $(this).addClass('active')
+      $('#btn-delete-budget').removeClass('disabled')
+    })
+    $('#btn-delete-budget').click(function () {
+      table = $('#table-budgets tr.active')[0]
+      if (table == undefined) return
+      $('#content-segment').addClass('loading')
+      let year = table.cells[0].innerText
+      let month = table.cells[1].innerText
+      let url = location.href
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: {
+          'year': year,
+          'month': month,
+          'to_do': 'detele-budget-all',
+          'csrfmiddlewaretoken': getCookie('csrftoken')
+        },
+        success: function (xhr) {
+          window.location.reload()
+        },
+        error: (xhr) => {
+          error_message(xhr)
+          $('#content-segment').removeClass('loading')
+        }
+      })
+
+    })
+    $('#btn-view-budget').click(function () {
+      table = $('#table-budgets tr.active')[0]
+      if (table == undefined) return
+      $('#content-segment').addClass('loading')
+      let year = table.cells[0].innerText
+      let month = table.cells[1].innerText
+      window.location.href = '?year=' + year + '&month=' + month
+    })
+    $('#form-add-budget').submit(function () {
+      $(this).addClass('double teal loading')
+    })
+    /* -------------------- */
+    var tablebudgetdetail = $('#table-budget-detail').DataTable({
+      lengthMenu: [
+        [25, 50, 100, -1],
+        [25, 50, 100, 'Todos'],
+      ],
+      dom: '<"ui stackable grid"<"four wide column"l><"eight wide column text-center"B><"four wide column"f>>' +
+          '<"ui stackable grid"<"sixteen wide column"t>>' +
+          '<"ui stackable grid"<"eight wide column"i><"eight wide column"p>>',
+    buttons: [
+      {
+        extend: 'excelHtml5',
+        text: 'Exportar a Excel',
+        className: 'ui primary button'
+      }
+    ],
+      processing: true,
+      language: {
+        url: '/ajax/datatable_spanish'
+      },
+      ajax: {
+        url: location.href + '?year=' + year + '&month=' + month,
+        dataSrc: "data"
+      },
+      columns: [
+        { 'data': 'sale_name' },
+        { 'data': 'sale.contract_number' },
+        { 'data': 'collector_name' },
+        { 'data': 'lt_30', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'lt_60', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'lt_90', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        {
+          data: null,
+          title: '> 90',
+          render: function (data, type, row) {
+            const sum = (parseFloat(row.lt_120 || 0) + parseFloat(row.gt_120 || 0));
+            return $.fn.dataTable.render.number(',', '.', 0, '$').display(sum);
+          }
+        },
+        { 'data': 'total', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.period_income', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.total_arrears', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.excedent', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.total_incomes', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.budget_pending', 'render': $.fn.dataTable.render.number(',', '.', 0, '$') },
+        { 'data': 'period_incomes.compliance', 'render': $.fn.dataTable.render.number(',', '.', 2) },
+        {
+          data: null,
+          render: function (data, type, row) {
+            const mora60 = parseFloat(row.lt_60 || 0);
+            const mora90 = parseFloat(row.lt_90 || 0);
+            const mora120 = parseFloat(row.lt120 || 0);
+            const morap120 = parseFloat(row.gt_120 || 0);
+            const pagado = parseFloat(row.period_incomes.period_income || 0);
+
+            let deuda60 = mora60 - pagado > 0 ? mora60 - pagado : 0;
+            let deuda90 = mora90 - pagado > 0 ? mora90 - pagado : 0;
+            let deuda120 = mora120 - pagado > 0 ? mora120 - pagado : 0;
+            let deudaP120 = morap120 - pagado > 0 ? morap120 - pagado : 0;
+
+            let cumplido = deuda60 + deuda90 + deuda120 + deudaP120 == 0;
+            let enriesgo = deuda60 > 0 && deuda90 + deuda120 + deudaP120 == 0;
+            let moraimportante = deuda90 > 0 && deuda120 + deudaP120 == 0;
+            let moragrave = deuda120 + deudaP120 > 0;
+
+            if (cumplido) return '<span class="ui green label">Cumplido</span>';
+            if (moragrave) return '<span class="ui red label">Mora grave</span>';
+            if (moraimportante) return '<span class="ui orange label">Mora importante</span>';
+            if (enriesgo) return '<span class="ui yellow label">En riesgo</span>';
+          },
+          className: 'center aligned'
+        }
+
+
+      ],
+      columnDefs: [
+        { targets: [8, 3], className: 'left-bordered right aligned' },
+        { targets: [1, 13, 14], className: 'center aligned' },
+        { targets: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], className: 'right aligned' },
+        
+        { targets: 0, width: "200px" },   // Cliente
+        { targets: 1, width: "80px" },    // Contrato
+        { targets: 2, width: "180px" },   // Gestor
+        { targets: [3, 4, 5, 6], width: "110px" }, // Edades
+        { targets: 7, width: "120px" },   // Total edades
+        { targets: [8, 9, 10], width: "100px" },     // Recaudo
+        { targets: 11, width: "120px" },  // Total recaudo
+        { targets: 12, width: "120px" },  // Restante
+        { targets: 13, width: "80px" },   // Cumplimiento %
+        { targets: 14, width: "100px" },  // Estado (si existe)
+      ],
+
+      order: [[0, 'asc']],
+      footerCallback: function (row, data, start, end, display) {
+        var api = this.api();
+
+        // Remove the formatting to get integer data for summation
+        var intVal = function (i) {
+          return typeof i === 'string' ?
+            i.replace(/[\$,]/g, '') * 1 :
+            typeof i === 'number' ?
+              i : 0;
+        };
+
+        // Total over all pages
+        for (let i = 3; i < 13; i++) {
+          if (i === 6) continue; // Saltar columna calculada
+          total = api
+            .column(i)
+            .data()
+            .reduce(function (a, b) {
+              return intVal(a) + intVal(b);
+            }, 0);
+
+          // Update footer
+          $(api.column(i).footer()).html(
+            '$' + new Intl.NumberFormat('en-EN').format(total)
+          );
+        }
+
+          // Totalizar columna calculada (> 90)
+        let totalMora90 = 0;
+        data.forEach(row => {
+          totalMora90 += (parseFloat(row.lt_120 || 0) + parseFloat(row.gt_120 || 0));
+        });
+        $(api.column(6).footer()).html('$' + new Intl.NumberFormat('en-EN').format(totalMora90));
+
+        total_incomes = api
+          .column(11)
+          .data()
+          .reduce(function (a, b) {
+            return intVal(a) + intVal(b);
+          }, 0);
+        total_ppto = api
+          .column(7)
+          .data()
+          .reduce(function (a, b) {
+            return intVal(a) + intVal(b);
+          }, 0);
+
+        if (total_ppto == 0) total_ppto = 1
+        compliance = (total_incomes / total_ppto) * 100
+        $(api.column(13).footer()).html(
+          compliance.toFixed(2) + '%'
+        );
+
+
+        let totalCartera = 0;
+        let clientesMora = 0;
+        let clientesGrave = 0;
+
+        data.forEach(row => {
+          totalCartera += parseFloat(row.period_incomes.total_incomes || 0);
+          
+          const pagado = parseFloat(row.period_incomes.period_income || 0);
+          const mora60 = parseFloat(row.lt_60 || 0);
+          const mora90 = parseFloat(row.lt_90 || 0);
+          const mora120 = parseFloat(row.lt_120 || 0);
+          const moraP120 = parseFloat(row.gt_120 || 0);
+          
+          let deuda60 = mora60 - pagado > 0 ? mora60 - pagado : 0;
+          let deuda90 = mora90 - pagado > 0 ? mora90 - pagado : 0;
+          let deuda120 = mora120 - pagado > 0 ? mora120 - pagado : 0;
+          let deudaP120 = moraP120 - pagado > 0 ? moraP120 - pagado : 0;
+          
+          if (deuda60 > 0 && deuda90 + deuda120 + deudaP120 == 0) clientesMora++;
+          if (deuda120 + deudaP120 > 0) clientesGrave++;
+        });
+
+        $('#kpi-total-cartera').text('$' + totalCartera.toLocaleString());
+        $('#kpi-cumplimiento').text(compliance.toFixed(2) + '%');
+        $('#kpi-en-mora').text(clientesMora);
+        $('#kpi-mora-grave').text(clientesGrave);
+
+      },
+      drawCallback: function(settings) {
+        const resp = settings.json || {};
+        let total = 0, html = '';
+        if (resp.entering && Array.isArray(resp.entering)) {
+          total = resp.entering.length;
+          if (total > 0) {
+            html = '<div class="ui list">';
+            resp.entering.forEach(c => {
+              html += `<div class="item cliente-nuevo" style="cursor:pointer" data-cliente="${c.first_owner}"><b>${c.contract_number}</b> - ${c.first_owner}</div>`;
+            });
+            html += '</div>';
+          }
+          $('#kpi-leaving-entering')
+            .text(total)
+            .parent('a')
+            .off('click')
+            .toggleClass('disabled', total < 1)
+            .on('click', function(e) {
+              e.preventDefault();
+              if (total > 0) {
+                $('#modal-clientes-nuevos .content').html(html);
+                $('#modal-clientes-nuevos').modal('show');
+                // Evento para click en cliente
+                $('#modal-clientes-nuevos .cliente-nuevo').off('click').on('click', function() {
+                  const nombre = $(this).data('cliente');
+                  $('.dataTables_filter input').val(nombre).trigger('input');
+                  $('#modal-clientes-nuevos').modal('hide');
+                });
+              }
+            });
+        } else {
+          $('#kpi-leaving-entering').text(0).parent('a').addClass('disabled');
+        }
+      },
+    })
+
+    if ($('#dropdown-collector').length) {
+      $('#dropdown-collector').dropdown({
+        onChange: function (value, text) {
+          const year = $('#dropdown-ano').dropdown('get value');
+          const month = $('#dropdown-mes').dropdown('get value');
+          if (text == null) return
+          $('button.disabled').removeClass('disabled')
+          let url = location.href + '?year=' + year + '&month=' + month + '&search_by=collector&to_search=' + value
+          tablebudgetdetail.ajax.url(url).load()
+          $('.ui.dropdown').removeClass('green')
+          $('#dropdown-collector').addClass('green')
+        }
+      })
+    }
+    $('#btn-clear-search').click(function () {
+      $('.ui.dropdown').dropdown('restore defaults')
+      $('.ui.dropdown').removeClass('green')
+      $('#div-actions button').addClass('disabled')
+      let url = location.href + '?year=' + year + '&month=' + month
+      tablebudgetdetail.ajax.url(url).load()
+    })
+    $('#openmodalchangecollector').click(() => {
+      $('#modal-change-collector').modal('show')
+    })
+    tablebudgetdetail.on('xhr', function (e, settings, json) {
+      if (!$('#dropdown-collector').length) return;
+      if (!json || !json.collector_options) return;
+      const menu = $('#dropdown-collector .menu');
+      const current = $('#dropdown-collector').dropdown('get value');
+      menu.empty();
+      json.collector_options.forEach(c => {
+        if (!c.collector) return;
+        const name = `${c.collector__first_name || ''} ${c.collector__last_name || ''}`.trim();
+        menu.append(`<div class="item" data-value="${c.collector}">${name}</div>`);
+      });
+      $('#dropdown-collector').dropdown('refresh');
+      if (current && menu.find(`[data-value="${current}"]`).length) {
+        $('#dropdown-collector').dropdown('set selected', current);
+      } else {
+        $('#dropdown-collector').dropdown('clear');
+      }
+    });
+    $('#form-change-collector').on('submit', function (e) {
+      e.preventDefault();
+      $(this).addClass('double teal loading')
+      let row = tablebudgetdetail.row($('tr.active')).data()
+      let data = new FormData(this)
+      e.preventDefault();
+      actionsProperties(row,'reasign', data)
+    })
+    $('#btn-delete-budget-sale').click(function () {
+      actionsProperties(null,'remove')
+    })
+    $('#btn-recalculate').click(function () {
+      actionsProperties(null,'recalculate')
+    })
+    $('#btn-recalculate-all').click(function () {
+      actionsProperties(null,'recalculate-all')
+    })
+    $('#table-budget-detail tbody').on('click', 'tr', function (e) {
+      let row = tablebudgetdetail.row(this).data()
+      tablebudgetdetail.$('tr.active').removeClass('active');
+      $(this).addClass('active')
+      abrirModalDetalleCliente(row);
+      
+    })
+    $('#table-budget-detail tbody').on('contextmenu', 'tr', function (e) {
+      tablebudgetdetail.$('tr.active').removeClass('active');
+      $(this).addClass('active')
+      side = 'left'
+      position = 'bottom'
+      side_to_remove = 'right'
+      position_to_remove = 'top'
+
+      var width = $(document).width()
+      var height = window.innerHeight
+      var positionX = e.pageX - 20
+      let positionY = e.pageY
+      if (positionX >= width * 3 / 4) {
+        positionX -= 173
+        side = 'right'
+        side_to_remove = 'left'
+      }
+      if (positionY >= height * 1 / 2) {
+        positionY -= 300
+        position = 'top'
+        position_to_remove = 'bottom'
+      }
+      positionY += 15
+      $('#popup-budget').css({
+        'left': positionX + 'px',
+        'top': positionY + 'px',
+      }).addClass('transition visible')
+        .removeClass(side_to_remove)
+        .removeClass(position_to_remove)
+        .addClass(side)
+        .addClass(position)
+      return false;
+    })
+    $("#popup-budget").click(function (e) {
+      let row = tablebudgetdetail.row($('tr.active')).data()
+      switch (e.target.id) {
+        case "collect-letter":
+          new_message('teal', 'Cargando <i class="asterisk loading icon"></i>', 'Estamos preparando tu solicitud')
+          $.ajax({
+            type: 'GET',
+            url: '/sales/ajax/' + project + '/printsalesdocuments',
+            data: {
+              'sale': row.sale.contract_number,
+              'type': 'collection_letter',
+            },
+            success: function (xhr) {
+              new_message(xhr.type, xhr.title, xhr.msj, true)
+            },
+            error: (xhr) => error_message(xhr)
+          })
+          break;
+        case "credit-resume":
+          new_message('teal', 'Cargando <i class="asterisk loading icon"></i>', 'Estamos preparando tu solicitud')
+          $.ajax({
+            type: 'GET',
+            url: '/sales/ajax/' + project + '/printsalesdocuments',
+            data: {
+              'sale': row.sale.contract_number,
+              'type': 'statement_of_account',
+            },
+            success: function (xhr) {
+              new_message(xhr.type, xhr.title, xhr.msj, true)
+            },
+            error: (xhr) => error_message(xhr)
+          })
+          break;
+        case "add-tracing":
+          $('#modal-feed').modal({
+            closeIcon: true
+          })
+            .modal('show')
+          break
+        case "go-to-sale":
+          window.open('/sales/' + project + '/adjudicatesales?sale=' + row.sale.contract_number, '_blank')
+          break
+        case "action-reasign":
+          $('#modal-change-collector').modal('show');
+          break;
+
+        case "action-remove":
+          actionsProperties(row,"remove");
+          break;
+
+        case "action-recalculate":
+          actionsProperties(row,"recalculate");
+          break;
+      }
+    });
+    $('#form-collect-feed').on('submit', function (e) {
+      let row = tablebudgetdetail.row($('tr.active')).data()
+      let sale = row.sale.id_sale
+      e.preventDefault();
+      $(this).addClass('loading')
+      let dataform = new FormData(this)
+      dataform.append('sale', sale)
+      $.ajax({
+        type: 'POST',
+        url: '/finance/ajax/' + project + '/collectionfeed/newcomment',
+        data: dataform,
+        processData: false,
+        contentType: false,
+        success: function (xhr) {
+          $('#form-collect-feed').trigger('reset')
+          $('#modal-feed').modal('hide')
+          new_message(xhr.type, xhr.title, xhr.msj)
+        },
+        error: (xhr) => error_message(xhr),
+        complete: (xhr) => $('#form-collect-feed').removeClass('loading')
+      })
+    })
+    function reloadDataTable() {
+      const mes = $('#dropdown-mes').dropdown('get value');
+      const ano = $('#dropdown-ano').dropdown('get value');
+
+      if (mes == "" || ano == "") return;  // Si falta alguno, no recarga
+      
+      const url = `${location.href}?year=${ano}&month=${mes}`;
+      $('#kpi-total-cartera').html('<i class="notched circle loading icon"></i>');
+      $('#kpi-cumplimiento').html('<i class="notched circle loading icon"></i>');
+      $('#kpi-en-mora').html('<i class="notched circle loading icon"></i>');
+      $('#kpi-mora-grave').html('<i class="notched circle loading icon"></i>');
+      $('#kpi-leaving-entering').html('<i class="notched circle loading icon"></i>');
+
+      tablebudgetdetail.ajax.url(url).load();
+    }
+
+
+    $('#dropdown-mes, #dropdown-ano').dropdown({
+      onChange: function () {
+        reloadDataTable();
+      }
+    });
+
+    $('#dropdown-mes').dropdown('set selected', month)
+    $('#dropdown-ano').dropdown('set selected', year)
+
+    const today = new Date();
+    const mesActual = today.getMonth() + 1;
+    const anoActual = today.getFullYear();
+
+    // Desactiva opciones futuras
+    $('#dropdown-ano .item').each(function () {
+      const ano = parseInt($(this).attr('data-value'));
+      if (ano > anoActual) $(this).addClass('disabled');
+    });
+
+    $('#dropdown-mes .item').each(function () {
+      const mes = parseInt($(this).attr('data-value'));
+      const anoSel = parseInt($('#dropdown-ano').dropdown('get value'));
+      if (anoSel === anoActual && mes > mesActual) {
+        $(this).addClass('disabled');
+      }
+    });
+
+    function abrirModalDetalleCliente(row) {
+      const contrato = row.sale.contract_number;
+      const nombreCliente = row.sale_name;
+
+      $('#cliente-detalle-nombre').text(`${contrato} - ${nombreCliente}`);
+      $('#modal-client-detail').modal('show');
+
+      // Limpiar antes de recargar
+      $('#dias-mora').text('—');
+      $('#total-adeudado').text('—')
+      $('#dias-promedio').text('—');
+      $('#cuotas-mora').text('—')
+      $('#fecha-ultimo-pago').text('—')
+      $('#seguimientos-feed').html('');
+      $('#tabla-cuotas tbody').html('');
+      if (window.chartPagos) window.chartPagos.destroy();
+
+      
+      $.get(`/finance/ajax/${project}/detallecliente`, { contrato }, function (data) {
+        // KPIs
+        $('#dias-mora').text(data.dias_mora ?? '—');
+        $('#dias-promedio').text(data.dias_promedio_pago?.join(', ') || '—');
+        const total = Number(data.total_adeudado || 0);
+        $('#total-adeudado').text(`$${total.toLocaleString('es-CO')}`);
+
+        $('#cuotas-mora').text(data.cuotas_mora);
+        $('#fecha-ultimo-pago').text(data.fecha_ultimo_pago || '—');
+
+        // Seguimientos
+        if (data.seguimientos?.length) {
+          data.seguimientos.forEach(item => {
+            $('#seguimientos-feed').append(`
+              <div class="event">
+                <div class="label"><i class="comment icon"></i></div>
+                <div class="content">
+                  <div class="summary">
+                    <strong>${item.usuario}</strong> — ${item.fecha}
+                  </div>
+                  <div class="extra text">${item.comentario}</div>
+                </div>
+              </div>
+            `);
+          });
+        } else {
+          $('#seguimientos-feed').html('<p class="ui grey text">Sin seguimientos recientes.</p>');
+        }
+
+
+        // Gráfico de pagos
+        const ctx = document.getElementById('grafico-pagos').getContext('2d');
+
+        window.chartPagos = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.historial.map(e => e.mes),
+            datasets: [
+              {
+                label: 'Vencido',
+                data: data.historial.map(e => e.vencido),
+                backgroundColor: 'rgba(255, 99, 132, 0.4)',
+                stack: 'deuda'
+              },
+              {
+                label: 'Cuota del mes',
+                data: data.historial.map(e => e.cuota_mes),
+                backgroundColor: 'rgba(255, 205, 86, 0.4)',
+                stack: 'deuda'
+              },
+              {
+                label: 'Recaudo',
+                data: data.historial.map(e => e.pagado),
+                type: 'line',
+                borderColor: 'rgba(60, 179, 113, 1)',
+                backgroundColor: 'transparent',
+                borderWidth: 4,
+                pointRadius: 3,
+                tension: 0.3
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: true }
+            },
+            scales: {
+              x: { stacked: true },
+              y: {
+                stacked: true,
+                beginAtZero: true,
+                ticks: {
+                  callback: value => '$' + value.toLocaleString()
+                }
+              }
+            }
+          }
+        });
+
+
+      }).fail(xhr => error_message(xhr));
+    }
+
+    function actionsProperties(row = null, to_do, formdata = new FormData()) {
+      const year = $('#dropdown-ano').dropdown('get value');
+      const month = $('#dropdown-mes').dropdown('get value');
+
+      let to_change = '';
+      let to_search = '';
+
+      // 🎯 ACCIÓN MASIVA: reasignar gestor desde dropdown (no se pasa row)
+      if (to_do === 'reasign' && !row) {
+        to_change = 'collector';
+        to_search = $('#dropdown-collector').dropdown('get value');
+        if (!to_search) {
+          new_message('error', 'Falta gestor original', 'Debes seleccionar el gestor que deseas reasignar.');
+          return;
+        }
+      }
+
+      // Si se requiere row (acciones individuales)
+      if (['recalculate', 'remove', 'reasign'].includes(to_do) && !to_search) {
+        // solo la buscamos si no venía antes (caso masivo)
+        row = row ? row : tablebudgetdetail.row($('tr.active')).data();
+
+        if (!row) {
+          new_message('error', 'Error', 'No se encontró cliente seleccionado.');
+          return;
+        }
+
+        to_change = 'client';
+        to_search = row.sale?.contract_number || '';
+        if (!to_search) {
+          new_message('error', 'Error', 'Venta sin número de contrato.');
+          return;
+        }
+      }
+
+
+      formdata.append('year', year);
+      formdata.append('month', month);
+      formdata.append('to_do', to_do);
+      formdata.append('to_change', to_change);
+      formdata.append('to_search', to_search);
+
+      if (!formdata.get('csrfmiddlewaretoken')) {
+        formdata.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+      }
+      new_message('info', 'Cargando <i class="asterisk loading icon"></i>', 'Estamos procesando tu solicitud');
+
+      $.ajax({
+        type: 'POST',
+        url: location.href,
+        data: formdata,
+        contentType: false,
+        processData: false,
+        success: function (xhr) {
+          new_message(xhr.type, xhr.title, xhr.msj, true);
+          tablebudgetdetail.ajax.reload();
+          $('#modal-change-collector').modal('hide')
+        },
+        error: (xhr) => error_message(xhr),
+        complete: () => $('#form-change-collector').removeClass('double teal loading')
+      });
+    }
+
+    // Agrega esto al final del bloque <script> principal
+    $(function () {
+      const modal = $('#modal-clientes-nuevos');
+      $('#kpi-leaving-entering').off('click').on('click', function () {
+        const data = $(this).data('entering');
+        if (Array.isArray(data) && data.length > 1) {
+          let html = '<div class="ui list">';
+          data.forEach(c => html += `<div class="item"><b>${c.contract_number}</b> - ${c.first_owner}</div>`);
+          html += '</div>';
+          modal.find('.content').html(html);
+          modal.modal('show');
+        }
+      });
+    });
+
+  })
+</script>
+{%endblock%}
+{%block css%}
+<style>
+.ui.dropdown {
+  z-index: 805 !important;
+}
+#table-budget-detail td.left-bordered,
+#table-budget-detail th.left-bordered {
+  border-left: 1px solid #bdbdbd52 !important;
+}
+</style>
+{%endblock%}
