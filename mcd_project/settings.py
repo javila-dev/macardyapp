@@ -67,6 +67,15 @@ SECRET_KEY = os.getenv(
 DEBUG = get_bool_env('DEBUG', True)
 
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', '*')
+APP_DOMAIN = os.getenv('APP_DOMAIN', '')
+CSRF_TRUSTED_ORIGINS = get_list_env(
+    'CSRF_TRUSTED_ORIGINS',
+    f'https://{APP_DOMAIN}' if APP_DOMAIN else '',
+)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SESSION_COOKIE_SECURE = get_bool_env('SESSION_COOKIE_SECURE', not DEBUG)
+CSRF_COOKIE_SECURE = get_bool_env('CSRF_COOKIE_SECURE', not DEBUG)
 
 # Application definition
 
@@ -83,7 +92,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_forms_semantic_ui',
     'django_cron',
-    'mcd_site',
+    'mcd_site.apps.McdSiteConfig',
     'terceros',
     'sales',
     'finance',
@@ -101,6 +110,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'mcd_site.middleware.DoubleSubmitProtectionMiddleware',  # Añadir aquí
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mcd_site.middleware.EnsureUserProfileMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

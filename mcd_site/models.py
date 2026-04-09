@@ -120,6 +120,14 @@ class Perfil(models.Model):
         return False
         
 
+
+def ensure_user_profile(user):
+    if not user or getattr(user, "is_anonymous", True):
+        return None
+    profile, _ = Perfil.objects.get_or_create(usuario=user)
+    return profile
+
+
 class Bank_entities(models.Model):
     id_bank = models.CharField(max_length=255)
     name = models.CharField(max_length=255, unique=True)

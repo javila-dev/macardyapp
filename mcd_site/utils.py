@@ -213,6 +213,7 @@ def pdf_gen(template_path, context, filename):
 
 from django.contrib import messages
 from django.shortcuts import redirect
+from mcd_site.models import ensure_user_profile
 def user_permission(perms,raise_exception=True):
     
     def check_perms(user):
@@ -222,7 +223,8 @@ def user_permission(perms,raise_exception=True):
             return False
         if perms is not list: perm_list = (perms,) 
         else: perm_list = perms
-        has_perms = user.user_profile.has_permissions(perm_list)
+        profile = ensure_user_profile(user)
+        has_perms = profile.has_permissions(perm_list) if profile else False
         if has_perms:
             return True
         if raise_exception:
@@ -252,7 +254,8 @@ def rol_permission(rols,raise_exception=True):
             perms = (rols,) 
         else: perms = rols
         
-        has_perms = user.user_profile.has_permissions(perms)
+        profile = ensure_user_profile(user)
+        has_perms = profile.has_permissions(perms) if profile else False
         if has_perms:
             return True
         if raise_exception:
@@ -267,7 +270,8 @@ def project_permission(view_func):
         elif user.is_anonymous:
             return False
         try:
-            if user.user_profile.has_project(project):
+            profile = ensure_user_profile(user)
+            if profile and profile.has_project(project):
                 return True
         except:
             return False
@@ -289,7 +293,8 @@ def user_check_perms(request,perms,raise_exception=False):
     
     if perms is not list: perm_list = (perms,) 
     else: perm_list = perms
-    has_perms = request.user.user_profile.has_permissions(perm_list)
+    profile = ensure_user_profile(request.user)
+    has_perms = profile.has_permissions(perm_list) if profile else False
     if has_perms:
         return True
     if raise_exception:

@@ -4,6 +4,14 @@ from django.utils.deprecation import MiddlewareMixin
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from mcd_site.models import ensure_user_profile
+
+class EnsureUserProfileMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        if getattr(request, "user", None) and request.user.is_authenticated:
+            ensure_user_profile(request.user)
+        return None
+
 
 class DoubleSubmitProtectionMiddleware(MiddlewareMixin):
     def process_request(self, request):
