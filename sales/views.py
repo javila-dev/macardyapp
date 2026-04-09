@@ -2252,6 +2252,7 @@ def ajax_print_documents(request, project):
                 'titulares': titulares,
                 'fecha': datetime.date.today().strftime('%d/%m/%Y'),
                 'ciudad': 'Medellín',
+                'sale': obj_sale,
             }
             template = 'pdf/data_authorization.html'
             filename = f'Autorizacion_Datos_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
