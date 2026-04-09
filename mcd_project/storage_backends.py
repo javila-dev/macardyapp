@@ -9,5 +9,7 @@ class PublicMediaStorage(S3Boto3Storage):
     querystring_auth = False
 
     def url(self, name, parameters=None, expire=None, http_method=None):
-        clean_name = self._normalize_name(self._clean_name(name))
-        return f"{settings.MEDIA_URL}{filepath_to_uri(clean_name)}"
+        if not name:
+            return settings.MEDIA_URL
+        normalized = str(name).replace('\\', '/').lstrip('/')
+        return f"{settings.MEDIA_URL}{filepath_to_uri(normalized)}"
