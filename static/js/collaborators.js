@@ -174,7 +174,7 @@ $(document).ready(function () {
                                 <td>${data.load_date}</td>
                                 <td>${data.description}</td>
                                 <td>
-                                    <a target="_blank" href="/media/${data.file}"><i class="eye outline icon"></i></a>
+                                    <a target="_blank" href="${data.file}"><i class="eye outline icon"></i></a>
                                     <a href="#" onclick="delete_doc(this);"><i class="red close icon"></i></a>
                                 </td>
                             </tr>`
