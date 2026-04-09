@@ -294,9 +294,6 @@ MEDIA_ROOT = LOCAL_MEDIA_ROOT
 TMP_MEDIA_PREFIX = os.getenv('TMP_MEDIA_PREFIX', 'tmp/')
 TMP_MEDIA_PREFIX = TMP_MEDIA_PREFIX.strip('/') + '/'
 TMP_MEDIA_ROOT = get_path_env('TMP_MEDIA_ROOT', LOCAL_MEDIA_ROOT / 'tmp')
-TMP_MEDIA_URL = os.getenv('TMP_MEDIA_URL', f"{MEDIA_URL}{TMP_MEDIA_PREFIX}")
-if not TMP_MEDIA_URL.endswith('/'):
-    TMP_MEDIA_URL += '/'
 
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
 AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', '')
@@ -314,6 +311,16 @@ PERSISTENT_MEDIA_BASE_URL = os.getenv(
 )
 if not PERSISTENT_MEDIA_BASE_URL.endswith('/'):
     PERSISTENT_MEDIA_BASE_URL += '/'
+
+_tmp_media_url = os.getenv('TMP_MEDIA_URL', '')
+if _tmp_media_url:
+    TMP_MEDIA_URL = _tmp_media_url
+else:
+    TMP_MEDIA_URL = f"{PERSISTENT_MEDIA_BASE_URL}{TMP_MEDIA_PREFIX}" if USE_S3_MEDIA else f"{MEDIA_URL}{TMP_MEDIA_PREFIX}"
+if USE_S3_MEDIA and TMP_MEDIA_URL.startswith('/'):
+    TMP_MEDIA_URL = f"{PERSISTENT_MEDIA_BASE_URL}{TMP_MEDIA_PREFIX}"
+if not TMP_MEDIA_URL.endswith('/'):
+    TMP_MEDIA_URL += '/'
 
 if USE_S3_MEDIA:
     DEFAULT_FILE_STORAGE = 'mcd_project.storage_backends.PublicMediaStorage'
