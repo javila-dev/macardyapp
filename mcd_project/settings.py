@@ -206,11 +206,14 @@ EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
     'django.core.mail.backends.smtp.EmailBackend',
 )
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.2asoft.tech')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'macardyapp@2asoft.tech')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', ';odt}DgTS268=1>P')
-EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', True)
+RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.resend.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'resend')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', RESEND_API_KEY)
+EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
+EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', True)
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))  # Timeout en segundos
 DEFAULT_FROM_EMAIL = os.getenv(
     'DEFAULT_FROM_EMAIL',

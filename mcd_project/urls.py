@@ -29,6 +29,16 @@ urlpatterns = [
         html_email_template_name='registration/password_reset_email.html',
         success_url = '/accounts/password/reset/done'
     )),
+    # After setting a new password, go straight to login.
+    # This name is used by our invitation emails.
+    path(
+        'accounts/password/reset/confirm/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name='registration/password_reset_confirm.html',
+            success_url='/accounts/login',
+        ),
+        name='auth_password_reset_confirm',
+    ),
     path('accounts/', include('registration.backends.default.urls')),
     path('',include(site_views.urlpattern)),
     path('partners/',include(terceros_views.urls)),

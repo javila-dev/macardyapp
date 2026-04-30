@@ -313,19 +313,33 @@ class JsonRender():
     def render(self):
         object_dict = list()
         if self.queryset.count() > 0:
-            fields = [f for f in self.queryset[0]._meta._get_fields(reverse=self.reverse)]
-        else: 
+            # Avoid reverse relations; only serialize concrete fields + M2M.
+            meta = self.queryset[0]._meta
+            fields = list(meta.concrete_fields) + list(meta.many_to_many)
+        else:
             fields = []
         for obj in self.queryset:
             item = {}
             for field in fields:
-                field_value = eval("obj."+field.name)     
-                if type(field) == ForeignKey:
-                    field_value = self.ForeingKeyRender(field,field_value)
-                elif type(field) == ManyToManyField:
-                    field_value = 'ManytoManyField'
+                try:
+                    field_value = eval("obj."+field.name)
+                except Exception:
+                    continue
+
+                if isinstance(field, ForeignKey):
+                    field_value = getattr(field_value, "pk", field_value)
+                elif isinstance(field, ManyToManyField):
+                    try:
+                        field_value = list(field_value.values_list("pk", flat=True))
+                    except Exception:
+                        field_value = []
                 elif isinstance(field, (FileField, ImageField)):
                     field_value = field_value.url if field_value else ''
+
+                # Last-resort: model instances are not JSON serializable
+                if hasattr(field_value, "_meta") and hasattr(field_value, "pk"):
+                    field_value = field_value.pk
+
                 item[field.name] = field_value
             for func in self.query_functions:
                 if func.endswith(')'): 
@@ -337,22 +351,11 @@ class JsonRender():
             object_dict.append(item)
         return object_dict
 
-    def ForeingKeyRender(self,fk,queryset_item):
-        query_dict = {}
-        field_list = fk.related_model._meta._get_fields(reverse = self.reverse)
-        for field in field_list:
-            if queryset_item == None:
-                field_value = None
-            else:
-                field_value = eval(f'queryset_item.{field.name}')
-                if type(field) == ForeignKey:
-                    field_value = self.ForeingKeyRender(field,field_value)
-                elif type(field) == ManyToManyField:
-                    field_value = 'ManytoManyField'
-                elif isinstance(field, (FileField, ImageField)):
-                    field_value = field_value.url if field_value else ''
-            query_dict[field.name] = field_value
-        return query_dict
+    def ForeingKeyRender(self, fk, queryset_item):
+        # Keep backwards compatibility with older callers.
+        if queryset_item is None:
+            return None
+        return getattr(queryset_item, "pk", queryset_item)
     
 def parse_semantic_date(date,output='date'):
     if output=='date':
@@ -395,7 +398,13 @@ def send_email_template(subject:str,sent_to:list,template:str,template_context:d
     
     template=get_template(template)
     content=template.render(template_context)
-    message=EmailMultiAlternatives(subject=subject,body='',
+    try:
+        from django.utils.html import strip_tags
+        text_content = strip_tags(content)
+    except Exception:
+        text_content = ''
+
+    message=EmailMultiAlternatives(subject=subject,body=text_content,
                                    from_email=settings.EMAIL_HOST_USER,to=sent_to)
     message.attach_alternative(content,'text/html')
     message.send()

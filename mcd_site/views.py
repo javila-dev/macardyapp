@@ -14,6 +14,9 @@ from django.template.loader import get_template
 from django.urls.conf import path
 from django.contrib.sites.models import Site
 from django.contrib import messages
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from xhtml2pdf import pisa
 import numpy_financial as npf
 from dateutil.relativedelta import relativedelta
@@ -107,9 +110,10 @@ def users_admin(request):
     if request.is_ajax():
         if request.method == 'GET':
             user = request.GET.get('user')
-            obj_profile = Perfil.objects.filter(usuario = user)
-            rols = obj_profile[0].rol.all().values_list('id')
-            projects = obj_profile[0].projects.all().values_list('name')
+            obj_profile = Perfil.objects.filter(usuario_id=user)
+            profile0 = obj_profile.first()
+            rols = profile0.rol.all().values_list('id') if profile0 else []
+            projects = profile0.projects.all().values_list('name') if profile0 else []
             
             obj_user = User.objects.filter(pk=user).values(
                 'username','first_name','last_name','email','is_staff','is_active'
@@ -160,11 +164,9 @@ def users_admin(request):
                             username_p2 = last_name.split(" ")[0][:4]
                             username = username_p1 + username_p2
                             
-                pswd = passwordgenerate()
-                
                 username = username.lower().replace(" ","")
-                user = User.objects.create_user(                    
-                    username,email,pswd)
+                # Create user without usable password; user will set it via link
+                user = User.objects.create_user(username, email, None)
                 
                 user.first_name = first_name
                 user.last_name = last_name
@@ -201,23 +203,40 @@ def users_admin(request):
                     aplication = 'users'
                 )
                 domain = Site.objects.get_current().domain
-                
-                protocol = 'HTTP'
-                email_message = f'''Te damos la bienvenida a MacardyApp, a continuación te damos los datos para tu inicio de sesión:
-                    <ul>
-                        <li>
-                            <strong>Usuario:</strong> {username}
-                        </li>
-                        <li>
-                            <strong>Contraseña:</strong> {pswd}
-                        </li>
-                    </ul><br>
-                    Para ingresar puedes hacer click <a href="{protocol}://{domain}/accounts/login">aquí</a>,
-                     te recomendamos cambiar la contraseña una vez ingreses por primera vez.
+
+                protocol = 'https' if request.is_secure() else 'http'
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                set_password_path = reverse('auth_password_reset_confirm', args=[uid, token])
+                set_password_url = f"{protocol}://{domain}{set_password_path}"
+
+                email_message = f'''
+                    <p style="margin:0 0 12px 0;">
+                        Te damos la bienvenida a <strong>MacardyApp</strong>. Para activar tu acceso, crea tu contraseña desde el siguiente botón:
+                    </p>
+
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 16px 0 18px 0;">
+                        <tr>
+                            <td align="center" bgcolor="#003399" style="border-radius: 6px;">
+                                <a href="{set_password_url}"
+                                   style="display:inline-block;padding:12px 18px;font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#ffffff;text-decoration:none;border-radius:6px;">
+                                    Crear contraseña
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p style="margin:0 0 10px 0;">
+                        Usuario: <strong>{username}</strong>
+                    </p>
+
+                    <p style="margin:0;color:#666666;font-size:13px;line-height:1.4;">
+                        Si no solicitaste este acceso, puedes ignorar este correo.
+                    </p>
                 '''
                 
                 email_context = {
-                    'email_title': '¡Bienvenid@!',
+                    'email_title': 'Activa tu cuenta',
                     'email_message': email_message,
                     'user':user
                 }
