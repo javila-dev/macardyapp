@@ -211,7 +211,9 @@ RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.resend.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'resend')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', RESEND_API_KEY)
+# If EMAIL_HOST_PASSWORD is present-but-empty (common in container env),
+# fall back to RESEND_API_KEY so auth still works.
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD') or RESEND_API_KEY
 EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
 EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', True)
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))  # Timeout en segundos
