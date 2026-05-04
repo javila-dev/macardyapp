@@ -15,7 +15,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMessage
 from xhtml2pdf import pisa
 from django.contrib.staticfiles import finders
 import locale 
@@ -398,23 +398,20 @@ def send_email_template(subject:str,sent_to:list,template:str,template_context:d
     
     template=get_template(template)
     content=template.render(template_context)
-    try:
-        from django.utils.html import strip_tags
-        text_content = strip_tags(content)
-    except Exception:
-        text_content = ''
 
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
-    message = EmailMultiAlternatives(
+    # Send as a real HTML message. Some providers/clients mishandle multipart/alternative
+    # for large marketing templates and end up displaying HTML as plain text.
+    message = EmailMessage(
         subject=subject,
-        body=text_content or ' ',
+        body=content,
         from_email=from_email,
         to=sent_to,
         headers={
             'MIME-Version': '1.0',
         },
     )
-    message.attach_alternative(content, 'text/html')
+    message.content_subtype = 'html'
     message.encoding = getattr(settings, 'DEFAULT_CHARSET', 'utf-8')
     message.send()
 
