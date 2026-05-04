@@ -43,7 +43,7 @@ urlpatterns = [
     # This name is used by our invitation emails.
     path(
         'accounts/password/reset/confirm/<uidb64>/<token>/',
-        auth_views.PasswordResetConfirmView.as_view(
+        site_views.PasswordResetConfirmWithMessages.as_view(
             template_name='registration/password_reset_confirm.html',
             success_url='/accounts/login',
         ),

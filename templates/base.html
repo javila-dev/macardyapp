@@ -12,6 +12,15 @@
 </head>
 <body>
     <main>
+        {% if messages %}
+        <div class="ui container" style="padding-top: 1rem;">
+            {% for message in messages %}
+            <div class="ui {% if 'error' in message.tags %}negative{% elif 'success' in message.tags %}success{% else %}info{% endif %} message">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {%block content%}{%endblock%}
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.js" 

@@ -14,6 +14,7 @@ from django.template.loader import get_template
 from django.urls.conf import path
 from django.contrib.sites.models import Site
 from django.contrib import messages
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -28,6 +29,22 @@ from mcd_site.forms import usersForm
 from mcd_site.models import Perfil, Rol, Timeline, Projects, Permiso
 from mcd_site.utils import JsonRender, link_callback, parse_semantic_date, passwordgenerate, send_email_template, user_permission
 from terceros.models import Collaborators
+
+
+class PasswordResetConfirmWithMessages(auth_views.PasswordResetConfirmView):
+    """
+    Same behavior as Django's PasswordResetConfirmView, but surfaces validation errors
+    via django.contrib.messages (helps when the template doesn't render field errors).
+    """
+
+    def form_invalid(self, form):
+        for error in form.non_field_errors():
+            messages.error(self.request, error)
+        for field in form:
+            for error in field.errors:
+                messages.error(self.request, f'{field.label}: {error}')
+        return super().form_invalid(form)
+
 
 #messages.success(request,'<div class="header">¡Lo hicimos!</div>Aprobaste el contrato '+sale)
 # Create your views here.

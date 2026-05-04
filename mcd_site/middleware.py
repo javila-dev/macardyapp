@@ -18,7 +18,9 @@ class DoubleSubmitProtectionMiddleware(MiddlewareMixin):
         # Password reset / auth flows must not be disrupted by accidental duplicate-submit tokens
         # (some clients/extensions may inject hidden fields / headers unexpectedly).
         path = request.path or ''
-        if path.startswith('/accounts/password/'):
+        # Auth pages are especially sensitive to accidental duplicate-submit handling.
+        # Keep protection focused on app POSTs that explicitly include transaction_token.
+        if path.startswith('/accounts/'):
             return None
 
         # Generar token para requests GET
