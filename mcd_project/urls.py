@@ -18,6 +18,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
+from django.urls import reverse_lazy
 from terceros import views as terceros_views
 from mcd_site import views as site_views
 from sales import views as sales_views
@@ -25,10 +26,19 @@ from finance import views as finance_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('accounts/password/reset',auth_views.PasswordResetView.as_view(
-        html_email_template_name='registration/password_reset_email.html',
-        success_url = '/accounts/password/reset/done'
-    )),
+    # Override django-registration's auth_urls PasswordResetView so the HTML
+    # template is sent as an alternative part (multipart), not as text/plain body.
+    path(
+        'accounts/password/reset/',
+        auth_views.PasswordResetView.as_view(
+            template_name='registration/password_reset_form.html',
+            email_template_name='registration/password_reset_email.txt',
+            html_email_template_name='registration/password_reset_email.html',
+            subject_template_name='registration/password_reset_subject.txt',
+            success_url=reverse_lazy('auth_password_reset_done'),
+        ),
+        name='auth_password_reset',
+    ),
     # After setting a new password, go straight to login.
     # This name is used by our invitation emails.
     path(
