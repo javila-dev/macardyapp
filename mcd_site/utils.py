@@ -404,9 +404,18 @@ def send_email_template(subject:str,sent_to:list,template:str,template_context:d
     except Exception:
         text_content = ''
 
-    message=EmailMultiAlternatives(subject=subject,body=text_content,
-                                   from_email=settings.EMAIL_HOST_USER,to=sent_to)
-    message.attach_alternative(content,'text/html')
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
+    message = EmailMultiAlternatives(
+        subject=subject,
+        body=text_content or ' ',
+        from_email=from_email,
+        to=sent_to,
+        headers={
+            'MIME-Version': '1.0',
+        },
+    )
+    message.attach_alternative(content, 'text/html')
+    message.encoding = getattr(settings, 'DEFAULT_CHARSET', 'utf-8')
     message.send()
 
 def create_cartera_roles():
