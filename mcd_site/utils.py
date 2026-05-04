@@ -15,7 +15,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
 from xhtml2pdf import pisa
 from django.contrib.staticfiles import finders
 import locale 
@@ -400,18 +400,25 @@ def send_email_template(subject:str,sent_to:list,template:str,template_context:d
     content=template.render(template_context)
 
     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or settings.EMAIL_HOST_USER
-    # Send as a real HTML message. Some providers/clients mishandle multipart/alternative
-    # for large marketing templates and end up displaying HTML as plain text.
-    message = EmailMessage(
+    # Gmail/Resend: multipart/alternative must have a *non-HTML* text/plain part.
+    # If the plain part contains markup (or is the full HTML), clients show "raw HTML".
+    plain_body = (
+        'Este correo se envió en formato HTML.\n'
+        'Si ves el mensaje como texto con etiquetas, abre el correo en otro cliente '
+        'o usa “Mostrar HTML” / desactiva “Mostrar como texto sin formato”.\n'
+    )
+
+    message = EmailMultiAlternatives(
         subject=subject,
-        body=content,
+        body=plain_body,
         from_email=from_email,
         to=sent_to,
         headers={
             'MIME-Version': '1.0',
+            'X-Macardy-Mail-Template': template,
         },
     )
-    message.content_subtype = 'html'
+    message.attach_alternative(content, 'text/html')
     message.encoding = getattr(settings, 'DEFAULT_CHARSET', 'utf-8')
     message.send()
 
