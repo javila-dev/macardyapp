@@ -271,8 +271,8 @@ def users_admin(request):
                 user.save()
                 
                 profile = Perfil.objects.get(usuario = user.pk)
-                profile.identificacion = request.POST.get('user_id'),
-                profile.fecha_nacimiento = parse_semantic_date(birth_date,'date'),
+                profile.identificacion = request.POST.get('user_id')
+                profile.fecha_nacimiento = parse_semantic_date(birth_date,'date')
                 
                 profile_rols = profile.rol.all()
                 for rol in profile_rols:
@@ -296,6 +296,11 @@ def users_admin(request):
                     
                     if not has_project:
                         profile.projects.add(obj_project)
+
+                if request.FILES.get('picture'):
+                    profile.avatar = request.FILES.get('picture')
+
+                profile.save()
                         
                 messages.success(request,
                     f'<div class="header">¡Lo hicimos!</div>Se actualizaron los datos del usuario <strong>{username}</strong>')
