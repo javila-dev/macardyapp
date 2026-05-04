@@ -17,6 +17,9 @@ from django.contrib import messages
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.core.mail import send_mail
+import socket
+import traceback
 from xhtml2pdf import pisa
 import numpy_financial as npf
 from dateutil.relativedelta import relativedelta
@@ -589,12 +592,80 @@ def stop_impersonate(request):
     )
     return redirect('/usersadmin')
 
+
+@login_required
+def smtp_email_debug(request):
+    """
+    SMTP connectivity + send probe. Staff/superuser only.
+    Does not return secrets; only booleans/lengths and safe config fields.
+    """
+    if not (request.user.is_superuser or request.user.is_staff):
+        return JsonResponse({'ok': False, 'error': 'forbidden'}, status=403)
+
+    if request.method != 'GET':
+        return JsonResponse({'ok': False, 'error': 'method_not_allowed'}, status=405)
+
+    to = (request.GET.get('to') or '').strip() or (request.user.email or '').strip()
+    if not to:
+        return JsonResponse({'ok': False, 'error': 'missing_recipient'}, status=400)
+
+    resend_key = (getattr(settings, 'RESEND_API_KEY', '') or '').strip()
+    email_pw = (getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip()
+
+    diag = {
+        'ok': True,
+        'email_backend': getattr(settings, 'EMAIL_BACKEND', ''),
+        'email_host': getattr(settings, 'EMAIL_HOST', ''),
+        'email_port': getattr(settings, 'EMAIL_PORT', None),
+        'email_host_user': getattr(settings, 'EMAIL_HOST_USER', ''),
+        'email_use_tls': getattr(settings, 'EMAIL_USE_TLS', None),
+        'email_use_ssl': getattr(settings, 'EMAIL_USE_SSL', None),
+        'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
+        'resend_api_key_set': bool(resend_key),
+        'resend_api_key_len': len(resend_key),
+        'email_host_password_len': len(email_pw),
+        'recipient': to,
+        'dns': {},
+        'send': {},
+    }
+
+    host = getattr(settings, 'EMAIL_HOST', '') or 'smtp.resend.com'
+    for h in (host, 'google.com'):
+        try:
+            diag['dns'][h] = socket.getaddrinfo(h, None)[0][4][0]
+        except Exception as e:
+            diag['dns'][h] = f'FAILED: {type(e).__name__}: {e}'
+
+    try:
+        send_mail(
+            subject='MacardyApp SMTP debug',
+            message='SMTP debug OK',
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            recipient_list=[to],
+            fail_silently=False,
+        )
+        diag['send'] = {'ok': True}
+    except Exception as e:
+        diag['ok'] = False
+        diag['send'] = {
+            'ok': False,
+            'error_type': type(e).__name__,
+            'error': str(e),
+        }
+        if request.user.is_superuser and request.GET.get('verbose') == '1':
+            diag['send']['traceback'] = traceback.format_exc()
+        return JsonResponse(diag, status=500)
+
+    return JsonResponse(diag)
+
+
 urlpattern = [
     path('landing',landing),
     path('',landing),
     path('ejemplo_pdf',render_pdf_view),
     path('action_history',history_actions),
     path('usersadmin',users_admin),
+    path('__debug__/email/', smtp_email_debug, name='smtp_email_debug'),
     path('impersonate/start/<int:user_id>/', start_impersonate, name='start_impersonate'),
     path('impersonate/stop/', stop_impersonate, name='stop_impersonate'),
 ] + [

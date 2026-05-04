@@ -206,21 +206,45 @@ EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
     'django.core.mail.backends.smtp.EmailBackend',
 )
-RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+RESEND_API_KEY = (
+    os.getenv('RESEND_API_KEY')
+    or os.getenv('resend_api_key')
+    or ''
+).strip()
 
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.resend.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '465'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'resend')
 # If EMAIL_HOST_PASSWORD is present-but-empty (common in container env),
 # fall back to RESEND_API_KEY so auth still works.
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD') or RESEND_API_KEY
-EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
-EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', True)
+EMAIL_HOST_PASSWORD = (os.getenv('EMAIL_HOST_PASSWORD') or '').strip() or RESEND_API_KEY
+
+# TLS/SSL must match the port (misconfiguration often looks like "auth required").
+_tls_set = bool((os.getenv('EMAIL_USE_TLS') or '').strip())
+_ssl_set = bool((os.getenv('EMAIL_USE_SSL') or '').strip())
+if _tls_set or _ssl_set:
+    EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
+    EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', False)
+else:
+    if EMAIL_PORT in (465, 2465):
+        EMAIL_USE_TLS = False
+        EMAIL_USE_SSL = True
+    elif EMAIL_PORT in (587, 2587):
+        EMAIL_USE_TLS = True
+        EMAIL_USE_SSL = False
+    else:
+        EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
+        EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', False)
+
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))  # Timeout en segundos
-DEFAULT_FROM_EMAIL = os.getenv(
-    'DEFAULT_FROM_EMAIL',
-    'MacardyApp - 2ASoft <macardyapp@2asoft.tech>',
-)
+_default_from_email = (os.getenv('DEFAULT_FROM_EMAIL') or '').strip()
+if _default_from_email:
+    DEFAULT_FROM_EMAIL = _default_from_email
+elif APP_DOMAIN:
+    # Avoid legacy hardcoded sender; still override via DEFAULT_FROM_EMAIL in env.
+    DEFAULT_FROM_EMAIL = f'MacardyApp <no-reply@{APP_DOMAIN}>'
+else:
+    DEFAULT_FROM_EMAIL = 'MacardyApp <no-reply@localhost>'
 
 # Configuración de logging
 LOGGING = {
