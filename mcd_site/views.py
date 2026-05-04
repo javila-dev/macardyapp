@@ -17,7 +17,8 @@ from django.contrib import messages
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-from django.core.mail import send_mail
+import smtplib
+import ssl
 import socket
 import traceback
 from xhtml2pdf import pisa
@@ -630,31 +631,95 @@ def smtp_email_debug(request):
     }
 
     host = getattr(settings, 'EMAIL_HOST', '') or 'smtp.resend.com'
+    port = int(getattr(settings, 'EMAIL_PORT', 465) or 465)
+    use_tls = bool(getattr(settings, 'EMAIL_USE_TLS', False))
+    use_ssl = bool(getattr(settings, 'EMAIL_USE_SSL', False))
+    user = getattr(settings, 'EMAIL_HOST_USER', '') or ''
+    password = (getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip()
+
     for h in (host, 'google.com'):
         try:
             diag['dns'][h] = socket.getaddrinfo(h, None)[0][4][0]
         except Exception as e:
             diag['dns'][h] = f'FAILED: {type(e).__name__}: {e}'
 
+    probe = (request.GET.get('probe') or 'send').strip().lower()
+    if probe not in {'handshake', 'auth', 'send'}:
+        probe = 'send'
+
+    timeout = int(getattr(settings, 'EMAIL_TIMEOUT', 30) or 30)
+    timeout = max(3, min(timeout, 20))
+
+    smtp_diag = {'probe': probe, 'timeout_s': timeout, 'steps': []}
+
+    conn = None
     try:
-        send_mail(
-            subject='MacardyApp SMTP debug',
-            message='SMTP debug OK',
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-            recipient_list=[to],
-            fail_silently=False,
-        )
-        diag['send'] = {'ok': True}
+        if use_ssl and not use_tls:
+            smtp_diag['steps'].append('connect_smtp_ssl')
+            conn = smtplib.SMTP_SSL(host=host, port=port, timeout=timeout, context=ssl.create_default_context())
+        else:
+            smtp_diag['steps'].append('connect_smtp')
+            conn = smtplib.SMTP(host=host, port=port, timeout=timeout)
+            # Best-effort: make underlying socket timeouts explicit too
+            if getattr(conn, 'sock', None):
+                conn.sock.settimeout(timeout)
+
+            if use_tls:
+                smtp_diag['steps'].append('starttls')
+                context = ssl.create_default_context()
+                conn.starttls(context=context)
+                if getattr(conn, 'sock', None):
+                    conn.sock.settimeout(timeout)
+
+        smtp_diag['steps'].append('ehlo')
+        conn.ehlo()
+
+        if probe in {'auth', 'send'}:
+            smtp_diag['steps'].append('login')
+            if not password:
+                raise smtplib.SMTPException('missing_smtp_password (set RESEND_API_KEY or EMAIL_HOST_PASSWORD)')
+            conn.login(user, password)
+
+        if probe == 'send':
+            smtp_diag['steps'].append('sendmail')
+            msg = (
+                'From: {}\r\n'
+                'To: {}\r\n'
+                'Subject: MacardyApp SMTP debug\r\n'
+                '\r\n'
+                'SMTP debug OK\r\n'
+            ).format(getattr(settings, 'DEFAULT_FROM_EMAIL', ''), to)
+            conn.sendmail(getattr(settings, 'DEFAULT_FROM_EMAIL', ''), [to], msg)
+
+        smtp_diag['ok'] = True
+        diag['smtp'] = smtp_diag
+        diag['send'] = {'ok': True, 'via': 'smtplib', 'probe': probe}
     except Exception as e:
         diag['ok'] = False
+        smtp_diag['ok'] = False
+        smtp_diag['error_type'] = type(e).__name__
+        smtp_diag['error'] = str(e)
+        diag['smtp'] = smtp_diag
         diag['send'] = {
             'ok': False,
+            'via': 'smtplib',
+            'probe': probe,
             'error_type': type(e).__name__,
             'error': str(e),
         }
         if request.user.is_superuser and request.GET.get('verbose') == '1':
             diag['send']['traceback'] = traceback.format_exc()
         return JsonResponse(diag, status=500)
+    finally:
+        try:
+            if conn is not None:
+                conn.quit()
+        except Exception:
+            try:
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
 
     return JsonResponse(diag)
 
