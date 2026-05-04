@@ -15,6 +15,12 @@ class EnsureUserProfileMiddleware(MiddlewareMixin):
 
 class DoubleSubmitProtectionMiddleware(MiddlewareMixin):
     def process_request(self, request):
+        # Password reset / auth flows must not be disrupted by accidental duplicate-submit tokens
+        # (some clients/extensions may inject hidden fields / headers unexpectedly).
+        path = request.path or ''
+        if path.startswith('/accounts/password/'):
+            return None
+
         # Generar token para requests GET
         if request.method == 'GET':
             request.session['transaction_token'] = str(uuid.uuid4())
