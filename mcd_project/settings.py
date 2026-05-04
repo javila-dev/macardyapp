@@ -236,6 +236,17 @@ else:
         EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
         EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', False)
 
+# If env vars exist but contradict the port, normalize to a workable mode.
+# Example failure mode: port 465 with both TLS/SSL false => plain SMTP => timeouts.
+if EMAIL_PORT in (465, 2465):
+    if not EMAIL_USE_SSL:
+        EMAIL_USE_SSL = True
+        EMAIL_USE_TLS = False
+elif EMAIL_PORT in (587, 2587):
+    if not EMAIL_USE_TLS:
+        EMAIL_USE_TLS = True
+        EMAIL_USE_SSL = False
+
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))  # Timeout en segundos
 _default_from_email = (os.getenv('DEFAULT_FROM_EMAIL') or '').strip()
 if _default_from_email:
