@@ -342,13 +342,50 @@ def incomes_list(request, project):
             obj_incomes = (
                 Incomes.objects
                 .filter(project=project, **filter_kwargs)
+                .select_related(
+                    'sale',
+                    'sale__first_owner',
+                    'sale__property_sold',
+                    'user',
+                    'payment_method',
+                )
                 .order_by(order_field)
             )
 
-            incomes_data = JsonRender(
-                obj_incomes,
-                query_functions=['add_date_uk', 'payment_date_uk', 'fp']
-            ).render()
+            # DataTables espera estructura anidada (sale.contract_number, user.username, etc).
+            # JsonRender aplana ForeignKey a PK, por lo que construimos el payload explícitamente.
+            for inc in obj_incomes:
+                sale = getattr(inc, 'sale', None)
+                first_owner = getattr(sale, 'first_owner', None) if sale else None
+                prop = getattr(sale, 'property_sold', None) if sale else None
+                usr = getattr(inc, 'user', None)
+
+                add_date_uk = inc.add_date_uk() if hasattr(inc, 'add_date_uk') else ''
+                payment_date_uk = inc.payment_date_uk() if hasattr(inc, 'payment_date_uk') else ''
+                fp_value = inc.fp() if hasattr(inc, 'fp') else ''
+
+                incomes_data.append({
+                    'id': getattr(inc, 'pk', None),
+                    'add_date_uk': add_date_uk,
+                    'payment_date_uk': payment_date_uk,
+                    'receipt': getattr(inc, 'receipt', ''),
+                    'sale': {
+                        'first_owner': {
+                            'first_name': getattr(first_owner, 'first_name', '') if first_owner else '',
+                            'last_name': getattr(first_owner, 'last_name', '') if first_owner else '',
+                        },
+                        'contract_number': getattr(sale, 'contract_number', '') if sale else '',
+                        'property_sold': {
+                            'description': getattr(prop, 'description', '') if prop else '',
+                        },
+                        'status': getattr(sale, 'status', '') if sale else '',
+                    },
+                    'fp': fp_value,
+                    'user': {
+                        'username': getattr(usr, 'username', '') if usr else '',
+                    },
+                    'value': getattr(inc, 'value', 0) or 0,
+                })
 
             what_to_show = request.GET.get('what_to_show')
 
