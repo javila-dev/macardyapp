@@ -311,205 +311,205 @@ def adjudicated_sales_incomes(request, project):
 @project_permission
 @user_permission('lista de recaudos')
 def incomes_list(request, project):
-    
-    if request.is_ajax():        
-        if request.method == 'GET':
-            
-            todo = request.GET.get('todo')
-            if todo == 'get-comments':
-                
-                receipt = request.GET.get('receipt')
-                obj_receipt = Incomes.objects.get(receipt=receipt, project=project) 
-                
-                data_obs = {
-                    'obs_1' :   obj_receipt.obs_1,
-                    'obs_2' :   obj_receipt.obs_2
-                }
-                
-                return JsonResponse(data_obs)
-            elif todo == 'datatable':
-                incomes_data = []
-                
-                date_from =  request.GET.get('from')
-                date_to = request.GET.get('to')
-                date_field = request.GET.get('date_field', 'add_date')
-                if date_field not in ['add_date', 'payment_date']:
-                    date_field = 'add_date'
-                
-                if date_from and date_to and (date_from != '' and date_to != ''):
-                    date_from =  parse_semantic_date(request.GET.get('from'),'date')
-                    date_to = parse_semantic_date(request.GET.get('to'), 'date')
-                    filter_kwargs = {f'{date_field}__range': (date_from, date_to)}
-                    order_field = f'-{date_field}'
+    # Nota: en versiones modernas de Django, `request.is_ajax()` ya no es confiable (o no existe).
+    # Esta vista se usa tanto para render HTML como para endpoints JSON (DataTables / reportes),
+    # por eso enroutamos por el parámetro `todo` en vez de depender del flag "ajax".
+    todo = request.GET.get('todo') if request.method == 'GET' else None
 
-                    obj_incomes = Incomes.objects.filter(
-                        project=project, **filter_kwargs
-                    ).order_by(order_field)
-                    
-                    incomes_data = JsonRender(
-                        obj_incomes,
-                        query_functions=['add_date_uk', 'payment_date_uk', 'fp']
-                    ).render()
-                    
-                    what_to_show = request.GET.get('what_to_show')
-                    
-                    if what_to_show == 'incomes-and-devolutions' or  what_to_show == 'just-devolutions':
-                        obj_returns = Incomes_return.objects.filter(date__range=(date_from, date_to),
-                                                      sale__project = project)
-                        if what_to_show == 'just-devolutions':
-                            incomes_data= []
-                            
-                        for i in obj_returns:
-                            incomes_data.append({
-                                'add_date_uk': datetime.strftime(i.date,'%Y/%m/%d'),
-                                'payment_date_uk': datetime.strftime(i.date,'%Y/%m/%d'),
-                                'receipt': f'DEV-CTR{i.sale.contract_number}',
-                                'sale':{
-                                    'first_owner':{
-                                        'first_name':i.sale.first_owner.first_name,
-                                        'last_name':i.sale.first_owner.last_name
-                                    },
-                                    'contract_number':i.sale.contract_number,
-                                    'property_sold':{
-                                        'description':i.sale.property_sold.description
-                                    },
-                                    'status':i.sale.status
-                                },
-                                'fp': 'Devoluciones',
-                                'user': {
-                                    'username':i.user.username
-                                },
-                                'value':i.value
-                            })
-                            
-                    
-                data = {
-                    'data': incomes_data
-                }
-                
-                return JsonResponse(data)
-            elif todo == 'report':
-                data = {}
-                
-                date_from =  request.GET.get('from')
-                date_to = request.GET.get('to')
-                what_to_show = request.GET.get('what_to_show')
-                date_field = request.GET.get('date_field', 'add_date')
-                if date_field not in ['add_date', 'payment_date']:
-                    date_field = 'add_date'
-                
-                if date_from and date_to and (date_from != '' and date_to != ''):
-                    date_from =  parse_semantic_date(request.GET.get('from'),'date')
-                    date_to = parse_semantic_date(request.GET.get('to'), 'date')
-                    
-                    wb = openpyxl.Workbook()
-                    ws = wb.active
-                    ws.title = 'Ingresos'
-                    
-                    ws.append(["Recibo", "Dia", "Mes", "Año","Contrato", "Manzana", "Lote","Cliente",
-                            "Forma pago 1","Pago 1","Forma pago 2","Pago 2","Total",
-                            "Concepto","Cuenta/Banco","Observación"])
-                    
-                    filter_kwargs = {f'{date_field}__range': (date_from, date_to)}
-                    day_field = f'{date_field}__day'
-                    month_field = f'{date_field}__month'
-                    year_field = f'{date_field}__year'
+    if request.method == 'GET' and todo == 'get-comments':
+        receipt = request.GET.get('receipt')
+        obj_receipt = Incomes.objects.get(receipt=receipt, project=project)
+        return JsonResponse({
+            'obs_1': obj_receipt.obs_1,
+            'obs_2': obj_receipt.obs_2,
+        })
 
-                    obj_incomes = Incomes.objects.filter(
-                            project=project, **filter_kwargs
-                        ).annotate(
-                            client_full_name = Concat(
-                                F('sale__first_owner__first_name'), 
-                                Value(' '), 
-                                F('sale__first_owner__last_name')),
-                            value_1 = Case(
-                                When(value1__isnull = True, then=F('value')),
-                                When(value1__isnull = False, then=F('value1'))
-                            )
-                        ).order_by(date_field, 'receipt').values_list(
-                            'receipt', day_field, month_field, year_field,
-                            'sale__contract_number',
-                            'sale__property_sold__block','sale__property_sold__location',
-                            'client_full_name','payment_method__name','value_1','pm2__name','value2','value',
-                            'description','obs_1','obs_2'
-                        )
-                        
-                    obj_incomes = list(obj_incomes)
-                    
-                    if what_to_show == 'incomes-and-devolutions' or  what_to_show == 'just-devolutions':
-                        obj_returns = Incomes_return.objects.filter(date__range=(date_from, date_to),
-                                                      sale__project = project)
-                        if what_to_show == 'just-devolutions':
-                            obj_incomes= []
-                            
-                        for r in obj_returns:
-                            obj_incomes.append((
-                                f'DEV-CTR{r.sale.contract_number}',r.date.day,r.date.month,r.date.year,
-                                r.sale.contract_number,r.sale.property_sold.block,
-                                r.sale.property_sold.location, r.sale.first_owner.full_name(),
-                                'Devoluciones',r.value,"","",r.value,
-                                "DESISTIMIENTO DE CONTRATO","",""                            
-                            ))
-                    
-                    for i in obj_incomes:
-                        ws.append(i)
-                    
-                    ws.freeze_panes = "A2"
-                    ws.sheet_view.zoomScale = 75
-                    
-                    for row in ['J','L','M']:
-                        for cell in ws[row]:
-                            cell.style = 'Comma'
-                            
-                    for row in ['B','C','D','E','F','G']:
-                        for cell in ws[row]:
-                            cell.alignment = Alignment(horizontal='center')
-                    
-                    for row in ws['A1:P1']:
-                        for cell in row:
-                            cell.font = Font(bold=True)
-                    
-                    ws.column_dimensions['A'].width = 7.8
-                    ws.column_dimensions['H'].width = 43
-                    ws.column_dimensions['I'].width = 16.5
-                    ws.column_dimensions['J'].width = 16.5
-                    ws.column_dimensions['K'].width = 16.5
-                    ws.column_dimensions['L'].width = 16.5
-                    ws.column_dimensions['M'].width = 18
-                    ws.column_dimensions['N'].width = 53
-                    ws.column_dimensions['O'].width = 22.5
-                    ws.column_dimensions['P'].width = 22.5
-                    
-                    data_len = len(obj_incomes)
-                    filters = ws.auto_filter
-                    filters.ref = f"A1:P{data_len+1}"
-                    
-                    ws.auto_filter.add_sort_condition(f"C2:C{data_len+1}")
-                    
-                        
-                    filename = f'Incomes_report_{date_from.date()}_a_{date_to.date()}.xlsx'
-                        
-                    save_workbook_to_tmp_storage(wb, filename)
-                    
-                    data = {
-                        'href': build_tmp_media_url(filename),
-                    }
-                
-                
-                return JsonResponse(data)
-                
-            
-        elif request.method == 'POST':
-            obs_1 = request.POST.get('obs-1')
-            obs_2 = request.POST.get('obs-2')
-            receipt = request.POST.get('receipt')
-            
-            obj_receipt = Incomes.objects.get(receipt=receipt, project=project) 
-            obj_receipt.obs_1 = obs_1
-            obj_receipt.obs_2 = obs_2
-            obj_receipt.save()
-            
-            return JsonResponse({'response':'ok'})
+    if request.method == 'GET' and todo == 'datatable':
+        incomes_data = []
+
+        date_from = request.GET.get('from')
+        date_to = request.GET.get('to')
+        date_field = request.GET.get('date_field', 'add_date')
+        if date_field not in ['add_date', 'payment_date']:
+            date_field = 'add_date'
+
+        if date_from and date_to and (date_from != '' and date_to != ''):
+            date_from = parse_semantic_date(request.GET.get('from'), 'date')
+            date_to = parse_semantic_date(request.GET.get('to'), 'date')
+            filter_kwargs = {f'{date_field}__range': (date_from, date_to)}
+            order_field = f'-{date_field}'
+
+            obj_incomes = (
+                Incomes.objects
+                .filter(project=project, **filter_kwargs)
+                .order_by(order_field)
+            )
+
+            incomes_data = JsonRender(
+                obj_incomes,
+                query_functions=['add_date_uk', 'payment_date_uk', 'fp']
+            ).render()
+
+            what_to_show = request.GET.get('what_to_show')
+
+            if what_to_show == 'incomes-and-devolutions' or what_to_show == 'just-devolutions':
+                obj_returns = Incomes_return.objects.filter(
+                    date__range=(date_from, date_to),
+                    sale__project=project
+                )
+                if what_to_show == 'just-devolutions':
+                    incomes_data = []
+
+                for i in obj_returns:
+                    incomes_data.append({
+                        'add_date_uk': datetime.strftime(i.date, '%Y/%m/%d'),
+                        'payment_date_uk': datetime.strftime(i.date, '%Y/%m/%d'),
+                        'receipt': f'DEV-CTR{i.sale.contract_number}',
+                        'sale': {
+                            'first_owner': {
+                                'first_name': i.sale.first_owner.first_name,
+                                'last_name': i.sale.first_owner.last_name
+                            },
+                            'contract_number': i.sale.contract_number,
+                            'property_sold': {
+                                'description': i.sale.property_sold.description
+                            },
+                            'status': i.sale.status
+                        },
+                        'fp': 'Devoluciones',
+                        'user': {
+                            'username': i.user.username
+                        },
+                        'value': i.value
+                    })
+
+        return JsonResponse({'data': incomes_data})
+
+    if request.method == 'GET' and todo == 'report':
+        data = {}
+
+        date_from = request.GET.get('from')
+        date_to = request.GET.get('to')
+        what_to_show = request.GET.get('what_to_show')
+        date_field = request.GET.get('date_field', 'add_date')
+        if date_field not in ['add_date', 'payment_date']:
+            date_field = 'add_date'
+
+        if date_from and date_to and (date_from != '' and date_to != ''):
+            date_from = parse_semantic_date(request.GET.get('from'), 'date')
+            date_to = parse_semantic_date(request.GET.get('to'), 'date')
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = 'Ingresos'
+
+            ws.append([
+                "Recibo", "Dia", "Mes", "Año", "Contrato", "Manzana", "Lote", "Cliente",
+                "Forma pago 1", "Pago 1", "Forma pago 2", "Pago 2", "Total",
+                "Concepto", "Cuenta/Banco", "Observación"
+            ])
+
+            filter_kwargs = {f'{date_field}__range': (date_from, date_to)}
+            day_field = f'{date_field}__day'
+            month_field = f'{date_field}__month'
+            year_field = f'{date_field}__year'
+
+            obj_incomes = (
+                Incomes.objects
+                .filter(project=project, **filter_kwargs)
+                .annotate(
+                    client_full_name=Concat(
+                        F('sale__first_owner__first_name'),
+                        Value(' '),
+                        F('sale__first_owner__last_name')
+                    ),
+                    value_1=Case(
+                        When(value1__isnull=True, then=F('value')),
+                        When(value1__isnull=False, then=F('value1'))
+                    )
+                )
+                .order_by(date_field, 'receipt')
+                .values_list(
+                    'receipt', day_field, month_field, year_field,
+                    'sale__contract_number',
+                    'sale__property_sold__block', 'sale__property_sold__location',
+                    'client_full_name', 'payment_method__name', 'value_1', 'pm2__name', 'value2', 'value',
+                    'description', 'obs_1', 'obs_2'
+                )
+            )
+
+            obj_incomes = list(obj_incomes)
+
+            if what_to_show == 'incomes-and-devolutions' or what_to_show == 'just-devolutions':
+                obj_returns = Incomes_return.objects.filter(
+                    date__range=(date_from, date_to),
+                    sale__project=project
+                )
+                if what_to_show == 'just-devolutions':
+                    obj_incomes = []
+
+                for r in obj_returns:
+                    obj_incomes.append((
+                        f'DEV-CTR{r.sale.contract_number}', r.date.day, r.date.month, r.date.year,
+                        r.sale.contract_number, r.sale.property_sold.block,
+                        r.sale.property_sold.location, r.sale.first_owner.full_name(),
+                        'Devoluciones', r.value, "", "", r.value,
+                        "DESISTIMIENTO DE CONTRATO", "", ""
+                    ))
+
+            for i in obj_incomes:
+                ws.append(i)
+
+            ws.freeze_panes = "A2"
+            ws.sheet_view.zoomScale = 75
+
+            for row in ['J', 'L', 'M']:
+                for cell in ws[row]:
+                    cell.style = 'Comma'
+
+            for row in ['B', 'C', 'D', 'E', 'F', 'G']:
+                for cell in ws[row]:
+                    cell.alignment = Alignment(horizontal='center')
+
+            for row in ws['A1:P1']:
+                for cell in row:
+                    cell.font = Font(bold=True)
+
+            ws.column_dimensions['A'].width = 7.8
+            ws.column_dimensions['H'].width = 43
+            ws.column_dimensions['I'].width = 16.5
+            ws.column_dimensions['J'].width = 16.5
+            ws.column_dimensions['K'].width = 16.5
+            ws.column_dimensions['L'].width = 16.5
+            ws.column_dimensions['M'].width = 18
+            ws.column_dimensions['N'].width = 53
+            ws.column_dimensions['O'].width = 22.5
+            ws.column_dimensions['P'].width = 22.5
+
+            data_len = len(obj_incomes)
+            filters = ws.auto_filter
+            filters.ref = f"A1:P{data_len + 1}"
+
+            ws.auto_filter.add_sort_condition(f"C2:C{data_len + 1}")
+
+            filename = f'Incomes_report_{date_from.date()}_a_{date_to.date()}.xlsx'
+            save_workbook_to_tmp_storage(wb, filename)
+
+            data = {'href': build_tmp_media_url(filename)}
+
+        return JsonResponse(data)
+
+    if request.method == 'POST':
+        obs_1 = request.POST.get('obs-1')
+        obs_2 = request.POST.get('obs-2')
+        receipt = request.POST.get('receipt')
+
+        obj_receipt = Incomes.objects.get(receipt=receipt, project=project)
+        obj_receipt.obs_1 = obs_1
+        obj_receipt.obs_2 = obs_2
+        obj_receipt.save()
+
+        return JsonResponse({'response': 'ok'})
         
     
     obj_project = Projects.objects.get(name=project)
