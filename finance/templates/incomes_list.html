@@ -208,7 +208,15 @@
                 {'data':'add_date_uk'},
                 {'data':'payment_date_uk'},
                 {'data':'receipt'},
-                {'data':'sale.first_owner',render: (data)=> data.first_name + ' ' + data.last_name},
+                {
+                  'data':'sale.first_owner',
+                  render: (data) => {
+                    if (!data) return '';
+                    const first = data.first_name || '';
+                    const last = data.last_name || '';
+                    return (first + ' ' + last).trim();
+                  }
+                },
                 {'data':'sale.contract_number'},
                 {'data':'sale.property_sold.description'},
                 {'data':'fp'},
