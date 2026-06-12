@@ -101,8 +101,8 @@ class Incomes_return(models.Model):
     date = models.DateField(verbose_name='Fecha')
     value = models.IntegerField(verbose_name='Valor')
     user = models.ForeignKey(User, on_delete=models.PROTECT)
-    
-class Meta:
+
+    class Meta:
         verbose_name = 'Devolución'
         verbose_name_plural = 'Devoluciones'
 
