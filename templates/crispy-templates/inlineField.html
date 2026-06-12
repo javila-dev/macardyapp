@@ -1,5 +1,5 @@
 {% load crispy_forms_field %}
-<div class='inline field'>
+<div class='inline field{% if field.field.required %} required{% endif %}'>
     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
     {% crispy_field field %}
 </div>

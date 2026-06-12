@@ -208,6 +208,16 @@ $(document).ready(function () {
 
     })
     $('#form-collaborator').submit(function () {
+        $(this).find('.ui.dropdown').each(function () {
+            const $dropdown = $(this);
+            const $select = $dropdown.find('select');
+            if ($select.length) {
+                $select.val($dropdown.dropdown('get value'));
+            }
+        });
+        if (typeof this.reportValidity === 'function' && !this.reportValidity()) {
+            return false;
+        }
         $(this).addClass('loading')
         $('#modalCollaborator .approve.button').addClass('disabled')
 
@@ -291,17 +301,17 @@ $(document).ready(function () {
     $('#id_type_of_contract_react').on('change', function () {
         let value = $(this).val()
         if (value == 'Indefinido') {
-            $('#id_duration_react').prop('disabled', true)
+            $('#id_duration_react').prop('disabled', true).prop('required', false)
         } else {
-            $('#id_duration_react').prop('disabled', false)
+            $('#id_duration_react').prop('disabled', false).prop('required', true)
         }
     })
     $('#id_type_of_contract').on('change', function () {
         let value = $(this).val()
         if (value == 'Indefinido') {
-            $('#id_duration').prop('disabled', true)
+            $('#id_duration').prop('disabled', true).prop('required', false)
         } else {
-            $('#id_duration').prop('disabled', false)
+            $('#id_duration').prop('disabled', false).prop('required', true)
         }
     })
     $('.ui.dropdown').dropdown();

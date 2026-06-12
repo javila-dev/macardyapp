@@ -7,7 +7,7 @@ from crispy_forms.bootstrap import AppendedText, PrependedAppendedText, Prepende
 from mcd_site.crispycustomfields import checkbox, dropdownField, inlineField, dateField
 from django.conf import settings
 import json
-from mcd_site.utils import countries_data
+from mcd_site.utils import countries_data, parse_semantic_date
 
 
 class nuevo_cliente_form(forms.Form):
@@ -377,41 +377,59 @@ class gestores_form(forms.Form):
         )
     
 class collaborators_form(forms.Form):
-    col_document = forms.CharField(max_length=255,label='Documento de identificación')
-    col_first_name = forms.CharField(max_length=255,label=False)
-    col_last_name = forms.CharField(max_length=255,label=False)
-    col_email = forms.EmailField(label='Email')
-    col_phone = forms.CharField(max_length=15,label='Telefono')
-    col_address = forms.CharField(max_length=255,label='Direccion')
-    col_birth_date = forms.DateField(label='Fecha de nacimiento')
-    city = forms.ChoiceField(choices=(
-        ('','Selecciona...'),),label='Ciudad')
-    state = forms.ChoiceField(choices=( ('','Selecciona...'),),label='Estado')
-    country = forms.ChoiceField(choices=( ('','Selecciona...'),),label='Pais')
-    scholarity = forms.ChoiceField(label='Escolaridad',choices=(
+    col_document = forms.CharField(
+        max_length=255, label='Documento de identificación', required=True)
+    col_first_name = forms.CharField(max_length=255, label=False, required=True)
+    col_last_name = forms.CharField(max_length=255, label=False, required=True)
+    col_email = forms.EmailField(label='Email', required=False)
+    col_phone = forms.CharField(max_length=15, label='Telefono', required=False)
+    col_address = forms.CharField(max_length=255, label='Direccion', required=False)
+    col_birth_date = forms.CharField(label='Fecha de nacimiento', required=False)
+    city = forms.ChoiceField(
+        choices=(('', 'Selecciona...'),), label='Ciudad', required=False)
+    state = forms.ChoiceField(
+        choices=(('', 'Selecciona...'),), label='Estado', required=False)
+    country = forms.ChoiceField(
+        choices=(('', 'Selecciona...'),), label='Pais', required=False)
+    scholarity = forms.ChoiceField(label='Escolaridad', required=True, choices=(
         ('Sin estudios', 'Sin estudios'),  ('Primaria', 'Primaria'),
         ('Bachillerato', 'Bachillerato'),  ('Tecnico', 'Tecnico'),
          ('Tecnologo', 'Tecnologo'), ('Pregrado', 'Pregrado'),
         ('Postgrado', 'Postgrado'), ('Maestria', 'Maestria')
     ))
-    cv_support = forms.FileField(label = 'Hoja de vida',help_text='Carga un archivo PDF de maximo 10 MB')
-    contract_support = forms.FileField(label = 'Contrato',help_text='Carga un archivo PDF de maximo 10 MB')
-    bank_certificate = forms.FileField(label = 'Certificado Bancario',help_text='Carga un archivo PDF de maximo 10 MB')
-    bank_entity = forms.ModelChoiceField(Bank_entities.objects.all(),label='Banco')
+    cv_support = forms.FileField(
+        label='Hoja de vida',
+        help_text='Carga un archivo PDF de maximo 10 MB',
+        required=True,
+    )
+    contract_support = forms.FileField(
+        label='Contrato',
+        help_text='Carga un archivo PDF de maximo 10 MB',
+        required=True,
+    )
+    bank_certificate = forms.FileField(
+        label='Certificado Bancario',
+        help_text='Carga un archivo PDF de maximo 10 MB',
+        required=True,
+    )
+    bank_entity = forms.ModelChoiceField(
+        Bank_entities.objects.all(), label='Banco', required=True)
     account_type = forms.ChoiceField(choices=(
         ('S', 'Ahorros'), ('D', 'Corriente')
-        ),label = 'Tipo de cuenta')
-    bank_account_number = forms.IntegerField(label='Numero de cuenta')
-    type_of_contract = forms.ChoiceField(label='Tipo de contrato',choices=(
+        ), label='Tipo de cuenta', required=True)
+    bank_account_number = forms.CharField(
+        max_length=255, label='Numero de cuenta', required=False)
+    type_of_contract = forms.ChoiceField(label='Tipo de contrato', required=True, choices=(
         ('Fijo','Fijo'),
         ('Obra labor','Obra labor'),
         ('Indefinido','Indefinido'),
         ('Prestación de servicios','Prestación de servicios'),
     ))
-    initial_date = forms.DateField(label='Fecha de inicio')
-    duration = forms.IntegerField(label='Duración (en meses)')
-    salary = forms.CharField(max_length=255,label='Salario')
-    position_name = forms.CharField(max_length=255,label='Cargo')
+    initial_date = forms.CharField(label='Fecha de inicio', required=True)
+    duration = forms.IntegerField(
+        label='Duración (en meses)', required=False, min_value=1)
+    salary = forms.CharField(max_length=255, label='Salario', required=True)
+    position_name = forms.CharField(max_length=255, label='Cargo', required=True)
     
     file = open(settings.STATIC_ROOT /'json/ss_entities.json',encoding="utf8")
     json_file = json.loads(file.read().encode().decode('utf-8-sig'))
@@ -427,16 +445,28 @@ class collaborators_form(forms.Form):
     for entity in json_file['cesantias']:
         cesantias_choices.append((entity.get('id'),entity.get('name')))  
         
-    eps = forms.ChoiceField(choices=eps_choices, required=False)
-    pension = forms.ChoiceField(choices=pension_choices, required=False)
-    cesantias = forms.ChoiceField(choices=cesantias_choices, required=False)
-    
+    eps = forms.ChoiceField(choices=eps_choices, required=False, label='EPS')
+    pension = forms.ChoiceField(choices=pension_choices, required=False, label='Pensión')
+    cesantias = forms.ChoiceField(choices=cesantias_choices, required=False, label='Cesantías')
+
     def __init__(self, *args, **kwargs):
+        self.is_create = kwargs.pop('is_create', True)
         super().__init__(*args, **kwargs)
+
+        if not self.is_create:
+            for field_name in ('cv_support', 'contract_support', 'bank_certificate'):
+                self.fields[field_name].required = False
+
         self.helper = FormHelper()
         self.helper.form_id = 'form-collaborator'
         self.helper.form_class = 'ui form'
+        file_segment_class = 'ui segment required' if self.is_create else 'ui segment'
         self.helper.layout = Layout(
+            HTML(
+                '<p class="ui tiny message">'
+                'Los campos marcados con <strong>*</strong> son obligatorios.'
+                '</p>'
+            ),
             Div(
                Div(
                    Div(
@@ -445,11 +475,11 @@ class collaborators_form(forms.Form):
                     css_class='field'
                 ),
                 Div(
-                    HTML('<label>Nombre</label>'),
+                    HTML('<label>Nombre <span style="color:#db2828">*</span></label>'),
                     Div(
                         Field('col_first_name',placeholder='Nombre'),
                         Field('col_last_name',placeholder='Apellidos'),
-                        css_class='two fields'
+                        css_class='two fields required'
                     ),
                     css_class='required field'
                 ),
@@ -502,7 +532,10 @@ class collaborators_form(forms.Form):
                 ),
                 Div(
                     HTML('<h4 class="ui dividing header">Información de contrato</h4>'),
-                    Field('position_name'),
+                    Div(
+                        Field('position_name'),
+                        css_class='required field'
+                    ),
                     Div(
                         dropdownField('type_of_contract'),
                         PrependedText('salary','$',css_class='money text-center'),
@@ -521,7 +554,7 @@ class collaborators_form(forms.Form):
                         Field('bank_certificate',css_class='',accept="application/pdf"),
                         css_class='three fields'
                     ),
-                    css_class='ui segment',id='file-segment'
+                    css_class=file_segment_class,id='file-segment'
                 ),
                 Div(
                     Submit('sbmt','Registrar',css_class='ui right green button'),
@@ -531,17 +564,91 @@ class collaborators_form(forms.Form):
             
         )
 
+    def _parse_semantic_date(self, value, required=False):
+        if value in (None, ''):
+            if required:
+                raise forms.ValidationError('Este campo es obligatorio.')
+            return None
+        try:
+            return parse_semantic_date(value, 'date').date()
+        except (ValueError, TypeError):
+            raise forms.ValidationError('Ingresa una fecha válida.')
+
+    def clean_col_birth_date(self):
+        return self._parse_semantic_date(self.cleaned_data.get('col_birth_date'))
+
+    def clean_initial_date(self):
+        return self._parse_semantic_date(
+            self.cleaned_data.get('initial_date'), required=True)
+
+    def clean_salary(self):
+        value = self.cleaned_data.get('salary', '')
+        if value in (None, ''):
+            raise forms.ValidationError('Este campo es obligatorio.')
+        try:
+            return int(str(value).replace(',', ''))
+        except ValueError:
+            raise forms.ValidationError('Ingresa un salario válido.')
+
+    def clean_bank_account_number(self):
+        value = self.cleaned_data.get('bank_account_number')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def clean_city(self):
+        return self._optional_choice_int(self.cleaned_data.get('city'))
+
+    def clean_state(self):
+        return self._optional_choice_int(self.cleaned_data.get('state'))
+
+    def clean_country(self):
+        return self._optional_choice_int(self.cleaned_data.get('country'))
+
+    def clean_eps(self):
+        return self._optional_choice_int(self.cleaned_data.get('eps'))
+
+    def clean_pension(self):
+        return self._optional_choice_int(self.cleaned_data.get('pension'))
+
+    def clean_cesantias(self):
+        return self._optional_choice_int(self.cleaned_data.get('cesantias'))
+
+    @staticmethod
+    def _optional_choice_int(value):
+        if value in (None, ''):
+            return None
+        return int(value)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.errors:
+            return cleaned_data
+
+        if cleaned_data.get('type_of_contract') != 'Indefinido':
+            duration = cleaned_data.get('duration')
+            if duration in (None, ''):
+                self.add_error(
+                    'duration',
+                    'La duración es obligatoria para contratos que no son indefinidos.'
+                )
+        else:
+            cleaned_data['duration'] = None
+
+        return cleaned_data
+
 class collab_react(forms.Form):
-    type_of_contract_react = forms.ChoiceField(label='Tipo de contrato',choices=(
+    type_of_contract_react = forms.ChoiceField(label='Tipo de contrato', required=True, choices=(
         ('Fijo','Fijo'),
         ('Obra labor','Obra labor'),
         ('Indefinido','Indefinido'),
         ('Prestación de servicios','Prestación de servicios'),
     ))
-    initial_date_react = forms.DateField(label='Fecha de inicio')
-    duration_react = forms.IntegerField(label='Duración (en meses)')
-    salary_react = forms.CharField(max_length=255,label='Salario')
-    position_name_react = forms.CharField(max_length=255,label='Cargo')
+    initial_date_react = forms.CharField(label='Fecha de inicio', required=True)
+    duration_react = forms.IntegerField(
+        label='Duración (en meses)', required=False, min_value=1)
+    salary_react = forms.CharField(max_length=255, label='Salario', required=True)
+    position_name_react = forms.CharField(max_length=255, label='Cargo', required=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -549,9 +656,17 @@ class collab_react(forms.Form):
         self.helper.form_id = 'form-reactivate'
         self.helper.form_class = 'ui form'
         self.helper.layout = Layout(
+            HTML(
+                '<p class="ui tiny message">'
+                'Los campos marcados con <strong>*</strong> son obligatorios.'
+                '</p>'
+            ),
             Div(
                 Div(
-                    Field('position_name_react'),
+                    Div(
+                        Field('position_name_react'),
+                        css_class='required field'
+                    ),
                     Div(
                         dropdownField('type_of_contract_react'),
                         dateField('initial_date_react',onkeypress="return false;"),
@@ -570,3 +685,37 @@ class collab_react(forms.Form):
                 )
             )
         )
+
+    def clean_initial_date_react(self):
+        value = self.cleaned_data.get('initial_date_react')
+        if not value:
+            raise forms.ValidationError('Este campo es obligatorio.')
+        try:
+            return parse_semantic_date(value, 'date')
+        except (ValueError, TypeError):
+            raise forms.ValidationError('Ingresa una fecha válida.')
+
+    def clean_salary_react(self):
+        value = self.cleaned_data.get('salary_react', '')
+        if value in (None, ''):
+            raise forms.ValidationError('Este campo es obligatorio.')
+        try:
+            return int(str(value).replace(',', ''))
+        except ValueError:
+            raise forms.ValidationError('Ingresa un salario válido.')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.errors:
+            return cleaned_data
+
+        if cleaned_data.get('type_of_contract_react') != 'Indefinido':
+            if cleaned_data.get('duration_react') in (None, ''):
+                self.add_error(
+                    'duration_react',
+                    'La duración es obligatoria para contratos que no son indefinidos.'
+                )
+        else:
+            cleaned_data['duration_react'] = None
+
+        return cleaned_data

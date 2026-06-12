@@ -78,8 +78,9 @@ def collaborators(request):
     context = {
         'collaborators': obj_collaborators,
         'nte_contracts':near_to_end_contracts,
-        'form': forms.collaborators_form,
-        'form_react':forms.collab_react,
+        'form': forms.collaborators_form(),
+        'form_react': forms.collab_react(),
+        'form_has_errors': False,
     }
     
     if request.method == 'GET' and request.GET:
@@ -199,47 +200,46 @@ def collaborators(request):
             user_check_perms(
                     request, 'crear colaborador', raise_exception=True)
             type_of = request.POST.get('type_of')
-            document = request.POST.get('col_document')
-            first_name = request.POST.get('col_first_name')
-            last_name = request.POST.get('col_last_name')
-            email = request.POST.get('col_email')
-            phone = request.POST.get('col_phone')
-            address = request.POST.get('col_address')
-            birth_date = request.POST.get('col_birth_date')
-            birth_date = parse_semantic_date(birth_date,'date')
-            city = request.POST.get('city')
-            state = request.POST.get('state')
-            country = request.POST.get('country')
-            scholarity = request.POST.get('scholarity')
-            bank_entity = request.POST.get('bank_entity')
-            obj_bank_entity = Bank_entities.objects.get(pk=bank_entity)
-            account_type = request.POST.get('account_type')
-            bank_account_number = request.POST.get('bank_account_number')
-            type_of_contract = request.POST.get('type_of_contract')
-            initial_date = request.POST.get('initial_date')
-            initial_date = parse_semantic_date(initial_date,'date')
-            duration = request.POST.get('duration',0)
-            if duration != '': duration = int(duration)
-            salary = request.POST.get('salary').replace(',','')
-            position_name = request.POST.get('position_name')
-            cv_support = request.FILES.get('cv_support')
-            contract_support = request.FILES.get('contract_support')
-            bank_certificate = request.FILES.get('bank_certificate')
-            eps = request.POST.get('eps')
-            pension = request.POST.get('pension')
-            cesantias = request.POST.get('cesantias')
-            if eps == '':
-                eps = None
-            else:
-                eps = int(eps)
-            if pension == '':
-                pension = None
-            else:
-                pension = int(pension)
-            if cesantias == '':
-                cesantias = None
-            else:
-                cesantias = int(cesantias)
+            bound_form = forms.collaborators_form(
+                request.POST,
+                request.FILES,
+                is_create=(type_of == 'create'),
+            )
+            if not bound_form.is_valid():
+                context['form'] = bound_form
+                context['form_has_errors'] = True
+                messages.error(
+                    request,
+                    '<div class="header">¡Ups!</div>Revisa los campos obligatorios del formulario.'
+                )
+                return render(request, 'collaborators.html', context)
+
+            data = bound_form.cleaned_data
+            document = data['col_document']
+            first_name = data['col_first_name']
+            last_name = data['col_last_name']
+            email = data['col_email']
+            phone = data['col_phone']
+            address = data['col_address']
+            birth_date = data['col_birth_date']
+            city = data['city']
+            state = data['state']
+            country = data['country']
+            scholarity = data['scholarity']
+            obj_bank_entity = data['bank_entity']
+            account_type = data['account_type']
+            bank_account_number = data['bank_account_number']
+            type_of_contract = data['type_of_contract']
+            initial_date = data['initial_date']
+            duration = data['duration']
+            salary = data['salary']
+            position_name = data['position_name']
+            cv_support = data.get('cv_support')
+            contract_support = data.get('contract_support')
+            bank_certificate = data.get('bank_certificate')
+            eps = data['eps']
+            pension = data['pension']
+            cesantias = data['cesantias']
 
             if type_of_contract == 'Indefinido':
                     end_date = None
@@ -329,7 +329,7 @@ def collaborators(request):
                 new_contract = False
                 if type_of_contract != active_contract.type_of_contract:
                     new_contract = True
-                elif initial_date.date() != active_contract.initial_date:
+                elif initial_date != active_contract.initial_date:
                     new_contract = True
                 elif duration != active_contract.duration:
                     new_contract = True
@@ -338,7 +338,7 @@ def collaborators(request):
 
                 if new_contract:
                     change_ok = True
-                    if initial_date.date() <= active_contract.initial_date:
+                    if initial_date <= active_contract.initial_date:
                         change_ok = False
                         msj = 'No puedes crear un contrato con fecha de inicio igual o inferior al contrato vigente.'
                     if active_contract.type_of_contract == 'Indefinido' and \

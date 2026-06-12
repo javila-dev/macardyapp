@@ -1,5 +1,5 @@
 {% load crispy_forms_field %}
-<div class='field'>
+<div class='field{% if field.field.required %} required{% endif %}'>
     <label class="input-group-text" for="{{ field.id_for_label }}">{{ field.label }}</label>
     {% crispy_field field 'class' 'ui dropdown'%}
 </div>

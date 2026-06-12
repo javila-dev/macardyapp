@@ -220,5 +220,17 @@
 <script src="{%static 'js/moment.js'%}"></script>
 <script src="https://cdn.datatables.net/plug-ins/1.11.5/dataRender/datetime.js"></script>
 <script src="{%static 'js/collaborators.js'%}"></script>
+{% if form_has_errors %}
+<script>
+$(function () {
+    $('#modalCollaborator').modal('show');
+    $('.ui.calendar').calendar({
+        type: 'date',
+        text: calendar_spanish()
+    });
+    $('.ui.dropdown').dropdown();
+});
+</script>
+{% endif %}
 
 {%endblock%}
