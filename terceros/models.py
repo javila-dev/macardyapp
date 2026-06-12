@@ -217,9 +217,9 @@ class Collaborators(models.Model):
         ('Tecnologo', 'Tecnologo'), ('Pregrado', 'Pregrado'),
         ('Postgrado', 'Postgrado'), ('Maestria', 'Maestria')
     ), verbose_name='Escolaridad')
-    eps = models.IntegerField()
-    pension = models.IntegerField()
-    cesantias = models.IntegerField()
+    eps = models.IntegerField(null=True, blank=True)
+    pension = models.IntegerField(null=True, blank=True)
+    cesantias = models.IntegerField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Colaborador'

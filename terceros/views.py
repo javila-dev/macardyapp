@@ -228,6 +228,18 @@ def collaborators(request):
             eps = request.POST.get('eps')
             pension = request.POST.get('pension')
             cesantias = request.POST.get('cesantias')
+            if eps == '':
+                eps = None
+            else:
+                eps = int(eps)
+            if pension == '':
+                pension = None
+            else:
+                pension = int(pension)
+            if cesantias == '':
+                cesantias = None
+            else:
+                cesantias = int(cesantias)
 
             if type_of_contract == 'Indefinido':
                     end_date = None

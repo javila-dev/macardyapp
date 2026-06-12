@@ -13,9 +13,12 @@ ENV LC_ALL es_CO.UTF-8
 WORKDIR /code
 COPY requirements.txt /code/
 RUN pip install -r requirements.txt
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 COPY . /code/
 
 RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "mcd_project.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
