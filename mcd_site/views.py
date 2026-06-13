@@ -72,7 +72,7 @@ def landing(request):
     obj_collaborators = Collaborators.objects.filter(status='Activo')
 
     for collab in obj_collaborators:
-        if collab.birth_date.month == today.month:
+        if collab.birth_date and collab.birth_date.month == today.month:
             sp_dt.append({
                 'type':'birthday',
                 'profile':collab

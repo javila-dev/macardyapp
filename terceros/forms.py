@@ -384,7 +384,7 @@ class collaborators_form(forms.Form):
     col_email = forms.EmailField(label='Email', required=False)
     col_phone = forms.CharField(max_length=15, label='Telefono', required=False)
     col_address = forms.CharField(max_length=255, label='Direccion', required=False)
-    col_birth_date = forms.CharField(label='Fecha de nacimiento', required=False)
+    col_birth_date = forms.CharField(label='Fecha de nacimiento', required=True)
     city = forms.ChoiceField(
         choices=(('', 'Selecciona...'),), label='Ciudad', required=False)
     state = forms.ChoiceField(
@@ -575,7 +575,8 @@ class collaborators_form(forms.Form):
             raise forms.ValidationError('Ingresa una fecha válida.')
 
     def clean_col_birth_date(self):
-        return self._parse_semantic_date(self.cleaned_data.get('col_birth_date'))
+        return self._parse_semantic_date(
+            self.cleaned_data.get('col_birth_date'), required=True)
 
     def clean_initial_date(self):
         return self._parse_semantic_date(
