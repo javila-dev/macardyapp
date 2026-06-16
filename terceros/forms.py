@@ -452,6 +452,11 @@ class collaborators_form(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.data:
+            for name in ('country', 'state', 'city'):
+                value = self.data.get(name)
+                if value not in (None, ''):
+                    self.fields[name].choices = [('', 'Selecciona...'), (value, value)]
         type_of = self.data.get('type_of', 'create') if self.data else 'create'
         self.is_create = type_of == 'create'
 
