@@ -24,9 +24,59 @@ from dateutil.relativedelta import relativedelta
 
 import datetime
 import locale
+import logging
 import unicodedata
+import uuid
+
+from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 locale.setlocale(locale.LC_ALL,'es_CO.UTF-8')
+
+
+def _refresh_transaction_token(request):
+    request.session['transaction_token'] = str(uuid.uuid4())
+
+
+def _collaborator_field_label(bound_form, field_name):
+    if field_name == '__all__':
+        return 'Formulario'
+    field = bound_form.fields.get(field_name)
+    if field and field.label:
+        return field.label
+    return field_name.replace('_', ' ').title()
+
+
+def _collaborator_form_errors_html(bound_form):
+    items = []
+    for field_name, errors in bound_form.errors.items():
+        label = _collaborator_field_label(bound_form, field_name)
+        for error in errors:
+            items.append(f'<li><strong>{label}:</strong> {error}</li>')
+    if not items:
+        return (
+            '<div class="header">¡Ups!</div>'
+            'Revisa los campos obligatorios del formulario.'
+        )
+    return (
+        '<div class="header">¡Ups!</div>'
+        'No se guardó el colaborador. Corrige lo siguiente:'
+        f'<ul>{"".join(items)}</ul>'
+    )
+
+
+def _collaborator_error_response(request, context, bound_form, message_html, log_message=None, exc=None):
+    _refresh_transaction_token(request)
+    context['form'] = bound_form
+    context['form_has_errors'] = True
+    messages.error(request, message_html)
+    if log_message:
+        if exc is not None:
+            logger.exception('%s: %s', log_message, exc)
+        else:
+            logger.warning(log_message)
+    return render(request, 'collaborators.html', context)
 
 # Create your views here.
 @login_required
@@ -196,25 +246,50 @@ def collaborators(request):
 
                 return JsonResponse(data)
 
+            logger.warning(
+                'POST ajax a /partners/collaborators sin acción válida: action=%r',
+                request.POST.get('action'),
+            )
+            return JsonResponse({
+                'class': 'error',
+                'msj': 'Acción no reconocida. Recarga la página e intenta de nuevo.',
+            }, status=400)
+
         else:
             user_check_perms(
                     request, 'crear colaborador', raise_exception=True)
-            type_of = request.POST.get('type_of')
             bound_form = forms.collaborators_form(
                 request.POST,
                 request.FILES,
-                is_create=(type_of == 'create'),
             )
             if not bound_form.is_valid():
-                context['form'] = bound_form
-                context['form_has_errors'] = True
-                messages.error(
+                return _collaborator_error_response(
                     request,
-                    '<div class="header">¡Ups!</div>Revisa los campos obligatorios del formulario.'
+                    context,
+                    bound_form,
+                    _collaborator_form_errors_html(bound_form),
+                    log_message=(
+                        'Formulario de colaborador inválido '
+                        f'(type_of={request.POST.get("type_of")!r}, '
+                        f'errors={dict(bound_form.errors)})'
+                    ),
                 )
-                return render(request, 'collaborators.html', context)
 
             data = bound_form.cleaned_data
+            type_of = data['type_of']
+            if type_of not in ('create', 'modify'):
+                return _collaborator_error_response(
+                    request,
+                    context,
+                    bound_form,
+                    (
+                        '<div class="header">¡Ups!</div>'
+                        f'Acción inválida ({type_of!r}). '
+                        'Usa el botón <strong>Nuevo</strong> o selecciona un colaborador de la tabla.'
+                    ),
+                    log_message=f'Acción de colaborador inválida: type_of={type_of!r}',
+                )
+
             document = data['col_document']
             first_name = data['col_first_name']
             last_name = data['col_last_name']
@@ -246,8 +321,30 @@ def collaborators(request):
             else:
                 end_date = initial_date + relativedelta(months=int(duration))
             
-            if type_of=='create':
-                
+            if type_of == 'create':
+                missing_files = []
+                if not cv_support:
+                    missing_files.append('Hoja de vida')
+                if not contract_support:
+                    missing_files.append('Contrato')
+                if not bank_certificate:
+                    missing_files.append('Certificado bancario')
+                if missing_files:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        (
+                            '<div class="header">¡Ups!</div>'
+                            'Faltan archivos obligatorios para crear el colaborador:'
+                            f'<ul>{"".join(f"<li>{name}</li>" for name in missing_files)}</ul>'
+                        ),
+                        log_message=(
+                            f'Creación de colaborador {document!r} sin archivos: '
+                            f'{missing_files}'
+                        ),
+                    )
+
                 cv_support.name = ''.join(c for c in unicodedata.normalize('NFD', cv_support.name)
                                         if unicodedata.category(c) != 'Mn'
                                         ).replace('ñ','n')
@@ -258,118 +355,186 @@ def collaborators(request):
                                         if unicodedata.category(c) != 'Mn'
                                         ).replace('ñ','n')
                 
-                
                 try:
-                    collab = Collaborators.objects.create(
-                        id_document = document, first_name = first_name, last_name = last_name,
-                        email = email, phone = phone, address = address, city = city,
-                        state = state, country = country, scholarity = scholarity,
-                        bank_entity = obj_bank_entity, account_type = account_type,
-                        bank_account_number = bank_account_number, birth_date = birth_date,
-                        eps = eps, pension = pension, cesantias = cesantias
-                    )
-                    
-                    Collaborator_contracts.objects.create(
-                        collaborator = collab, type_of_contract = type_of_contract,
-                        duration = duration, initial_date = initial_date,
-                        end_date = end_date, position_name = position_name,
-                        salary = salary
-                    )
-                    collaborators_files.objects.bulk_create([
-                        collaborators_files(collaborator = collab,
-                                            description = 'Hoja de vida',
-                                            file = cv_support),
-                        collaborators_files(collaborator = collab,
-                                            description = 'Contrato',
-                                            file = contract_support),
-                        collaborators_files(collaborator = collab,
-                                            description = 'Certificado bancario',
-                                            file = bank_certificate)
-                    ])
-                    Timeline.objects.create(
-                        user=request.user,
-                        action=f'Creó al colaborador {collab.full_name()}',
-                        aplication='RRHH'
-                    )
-                    
-                    messages.success(request,'<div class="header">¡Lo hiciste!</div>Creaste al colaborador sin problemas.')
-                except IntegrityError:
-                    messages.error(request,'<div class="header">¡Ups!</div>El colaborador que intentas crear ya existe')
-            
-            elif type_of == 'modify':
-                
-                collab = Collaborators.objects.get(id_document=document)
-                
-                collab.first_name = first_name
-                collab.last_name = last_name
-                collab.email = email
-                collab.phone = phone
-                collab.address = address
-                collab.city = city
-                collab.state = state
-                collab.country = country
-                collab.scholarity = scholarity
-                collab.bank_entity = obj_bank_entity
-                collab.account_type = account_type
-                collab.bank_account_number = bank_account_number
-                collab.birth_date = birth_date
-                collab.eps = eps
-                collab.pension = pension
-                collab.cesantias = cesantias
-                collab.save()
-
-                active_contract = Collaborator_contracts.objects.filter(
-                    collaborator = collab.pk
-                ).last()
-
-                msj = 'Los datos del colaborador fueron actualizados con exito.'
-
-                
-
-                new_contract = False
-                if type_of_contract != active_contract.type_of_contract:
-                    new_contract = True
-                elif initial_date != active_contract.initial_date:
-                    new_contract = True
-                elif duration != active_contract.duration:
-                    new_contract = True
-                elif int(salary) != active_contract.salary:
-                    new_contract = True
-
-                if new_contract:
-                    change_ok = True
-                    if initial_date <= active_contract.initial_date:
-                        change_ok = False
-                        msj = 'No puedes crear un contrato con fecha de inicio igual o inferior al contrato vigente.'
-                    if active_contract.type_of_contract == 'Indefinido' and \
-                        type_of_contract != 'Indefinido':
-                        change_ok = False
-                        msj = 'No puedes cambiar a un colaborador de contrato indefinido a otro tipo de contrato'
-                    if change_ok:
-                        if collab.status == 'Activo':
-                            active_contract.end_date = initial_date - relativedelta(days=1)
-                            active_contract.save()
+                    with transaction.atomic():
+                        collab = Collaborators.objects.create(
+                            id_document = document, first_name = first_name, last_name = last_name,
+                            email = email, phone = phone, address = address, city = city,
+                            state = state, country = country, scholarity = scholarity,
+                            bank_entity = obj_bank_entity, account_type = account_type,
+                            bank_account_number = bank_account_number, birth_date = birth_date,
+                            eps = eps, pension = pension, cesantias = cesantias
+                        )
+                        
                         Collaborator_contracts.objects.create(
                             collaborator = collab, type_of_contract = type_of_contract,
                             duration = duration, initial_date = initial_date,
                             end_date = end_date, position_name = position_name,
                             salary = salary
                         )
-                        
-                        msj += '; fué agregado un nuevo contrato'
-                        messages.success(request,f'<div class="header">¡Lo hiciste!</div>{msj}')
-                    else:
-                        messages.error(request,f'<div class="header">¡Ups!</div>{msj}')
-                
-                else: 
-                    messages.success(request,f'<div class="header">¡Lo hiciste!</div>{msj}')
-                    Timeline.objects.create(
-                        user=request.user,
-                        action=f'Modificó los datos y/o contrato del colaborador {collab.full_name()}',
-                        aplication='RRHH'
+                        collaborators_files.objects.bulk_create([
+                            collaborators_files(collaborator = collab,
+                                                description = 'Hoja de vida',
+                                                file = cv_support),
+                            collaborators_files(collaborator = collab,
+                                                description = 'Contrato',
+                                                file = contract_support),
+                            collaborators_files(collaborator = collab,
+                                                description = 'Certificado bancario',
+                                                file = bank_certificate)
+                        ])
+                        Timeline.objects.create(
+                            user=request.user,
+                            action=f'Creó al colaborador {collab.full_name()}',
+                            aplication='RRHH'
+                        )
+                    
+                    messages.success(request,'<div class="header">¡Lo hiciste!</div>Creaste al colaborador sin problemas.')
+                    return redirect('/partners/collaborators')
+                except IntegrityError as exc:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        '<div class="header">¡Ups!</div>El colaborador que intentas crear ya existe.',
+                        log_message=f'IntegrityError al crear colaborador {document!r}',
+                        exc=exc,
                     )
-                
-                
+                except Exception as exc:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        (
+                            '<div class="header">¡Ups!</div>'
+                            'No se pudo crear el colaborador.'
+                            f'<p>{exc}</p>'
+                            '<p>Si el problema continúa, contacta al administrador del sistema.</p>'
+                        ),
+                        log_message=f'Error inesperado al crear colaborador {document!r}',
+                        exc=exc,
+                    )
+            
+            elif type_of == 'modify':
+                try:
+                    collab = Collaborators.objects.get(id_document=document)
+                except Collaborators.DoesNotExist:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        (
+                            '<div class="header">¡Ups!</div>'
+                            f'No se encontró el colaborador con documento {document}.'
+                        ),
+                        log_message=f'Modificación fallida: colaborador {document!r} no existe',
+                    )
+
+                try:
+                    with transaction.atomic():
+                        collab.first_name = first_name
+                        collab.last_name = last_name
+                        collab.email = email
+                        collab.phone = phone
+                        collab.address = address
+                        collab.city = city
+                        collab.state = state
+                        collab.country = country
+                        collab.scholarity = scholarity
+                        collab.bank_entity = obj_bank_entity
+                        collab.account_type = account_type
+                        collab.bank_account_number = bank_account_number
+                        collab.birth_date = birth_date
+                        collab.eps = eps
+                        collab.pension = pension
+                        collab.cesantias = cesantias
+                        collab.save()
+
+                        active_contract = Collaborator_contracts.objects.filter(
+                            collaborator=collab.pk
+                        ).last()
+                        if not active_contract:
+                            raise ValueError(
+                                'El colaborador no tiene un contrato activo para actualizar.'
+                            )
+
+                        msj = 'Los datos del colaborador fueron actualizados con exito.'
+                        new_contract = False
+                        if type_of_contract != active_contract.type_of_contract:
+                            new_contract = True
+                        elif initial_date != active_contract.initial_date:
+                            new_contract = True
+                        elif duration != active_contract.duration:
+                            new_contract = True
+                        elif int(salary) != active_contract.salary:
+                            new_contract = True
+
+                        if new_contract:
+                            change_ok = True
+                            if initial_date <= active_contract.initial_date:
+                                change_ok = False
+                                msj = (
+                                    'No puedes crear un contrato con fecha de inicio igual '
+                                    'o inferior al contrato vigente.'
+                                )
+                            if active_contract.type_of_contract == 'Indefinido' and \
+                                    type_of_contract != 'Indefinido':
+                                change_ok = False
+                                msj = (
+                                    'No puedes cambiar a un colaborador de contrato indefinido '
+                                    'a otro tipo de contrato'
+                                )
+                            if not change_ok:
+                                raise ValueError(msj)
+
+                            if collab.status == 'Activo':
+                                active_contract.end_date = initial_date - relativedelta(days=1)
+                                active_contract.save()
+                            Collaborator_contracts.objects.create(
+                                collaborator=collab,
+                                type_of_contract=type_of_contract,
+                                duration=duration,
+                                initial_date=initial_date,
+                                end_date=end_date,
+                                position_name=position_name,
+                                salary=salary,
+                            )
+                            msj += '; fué agregado un nuevo contrato'
+
+                        Timeline.objects.create(
+                            user=request.user,
+                            action=f'Modificó los datos y/o contrato del colaborador {collab.full_name()}',
+                            aplication='RRHH'
+                        )
+
+                    messages.success(
+                        request,
+                        f'<div class="header">¡Lo hiciste!</div>{msj}'
+                    )
+                    return redirect('/partners/collaborators')
+                except ValueError as exc:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        f'<div class="header">¡Ups!</div>{exc}',
+                        log_message=(
+                            f'Validación de negocio al modificar colaborador {document!r}: {exc}'
+                        ),
+                    )
+                except Exception as exc:
+                    return _collaborator_error_response(
+                        request,
+                        context,
+                        bound_form,
+                        (
+                            '<div class="header">¡Ups!</div>'
+                            'No se pudo actualizar el colaborador.'
+                            f'<p>{exc}</p>'
+                        ),
+                        log_message=f'Error inesperado al modificar colaborador {document!r}',
+                        exc=exc,
+                    )
 
     else:
         msj = ''

@@ -3,7 +3,7 @@ $(document).ready(function () {
         reverse: true
     });
 
-    $('#form-collaborator').append('<input hidden name="type_of" id="id_type_of">')
+
     var file_segment_orig = $('#file-segment').children();
     var table_detail = $('#table_detail').DataTable({
         info: false,
@@ -208,6 +208,8 @@ $(document).ready(function () {
 
     })
     $('#form-collaborator').submit(function () {
+        const isModify = $('#id_col_document').prop('readonly');
+        $('#id_type_of').val(isModify ? 'modify' : 'create');
         $(this).find('.ui.dropdown').each(function () {
             const $dropdown = $(this);
             const $select = $dropdown.find('select');

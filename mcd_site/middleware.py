@@ -1,10 +1,14 @@
 import uuid
 import time
+import logging
 from django.utils.deprecation import MiddlewareMixin
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.contrib import messages
 from mcd_site.models import ensure_user_profile
+
+logger = logging.getLogger(__name__)
 
 class EnsureUserProfileMiddleware(MiddlewareMixin):
     def process_request(self, request):
@@ -35,14 +39,24 @@ class DoubleSubmitProtectionMiddleware(MiddlewareMixin):
                 cache_key = f'submit_token_{token}'
                 if cache.get(cache_key):  # LocMemCache maneja esto perfectamente
                     # Token ya usado - prevenir doble submit
+                    logger.warning(
+                        'Envío duplicado bloqueado en %s (token=%s)',
+                        path,
+                        token,
+                    )
                     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                         return JsonResponse({
                             'type': 'warning', 
                             'title': 'Operación duplicada',
-                            'msj': 'Esta operación ya fue procesada'
+                            'msj': 'Esta operación ya fue procesada. Recarga la página e intenta de nuevo.'
                         })
-                    else:
-                        return redirect(request.path)
+                    messages.warning(
+                        request,
+                        '<div class="header">Envío duplicado</div>'
+                        'Esta solicitud ya fue procesada. '
+                        'Recarga la página antes de volver a enviar el formulario.'
+                    )
+                    return redirect(request.path)
                 
                 # Marcar token como usado
                 cache.set(cache_key, time.time(), 300)  # 5 minutos

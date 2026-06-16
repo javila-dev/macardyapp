@@ -448,10 +448,12 @@ class collaborators_form(forms.Form):
     eps = forms.ChoiceField(choices=eps_choices, required=False, label='EPS')
     pension = forms.ChoiceField(choices=pension_choices, required=False, label='Pensión')
     cesantias = forms.ChoiceField(choices=cesantias_choices, required=False, label='Cesantías')
+    type_of = forms.CharField(widget=forms.HiddenInput(), initial='create', required=True)
 
     def __init__(self, *args, **kwargs):
-        self.is_create = kwargs.pop('is_create', True)
         super().__init__(*args, **kwargs)
+        type_of = self.data.get('type_of', 'create') if self.data else 'create'
+        self.is_create = type_of == 'create'
 
         if not self.is_create:
             for field_name in ('cv_support', 'contract_support', 'bank_certificate'):
@@ -462,6 +464,7 @@ class collaborators_form(forms.Form):
         self.helper.form_class = 'ui form'
         file_segment_class = 'ui segment required' if self.is_create else 'ui segment'
         self.helper.layout = Layout(
+            Field('type_of'),
             HTML(
                 '<p class="ui tiny message">'
                 'Los campos marcados con <strong>*</strong> son obligatorios.'

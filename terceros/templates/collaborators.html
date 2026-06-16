@@ -50,6 +50,21 @@
   <i class="close icon"></i>
   <div class="header">Nuevo colaborador</div>
   <div class="scrolling content">
+    {% if form.errors %}
+    <div class="ui visible error message">
+      <div class="header">No se guardó el colaborador</div>
+      <ul class="list">
+        {% for field in form %}
+          {% for error in field.errors %}
+            <li><strong>{{ field.label|default:field.name }}:</strong> {{ error }}</li>
+          {% endfor %}
+        {% endfor %}
+        {% for error in form.non_field_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
     {%crispy form%}
   </div>
 </div>
@@ -223,6 +238,8 @@
 {% if form_has_errors %}
 <script>
 $(function () {
+    $('#form-collaborator').removeClass('loading')
+    $('#modalCollaborator .approve.button').removeClass('disabled')
     $('#modalCollaborator').modal('show');
     $('.ui.calendar').calendar({
         type: 'date',
