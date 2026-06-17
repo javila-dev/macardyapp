@@ -284,7 +284,7 @@ class collaborators_files(models.Model):
         unique_together = ['collaborator','description']
     
     def __str__(self):  
-        return self.collaborator.full_name + ' | ' + self.description
+        return self.collaborator.full_name() + ' | ' + self.description
 
 class Client_reference(models.Model):
     REFERENCE_TYPES = (
