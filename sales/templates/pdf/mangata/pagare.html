@@ -4,7 +4,7 @@
     <table>
         <tr>
             <td>
-                <img src='{%static "img/Macardy PNG.png"%}' width="80" height="80">
+                {% if sale.project.logo_empresa %}<img src="{{ sale.project.logo_empresa.url }}" width="80" height="80">{% endif %}
             </td>
         </tr>
     </table>
@@ -107,7 +107,7 @@
     <table>
         <tr>
             <td>
-                <img src='{%static "img/Macardy PNG.png"%}' width="80" height="80">
+                {% if sale.project.logo_empresa %}<img src="{{ sale.project.logo_empresa.url }}" width="80" height="80">{% endif %}
             </td>
         </tr>
     </table>

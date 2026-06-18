@@ -4,7 +4,7 @@
     <table>
         <tr>
             <th><img src="{{ sale.project.logo.url }}" width="140" height="140"></th>
-            <th><img src='{%static "img/logo-grupo-gibraltar.png"%}' width="180" height="60"></th>
+            <th>{% if sale.project.logo_empresa %}<img src="{{ sale.project.logo_empresa.url }}" width="180" height="60">{% endif %}</th>
         </tr>
     </table>
 </div>

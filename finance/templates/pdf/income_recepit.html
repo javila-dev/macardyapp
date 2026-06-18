@@ -2,31 +2,21 @@
 {%block content%}
 <table id='encabezados-logos' style='margin-bottom: 0.2rem;'>
     <tr>
-        {%if income.sale.project.name == "altoscovenas" %}
         <td style='text-align: center; width: 30%;vertical-align: top;'>
-            <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="130" height="60">
+            {% if income.sale.project.logo_empresa %}
+            <img src="{{ income.sale.project.logo_empresa.url }}" width="70" height="70">
+            {% endif %}
         </td>
         <td style="font-weight: bold;text-align: center;width: 40%;">
-            <p style="line-height:3mm;"><small>Oficina<br>Carrera 76 Nº32-55 piso 2 ed Ofix 76 (Medellin)<br>Tel. 479 21 93<br>Nit. 900779254</small></p>
+            <p style="line-height:3mm;"><small>Oficina<br>Carrera 76 Nº32-55 piso 2 ed Ofix 76 (Medellin)<br>Tel. 479 21 93<br>Nit. {% if income.sale.project.name == "altoscovenas" %}900779254{% else %}901036029{% endif %}</small></p>
             <p>RECIBO DE CAJA</p>
             <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
         </td>
         <td style='text-align: center; width: 30%;vertical-align: top;'>
+            {% if income.sale.project.logo %}
             <img src="{{ income.sale.project.logo.url }}" width="70" height="70">
+            {% endif %}
         </td>
-       {%else%} 
-        <td style='text-align: center; width: 30%;vertical-align: top;'>
-            <img src="{%static 'img/Macardy PNG.png'%}" width="70" height="70">
-        </td>
-        <td style="font-weight: bold;text-align: center;width: 40%;">
-            <p style="line-height:3mm;"><small>Oficina<br>Carrera 76 Nº32-55 piso 2 ed Ofix 76 (Medellin)<br>Tel. 479 21 93<br>Nit. 901036029</small></p>
-            <p>RECIBO DE CAJA</p>
-            <p style='color: indianred;'>Nº {{income.receipt}}</p><br>
-        </td>
-        <td style='text-align: center; width: 30%;vertical-align: top;'>
-            <img src="{{ income.sale.project.logo.url }}" width="70" height="70">
-        </td>
-        {%endif%}
     </tr>
 </table>
 <div style="font-size:small">

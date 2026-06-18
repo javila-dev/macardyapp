@@ -5,7 +5,7 @@
         <tr>
             <th><img src="{{ sale.project.logo.url }}" width="140" height="140"></th>
             <th>Cra 76 # 32 - 55 Piso 201(Medellín) <br> Tel.: 4792193 <br> Nit: 900.779.254-2</th>
-            <th><img src='{%static "img/logo-grupo-gibraltar.png"%}' width="170" height="60"><br>
+            <th>{% if sale.project.logo_empresa %}<img src="{{ sale.project.logo_empresa.url }}" width="170" height="60">{% endif %}<br>
                 Nit. 900.779.254 -2 </th>
         </tr>
     </table>

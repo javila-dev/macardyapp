@@ -4,11 +4,10 @@
     <table>
         <tr>
             <th>
-                {%if project.name == 'altoscovenas' %}
-                <img src="{%static 'img/logo-grupo-gibraltar.png'%}" width="160" height="60">
-                {%else%}
-                <img src='{%static "img/Macardy PNG.png"%}' width="140" height="140"></th>
-                {%endif%}
+                {% if project.logo_empresa %}
+                <img src="{{ project.logo_empresa.url }}" width="140" height="140">
+                {% endif %}
+            </th>
             <th></th>
             <th><img src="{{ project.logo.url }}" width="150" height="140"></th>
         </tr>

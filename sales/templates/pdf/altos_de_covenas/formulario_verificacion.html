@@ -6,8 +6,8 @@
 <div id="header_content">
     <table>
         <tr>
-            <th><img src='{% static "img/logo-gibraltar.png" %}' width="180" height="60"></th>
-            <th><img src='{% static "img/Macardy PNG.png" %}' width="80" height="60"></th>
+            <th>{% if sale.project.logo_empresa %}<img src="{{ sale.project.logo_empresa.url }}" width="180" height="60">{% endif %}</th>
+            <th>{% if sale.project.logo %}<img src="{{ sale.project.logo.url }}" width="80" height="60">{% endif %}</th>
             <th style="text-align: right; font-size: 10pt;">
                 <strong>fecha: {{ fecha_actual|date:"d/m/Y" }}</strong>
             </th>
