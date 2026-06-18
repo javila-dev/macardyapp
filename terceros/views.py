@@ -78,6 +78,20 @@ def _collaborator_error_response(request, context, bound_form, message_html, log
             logger.warning(log_message)
     return render(request, 'collaborators.html', context)
 
+
+def _collaborator_post_data(request):
+    """Si el documento ya existe, forzar modificación antes de validar el formulario."""
+    post_data = request.POST.copy()
+    document = (post_data.get('col_document') or '').strip()
+    if post_data.get('type_of', 'create') == 'create' and document:
+        if Collaborators.objects.filter(id_document=document).exists():
+            post_data['type_of'] = 'modify'
+            logger.info(
+                'Colaborador %r ya existe; el formulario se validará como modificación.',
+                document,
+            )
+    return post_data
+
 # Create your views here.
 @login_required
 def partners_principal(request):
@@ -258,8 +272,9 @@ def collaborators(request):
         else:
             user_check_perms(
                     request, 'crear colaborador', raise_exception=True)
+            post_data = _collaborator_post_data(request)
             bound_form = forms.collaborators_form(
-                request.POST,
+                post_data,
                 request.FILES,
             )
             if not bound_form.is_valid():
@@ -270,7 +285,7 @@ def collaborators(request):
                     _collaborator_form_errors_html(bound_form),
                     log_message=(
                         'Formulario de colaborador inválido '
-                        f'(type_of={request.POST.get("type_of")!r}, '
+                        f'(type_of={post_data.get("type_of")!r}, '
                         f'errors={dict(bound_form.errors)})'
                     ),
                 )
@@ -500,6 +515,13 @@ def collaborators(request):
                                 salary=salary,
                             )
                             msj += '; fué agregado un nuevo contrato'
+                        elif position_name != active_contract.position_name:
+                            active_contract.position_name = position_name
+                            active_contract.save()
+                            msj = (
+                                'Los datos del colaborador fueron actualizados con exito; '
+                                'se actualizó el cargo del contrato vigente.'
+                            )
 
                         Timeline.objects.create(
                             user=request.user,

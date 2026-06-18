@@ -187,7 +187,7 @@ $(document).ready(function () {
     $('#btn-new-collaborator').click(function () {
         $('#modalCollaborator').find('.header')
             .first().text('Nuevo Colaborador')
-        $('#id_col_document').prop('readonly', false)
+        $('#id_col_document').prop('readonly', false).removeAttr('readonly')
         $('#id_duration').prop('disabled', false)
         $('#submit-id-sbmt').removeClass('disabled')
         $('#div_table_contracts').remove()
@@ -208,8 +208,11 @@ $(document).ready(function () {
 
     })
     $('#form-collaborator').submit(function () {
-        const isModify = $('#id_col_document').prop('readonly');
-        $('#id_type_of').val(isModify ? 'modify' : 'create');
+        const isModify = $('#id_col_document').prop('readonly')
+            || $('#id_col_document').is('[readonly]');
+        if (isModify) {
+            $('#id_type_of').val('modify');
+        }
         $(this).find('.ui.dropdown').each(function () {
             const $dropdown = $(this);
             const $select = $dropdown.find('select');
@@ -336,6 +339,7 @@ $(document).ready(function () {
     function loadinfocollab(row_data) {
         $('#id_col_document').val(row_data.id_document)
             .prop('readonly', true)
+            .attr('readonly', 'readonly')
         $('#id_col_first_name').val(row_data.first_name)
         $('#id_col_last_name').val(row_data.last_name)
         $('#id_col_phone').val(row_data.phone)

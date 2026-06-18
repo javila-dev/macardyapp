@@ -240,6 +240,11 @@
 $(function () {
     $('#form-collaborator').removeClass('loading')
     $('#modalCollaborator .approve.button').removeClass('disabled')
+    if ($('#id_type_of').val() === 'modify') {
+        $('#id_col_document').prop('readonly', true).attr('readonly', 'readonly')
+        $('#submit-id-sbmt').val('Modificar')
+        $('#file-segment').empty()
+    }
     $('#modalCollaborator').modal('show');
     $('.ui.calendar').calendar({
         type: 'date',
