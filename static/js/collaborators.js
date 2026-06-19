@@ -94,8 +94,9 @@ $(document).ready(function () {
 
         var width = window.innerWidth
         var height = window.innerHeight
-        let popup_h = $('#popup-collab').height()
-        let popup_w = $('#popup-collab').width()
+        const popupSize = getContextMenuSize($('#popup-collab'))
+        let popup_h = popupSize.height
+        let popup_w = popupSize.width
         let computed_X_pos = e.pageX + popup_w + 30
         let computed_Y_pos = e.pageY + popup_h + 50
         console.log(height,computed_Y_pos)

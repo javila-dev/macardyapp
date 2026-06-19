@@ -37,7 +37,23 @@ function resolveCalendarElements(target) {
 }
 
 function hideContextMenus() {
-    $(CONTEXT_MENU_SELECTORS).removeClass('transition visible');
+    $(CONTEXT_MENU_SELECTORS)
+        .removeClass('transition visible animating')
+        .css({ visibility: '', left: '', top: '' });
+}
+
+function getContextMenuSize($popup) {
+    $popup.addClass('visible').css({
+        visibility: 'hidden',
+        left: '-9999px',
+        top: 0,
+    });
+    const size = {
+        height: $popup.outerHeight(),
+        width: $popup.outerWidth(),
+    };
+    hideContextMenus();
+    return size;
 }
 
 function hideAllCalendars() {
@@ -225,6 +241,7 @@ $('#principal-sidebar a.item').hover(
     $('.pusher').first().removeClass('dimmed')
   })
   $(document).ready(function(){
+    hideContextMenus();
     $(document).on('click', function () {
         hideContextMenus();
     });

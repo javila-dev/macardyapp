@@ -52,10 +52,17 @@ main {
 #popup-incomes,
 #popup-budget,
 #popup-clients {
-  display: flex;
+  display: none !important;
   position: absolute;
-  inset: 0px auto auto 0px;
   z-index: 1900;
+}
+
+#popup-collab.visible,
+#popup-incomes.visible,
+#popup-budget.visible,
+#popup-clients.visible {
+  display: flex !important;
+  inset: 0px auto auto 0px;
 }
   .text-center{
     text-align: center!important;
