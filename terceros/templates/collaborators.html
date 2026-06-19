@@ -246,10 +246,7 @@ $(function () {
         $('#file-segment').empty()
     }
     $('#modalCollaborator').modal('show');
-    $('.ui.calendar').calendar({
-        type: 'date',
-        text: calendar_spanish()
-    });
+    initAppCalendar('#modalCollaborator');
     $('.ui.dropdown').dropdown();
 });
 </script>

@@ -69,10 +69,7 @@ let currentUserId = null;
 
 $(document).ready(function(){
   $('.ui.dropdown').dropdown();
-  $('.ui.calendar').calendar({
-    type: 'date',
-    text: calendar_spanish(),
-  })
+  initAppCalendar();
   
   $('#btnnewuser').click(function(){
     $('#submit-id-registrar').val('Registrar')

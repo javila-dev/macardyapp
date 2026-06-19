@@ -127,19 +127,13 @@ $(document).ready(function () {
         switch (e.target.id) {
             case "retire-collab":
                 $('#modalRetireCollab').modal('show')
-                $('#calendar_end_date').calendar({
-                    type: 'date',
-                    text: calendar_spanish()
-                })
+                initAppCalendar('#calendar_end_date')
                 break;
 
             case "reactivate-collab":
                 $('#id_duration_react').prop('disabled', false)
                 $('#modalReactCollab').modal('show')
-                $('#div_id_initial_date_react').calendar({
-                    type: 'date',
-                    text: calendar_spanish()
-                })
+                initAppCalendar('#div_id_initial_date_react')
                 break;
             case "docs-collab":
                 $('#id_collab_doc_id').val(row.id_document)
@@ -196,10 +190,7 @@ $(document).ready(function () {
             file_segment_orig
         )
         $('#modalCollaborator').modal('show')
-        $('.ui.calendar').calendar({
-            type: 'date',
-            text: calendar_spanish()
-        })
+        initAppCalendar('#modalCollaborator')
         $('#form-collaborator').trigger('reset')
         $('#form-collaborator .ui.dropdown').dropdown('restore default text')
             .removeClass('loading')
@@ -379,16 +370,10 @@ $(document).ready(function () {
         loadfullcountryinfo(row_data.country, row_data.state, row_data.city)
 
         $('#modalCollaborator').modal('show')
-        $('#div_id_col_birth_date').calendar({
-                type: 'date',
-                text: calendar_spanish()
-            })
-            .calendar('set date', row_data.birth_date)
-        $('#div_id_initial_date').calendar({
-                type: 'date',
-                text: calendar_spanish()
-            })
-            .calendar('set date', row_data.last_contract.initial_date)
+        initAppCalendar('#div_id_col_birth_date')
+        $('#div_id_col_birth_date').calendar('set date', row_data.birth_date)
+        initAppCalendar('#div_id_initial_date')
+        $('#div_id_initial_date').calendar('set date', row_data.last_contract.initial_date)
         $('#id_col_address').val(row_data.address)
 
 

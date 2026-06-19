@@ -390,14 +390,8 @@
         $('.ui.steps .step').tab();
         $('#tab-content-gestores .step').tab();
         $('#sellers-info-menu .item').tab();
-        $('#div_id_birth_date').calendar({
-            type: 'date',
-            text: calendar_spanish()
-        });
-        $('#div_id_seller_birth_date').calendar({
-            type: 'date',
-            text: calendar_spanish()
-        });
+        initAppCalendar('#div_id_birth_date');
+        initAppCalendar('#div_id_seller_birth_date');
         $('.special.cards .image').dimmer({
             on: 'hover'
         });

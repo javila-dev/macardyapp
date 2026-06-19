@@ -25,10 +25,7 @@ $(document).ready(function(){
     })
     $('.money').mask('#,##0', {reverse: true});
     $('.ui.dropdown').dropdown();
-    $('.ui.calendar').calendar({
-        type: 'date',
-        text: calendar_spanish(),
-    })
+    initAppCalendar();
     $('#btn-remove-search').click(function(){
         let url = `/finance/${project}/expenses`
         $('.ui.calendar').calendar('clear')
@@ -98,10 +95,7 @@ $(document).ready(function(){
     })
     $('#btn-add-expense').click(function(){
         $('#modal-new-expense').modal('show')
-        $('.ui.calendar').calendar({
-            type: 'date',
-            text: calendar_spanish(),
-        })
+        initAppCalendar('#modal-new-expense')
     })
     $('#form-new-expense').submit(function(e){
         e.preventDefault();

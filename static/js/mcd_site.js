@@ -20,6 +20,62 @@ function calendar_spanish() {
     return text
 }
 
+const CONTEXT_MENU_SELECTORS = '#popup-collab, #popup-incomes, #popup-budget, #popup-clients';
+
+function resolveCalendarElements(target) {
+    if (!target) {
+        return $('.ui.calendar');
+    }
+    const $target = $(target);
+    if (!$target.length) {
+        return $();
+    }
+    if ($target.first().hasClass('calendar')) {
+        return $target;
+    }
+    return $target.find('.ui.calendar');
+}
+
+function hideContextMenus() {
+    $(CONTEXT_MENU_SELECTORS).removeClass('transition visible');
+}
+
+function hideAllCalendars() {
+    $('.ui.calendar').each(function () {
+        const $cal = $(this);
+        if ($cal.data('moduleCalendar')) {
+            $cal.calendar('hide');
+        }
+    });
+}
+
+function initAppCalendar(target, options) {
+    const $elements = resolveCalendarElements(target);
+    const userOptions = options || {};
+    const userOnSelect = userOptions.onSelect;
+    const settings = $.extend({
+        type: 'date',
+        text: calendar_spanish(),
+        context: 'body',
+    }, userOptions, {
+        onSelect: function (date, mode) {
+            $(this).calendar('hide');
+            if (typeof userOnSelect === 'function') {
+                userOnSelect.call(this, date, mode);
+            }
+        },
+    });
+
+    $elements.each(function () {
+        const $el = $(this);
+        if ($el.data('moduleCalendar')) {
+            $el.calendar('destroy');
+        }
+        $el.calendar(settings);
+    });
+    return $elements;
+}
+
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -169,17 +225,13 @@ $('#principal-sidebar a.item').hover(
     $('.pusher').first().removeClass('dimmed')
   })
   $(document).ready(function(){
-    $(this).click(function(e){
-        if(e.button == 0){
-              $(".popup").removeClass('transition visible')
-        }
+    $(document).on('click', function () {
+        hideContextMenus();
     });
-    $(this).keydown(function(e){
-        if(e.keyCode == 27){
-              $(".popup").removeClass('transition visible')
-              $('.ui.popup.calendar').css({
-                'display':'none',
-            })
+    $(document).on('keydown', function (e) {
+        if (e.keyCode === 27) {
+            hideContextMenus();
+            hideAllCalendars();
         }
     });
   })
