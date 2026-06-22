@@ -9,10 +9,12 @@
     </table>
 </div>
 <div>
-    <p style='text-align:justify'><strong>FORMULARIO DE VERIFICACIÓN DE LA OFERTA COMERCIAL CELEBRADO ENTRE GIBRALTAR S.A.S</strong></p>
+    <p style='text-align:justify'><strong>FORMULARIO DE VERIFICACIÓN DE LA OFERTA COMERCIAL CELEBRADO ENTRE LA SOCIEDAD 
+        GRUPO GIBRALTAR S.A y</strong>
+    </p>
     <table>
         <tr>
-            <td style="width: 60%;"><strong>Nombre(s) y Apellido(s) del(los) ofertantes (s) Comprador(es):</strong></td>
+            <td style="width: 60%;"><strong>Nombre(s) y apellido(s) del(los) ofertante(s) Comprador(es):</strong></td>
             <td style="text-align:center"><b>C.C</b></td>
         </tr>
         <tr>
@@ -33,12 +35,12 @@
         </tr>
     </table>
     <p style="text-align: justify;">
-        Las siguientes preguntas emitidas por <strong>GIBRALTAR S.A.S,</strong> son con el fin de verificar que el(los)
-        comprador(es) está(n) de acuerdo con los términos y condiciones de la oferta comercial de <strong>"Condominio Altos de Coveñas"</strong>
-    </p>
+        Las siguientes preguntas emitidas por <strong>LA SOCIEDAD GRUPO GIBRALTAR S.A.S.,</strong> son con el fin de verificar que el(los)
+        comprador(es) está(n) de acuerdo con los términos y condiciones de la oferta comercial de <strong>"RESERVA CAMPESTRE ALTOS DE COVEÑAS"</strong>
+    </p> 
     <table style="text-align:justify">
         <tr>
-            <td style="width: 80%;">1. El Lote que usted adquirió Ubicado en el Municipio de Coveñas – en el sector "Punta Seca" es:<br>
+            <td style="width: 80%;">1. El lote que usted adquirió Ubicado en el Municipio de Coveñas - en el sector "Punta Seca" es:<br>
             Etapa: <u>{{sale.property_sold.stage}}</u> Manzana <u>{{sale.property_sold.block}}</u> Lote <u>{{sale.property_sold.location}}</u> Área <u>{{sale.property_sold.area}} m2</u></td>
             <td style="text-align:center;">
                 <strong>SI</strong><br><img src='{%static "img/rectangle.png"%}' width="30" height="30">
@@ -48,16 +50,16 @@
             </td>
         </tr>
         <tr>
-            <td style="width: 80%;">2. El Valor del lote que usted adquirió es: <u>${{sale.value|format_number}}</u></td>
+            <td style="width: 80%;">2. El valor del lote que adquirió es: <u>${{sale.value|format_number}}</u></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td colspan="3">3. La forma de pago del lote que usted adquirió es:</td>
+            <td colspan="3">La forma de pago del lote que usted adquirió es:</td>
         </tr>
         <tr>
             <td style="width: 80%;">A. Cuota inicial del lote de $: <u>{{plan.total_initial_payment|format_number}}</u><br>
-            Pagadera así:
+            Pagadera así: 
                 <u>
                     {%for q in plan.ci_form%}
                     {{q.quanty}} cuota{{q.quanty|pluralize}} {{q.quanty|pluralize:"mensuales"}} de ${{q.value}} {{q.quanty|pluralize:"el, a partir del"}} {{q.initial_date}};
@@ -68,8 +70,8 @@
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td style="width: 80%;">B. Saldo a pagar del lote es por valor de $: <u>{{plan.total_to_finance|format_number}}</u><br>
-                así:
+            <td style="width: 80%;">B. Saldo a pagar de contado del lote es por valor de $: <u>{{plan.total_to_finance|format_number}}</u><br>
+                así: 
                 <u>
                     {{plan.scr_form.ctas_scr_q}} cuota{{plan.scr_form.ctas_scr_q|pluralize}} mensual{{plan.scr_form.ctas_scr_q|pluralize:"es"}} de ${{plan.scr_form.value_scr}} a partir del {{plan.scr_form.initial_date}}
                     {%if plan.sce_form.ctas_sce_q != ''%}, y {{plan.sce_form.ctas_sce_q}} cuota{{plan.sce_form.ctas_sce_q|pluralize}} extraordinarias {{plan.sce_form.periodicity}}{{plan.sce_form.ctas_sce_q|pluralize:"es"}} de ${{plan.sce_form.value_sce}} a partir del {{plan.sce_form.initial_date}}{%endif%}
@@ -79,32 +81,30 @@
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td style="width: 80%;">4. ¿Fue informado por el asesor comercial que una vez terminadas las primeras obras del proyecto deberá
-                cancelar la cuota de administración mensual y podrá usar los servicios del mismo?
+            <td style="width: 80%;">4. ¿Fue informado por el asesor comercial que una vez terminadas las primeras obras 
+                deberá cancelar la cuota de administración mensual y podrá usar los servicios del mismo?
             </td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td style="width: 80%;">5. ¿Fue informado por el asesor comercial que el lote se va a entregar urbanizado con: acometida de energía,
-                acometida de agua, acometida de gas, alcantarillado, cerramiento en limón swingle y vías internas aledañas
-                hasta el ingreso del lote como este en el momento de la entrega?
+            <td style="width: 80%;">5. ¿Fue informado por el asesor comercial que el lote se va a entregar urbanizado con: vías de acceso, 
+                energía, agua potable, red de gas, alcantarillado, cerramiento en limón swingle y terraceo a necesidad del cliente?
             </td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td style="width: 80%;">6. ¿Fue informado por el asesor comercial que el interés de la financiación es del <u>0,99%</u> mensual.<br>
-                NOTA: Pero en cualquier momento puede cambiar la forma de pago, abonando a capital, y bajando
-                el valor de cuota y tiempo.
+            <td style="width: 80%;">6. ¿Fue informado por el asesor comercial que el interés del financiamiento es del <u>{{sale.sale_plan.rate}}%</u> mensual.?<br>
+                NOTA: Pero en cualquier momento puede cambiar la forma de pago, abonando a capital y bajando el valor de cuota y tiempo.
             </td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
         <tr>
-            <td style="width: 80%;">7. ¿Fue informado por el asesor comercial que una vez el comprador termine de cancelar el lote, y comience
-                el proceso de escrituración, los gastos legales de notaría se cancelan de la siguiente forma: el 100% lo
-                paga el comprador, y el registro le corresponde el 100% pagarlo al comprador.
+            <td style="width: 80%;">7. ¿Fue informado por el asesor comercial que una vez el comprador termine de cancelar el lote, y comience 
+                el proceso de escrituración, los gastos legales de notaría se cancelan de la siguiente forma: la Constructora 
+                paga el 50% y el otro 50% lo paga el comprador, y el registro le corresponde el 100% pagarlo al Propietario.
             </td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
@@ -114,67 +114,59 @@
         </tr>
         <tr>
             <td colspan="3"><small>
-            Manifiesto(amos) bajo la gravedad del juramento: Que los recursos con los cuales adquiero(imos) el (los) inmueble(s), fueron obtenidos con la
-            ocupación, oficio, profesión, actividad o negocio lícitos, no provienen de actividades o negocios ilícitos contemplados en el Código Penal o las normas
-            que lo modifican, adicionan o reforman…… Expreso(amos) además, que no estoy(amos) representado a terceras personas que puedan ser objeto de
-            actividades ilícitas o que se encuentren en uso de mi o nuestros nombre(s) realizando y llevando a cabo inversiones en cabeza del(la)(los)(las)
-            adquiriente(s). Igualmente agrego(amos), que no me(nos) encuentro (encontramos) incluido(a), (s) en la relación de personas de la Oficina de Control
-            de Activos Extranjeros (OFAC) de los Estados Unidos de América, es decir, "listado de la OFAC" o "Lista Clinton" – "INTERPOL" y "POLICÍA NACIONAL DE COLOMBIA"
+            Manifiesto(amos) bajo la gravedad de juramento: Que los recursos con los cuales adquiero(imos) el(los) inmuble(s), fueron obtenidos con la 
+            ocupación, oficio, profesión, actividad o negocios lícitos, no provienen de actividades o negocios ilícitos contemplados en el código penal o las normas 
+            que lo modifican, adicionan o reforman... Expreso(amos) además, que no estoy(amos) representando a terceras personas que puedan ser objeto de 
+            actividades ilícitas o que se encuentren en uso de mi o nuestros nombre(s) realizando y llevando a cabo inversiones en cabeza del(la) (los) (las) 
+            adquiriente(s). Igualmente agrego(amos), que no me(nos) encuentro(encontramos) incluido(a), (s) en la relación de personas de la Oficina de Control 
+            de Activos Extranjeros (OFAC) de los Estados Unidos de Ámerica, es decir, "listado de la OFAC" o "Lista Clinton" - "INTERPOL" y "POLICIA NACIONAL DE COLOMBIA"
         </small></td>
         </tr>
         <tr>
-            <td style="width: 80%;">9. ¿Existe algún acuerdo verbal entre usted y el vendedor que no esté plasmado en este contrato de
-                promesa de compra venta?<br>
+            <td style="width: 80%;">9. Le(s) quedó claro que la fecha de escrituración de su lote es: <u>________________</u> <br>
+                y la fecha de entrega material es: <u>____________</u>
+            </td>
+            <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
+            <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
+        </tr>
+        <tr>
+            <td style="width: 80%;">10. ¿Existe algún acuerdo verbal entre usted y el vendedor que no esté plasmado en este contrato de 
+                promesa de compraventa?<br>
                 ¿Cuál?<u>____________________________________________________________________</u>
             </td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
             <td style="text-align:center;"><img src='{%static "img/rectangle.png"%}' width="30" height="30"></td>
         </tr>
     </table>
-    <p style='text-align: justify;'>
-        10. Yo (nosotros), <u>{{sale.first_owner.full_name.upper}}</u> (Titular 1) con C.C. <u>{{sale.first_owner.client_document}}</u>
-        {%if sale.second_owner.full_name != " "%} Y Yo, <u>{{sale.second_owner.full_name.upper}}</u> (Titular 2) con C.C. <u>{{sale.second_owner.client_document}}</u>{%endif%}
-        {%if sale.third_owner.full_name != " "%} Y Yo, <u>{{sale.third_owner.full_name.upper}}</u> (Titular 3) con C.C. <u>{{sale.third_owner.client_document}}</u>{%endif%}
-        {%if sale.fourth_owner.full_name != " "%} Y Yo, <u>{{sale.fourth_owner.full_name.upper}}</u> (Titular 4) con C.C. <u>{{sale.fourth_owner.client_document}}</u>{%endif%}.
-        Declaramos que el contenido de este documento es de mi (nuestro) conocimiento y corresponde a lo pactado en la oferta comercial.
-    </p>
-    <br>
-    <table>
-        <tr>
-            <td style="vertical-align:top; width: 50%;">
-                <strong>
-                    <u>________________________</u><br>
-                    NOMBRE:</strong>{{sale.first_owner.full_name}}<br>
-                <strong>CC.</strong> {{sale.first_owner.client_document}}
-            </td>
-            <td style="vertical-align:top; width: 50%;">
-                {%if sale.second_owner.full_name != " "%}
-                <strong>
-                    <u>________________________</u><br>
-                    NOMBRE:</strong>{{sale.second_owner.full_name}}<br>
-                <strong>CC.</strong> {{sale.second_owner.client_document}}
-                {%endif%}
-            </td>
-        </tr>
-        <tr>
-            <td style="vertical-align:top; width: 50%;">
-                {%if sale.third_owner.full_name != " "%}
-                <strong>
-                    <u>________________________</u><br>
-                    NOMBRE:</strong>{{sale.third_owner.full_name}}<br>
-                <strong>CC.</strong> {{sale.third_owner.client_document}}
-                {%endif%}
-            </td>
-            <td style="vertical-align:top; width: 50%;">
-                {%if sale.fourth_owner.full_name != " "%}
-                <strong>
-                    <u>________________________</u><br>
-                    NOMBRE:</strong>{{sale.fourth_owner.full_name}}<br>
-                <strong>CC.</strong> {{sale.fourth_owner.client_document}}
-                {%endif%}
-            </td>
-        </tr>
-    </table>
+        <p style='text-align: justify;'>
+           11. Yo (nosotros), <u>{{sale.first_owner.full_name.upper}}</u> (Titular 1) con C.C. <u>{{sale.first_owner.client_document}}</u>
+           {%if sale.second_owner.full_name != " "%} Y Yo, <u>{{sale.second_owner.full_name.upper}}</u> (Titular 2) con C.C. <u>{{sale.second_owner.client_document}}</u>{%endif%}
+           {%if sale.third_owner.full_name != " "%} Y Yo, <u>{{sale.third_owner.full_name.upper}}</u> (Titular 3) con C.C. <u>{{sale.third_owner.client_document}}</u>{%endif%}, 
+           declaro(amos) que el contenido de este documento es de mi(nuestro) conocimiento y corresponde a lo pactado en la oferta comercial.
+        </p>
+        <br>
+        <table>
+            <tr>
+                <td style ="vertical-align:top;">
+                    <strong>
+                        <u>________________________</u><br>
+                        NOMBRE:</strong>{{sale.first_owner.full_name}}<br>
+                        <strong>CC.</strong> {{sale.first_owner.pk}}
+                </td>
+                <td style ="vertical-align:top;">{%if sale.second_owner.full_name != " "%}
+                    <strong>
+                        <u>________________________</u><br>
+                        NOMBRE:</strong>{{sale.second_owner.full_name}}<br>
+                        <strong>CC.</strong> {{sale.second_owner.pk}}
+                {%endif%}</td>
+                <td style ="vertical-align:top;">{%if sale.third_owner.full_name != " "%}
+                    <strong>
+                        <u>________________________</u><br>
+                        NOMBRE:</strong>{{sale.third_owner.full_name}}<br>
+                        <strong>CC.</strong> {{sale.third_owner.pk}}
+                {%endif%}</td>
+            </tr>
+        </table>
 </div>
 {% endblock %}
 {%block css%}
@@ -182,21 +174,22 @@
     @page {
         size: legal;
 
-        @frame header_frame {
+        @frame header_frame {           /* Static Frame */
             -pdf-frame-content: header_content;
-            left: 40pt;
-            width: 530pt;
-            top: 20px;
+            left: 40pt; 
+            width: 530pt; 
+            top: 20px; 
             height: 150px;
         }
 
-        @frame content_frame {
-            left: 50pt;
-            width: 512pt;
-            top: 180px;
+        @frame content_frame {          /* Content Frame */
+            left: 50pt; 
+            width: 512pt; 
+            top: 180px; 
             height: 850pt;
         }
     }
+
 
     p {
         font-size: 9.5pt
@@ -232,8 +225,8 @@
         font-weight: bold;
     }
     .square {
-        width: 10px;
-        height: 10px;
+        width: 10px; 
+        height: 10px; 
         border: 3px solid #555;
         border-radius: 3px;
     }

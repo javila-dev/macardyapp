@@ -1985,7 +1985,7 @@ def ajax_print_documents(request, project):
         elif doc_type == 'verification':
             
             template = f'{obj_project.formats_path}/formulario_verificacion.html'
-            if not obj_sale.club and project == 'altoscovenas':
+            if project == 'altoscovenas':
                 template = f'{obj_project.formats_path}/formulario_verificacion_sin_club.html'
                 
             context = {
