@@ -102,20 +102,28 @@ def new_sale(request, project):
 
         consecutive = Counters.objects.get(name='contratos', project=project)
 
-        sale_exists= Sales.objects.filter(project=project,property_sold__description=id_property,add_date=datetime.date.today(),
-                                          status='Pendiente')
-        
-        if not sale_exists.exists():
-            
-        
+        prop = Properties.objects.get(
+            description=id_property, project=obj_project.pk)
+        active_sale = Sales.objects.filter(
+            project=obj_project,
+            property_sold=prop,
+            status__in=['Pendiente', 'Aprobado', 'Adjudicado']
+        ).exists()
+
+        if prop.state != 'Libre' or active_sale:
+            messages.error(
+                request,
+                '<div class="header">Lote no disponible</div>No se pudo crear el contrato porque el lote '
+                'seleccionado ya no está disponible. Puede estar asignado a otra venta activa.'
+            )
+        else:
             sale = Sales.objects.create(
                 project=obj_project, contract_number=consecutive.value, first_owner=Clients.objects.get(
                     pk=first_owner),
                 second_owner=Clients.objects.get(pk=second_owner),
                 third_owner=Clients.objects.get(pk=third_owner),
                 fourth_owner=Clients.objects.get(pk=fourth_owner),
-                property_sold=Properties.objects.get(
-                    description=id_property, project=obj_project.pk),
+                property_sold=prop,
                 value=sale_value, comission_base=sale_value, sale_plan=Sales_plans.objects.get(
                     pk=sale_plan),
                 observations=observations, status='Pendiente', club = club
@@ -124,8 +132,6 @@ def new_sale(request, project):
             consecutive.value += 1
             consecutive.save()
 
-            prop = Properties.objects.get(
-                description=id_property, project=obj_project.pk)
             prop.state = 'Asignado'
             prop.save()
 
