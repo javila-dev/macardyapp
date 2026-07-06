@@ -10,31 +10,6 @@ def normalize_counter_prefix(prefix):
     return value
 
 
-def formatted_contract_number(sale):
-    prefix = (sale.contract_prefix or '').strip()
-    if prefix:
-        return f'{prefix}-{sale.contract_number:03d}'
-    return str(sale.contract_number)
-
-
-def formatted_contract_label(sale):
-    prefix = (sale.contract_prefix or '').strip()
-    if prefix:
-        return formatted_contract_number(sale)
-    return f'CTR{sale.contract_number}'
-
-
-def quota_contract_suffix(sale):
-    prefix = (sale.contract_prefix or '').strip()
-    if prefix:
-        return f'{prefix}{sale.contract_number:03d}'
-    return str(sale.contract_number)
-
-
-def build_id_quota(quota_type, sequence, sale):
-    return f'{quota_type}{sequence}CTR{quota_contract_suffix(sale)}'
-
-
 def parse_contract_identifier(value):
     if value is None:
         return None
@@ -47,10 +22,62 @@ def parse_contract_identifier(value):
     if prefixed:
         return prefixed.group(1).upper(), int(prefixed.group(2))
 
+    ctr_legacy = re.match(r'^CTR(\d+)$', text, re.IGNORECASE)
+    if ctr_legacy:
+        return '', int(ctr_legacy.group(1))
+
     if text.isdigit():
         return '', int(text)
 
     return None
+
+
+def _contract_parts(value):
+    if value is None:
+        return None, None
+
+    if isinstance(value, (str, int)):
+        parsed = parse_contract_identifier(value)
+        if parsed is None:
+            return None, None
+        return parsed
+
+    prefix = (getattr(value, 'contract_prefix', '') or '').strip()
+    number = getattr(value, 'contract_number', None)
+    if number is None:
+        return None, None
+    return prefix, number
+
+
+def formatted_contract_number(sale):
+    prefix, number = _contract_parts(sale)
+    if number is None:
+        return '' if sale is None else str(sale).strip()
+    if prefix:
+        return f'{prefix}-{int(number):03d}'
+    return str(int(number))
+
+
+def formatted_contract_label(sale):
+    prefix, number = _contract_parts(sale)
+    if number is None:
+        return '' if sale is None else str(sale).strip()
+    if prefix:
+        return formatted_contract_number(sale)
+    return f'CTR{int(number)}'
+
+
+def quota_contract_suffix(sale):
+    prefix, number = _contract_parts(sale)
+    if number is None:
+        return '' if sale is None else str(sale).strip()
+    if prefix:
+        return f'{prefix}{int(number):03d}'
+    return str(int(number))
+
+
+def build_id_quota(quota_type, sequence, sale):
+    return f'{quota_type}{sequence}CTR{quota_contract_suffix(sale)}'
 
 
 def contract_filename_slug(sale):

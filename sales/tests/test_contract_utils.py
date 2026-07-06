@@ -27,10 +27,18 @@ class ContractUtilsTests(SimpleTestCase):
 
     def test_formatted_contract_number_prefixed(self):
         self.assertEqual(formatted_contract_number(_sale('M', 1)), 'M-001')
+        self.assertEqual(formatted_contract_number('M-001'), 'M-001')
+        self.assertEqual(formatted_contract_number('350'), '350')
 
     def test_formatted_contract_label(self):
         self.assertEqual(formatted_contract_label(_sale('', 350)), 'CTR350')
         self.assertEqual(formatted_contract_label(_sale('M', 1)), 'M-001')
+        self.assertEqual(formatted_contract_label('CTR350'), 'CTR350')
+        self.assertEqual(formatted_contract_label('350'), 'CTR350')
+
+    def test_formatted_contract_number_none_and_raw_string(self):
+        self.assertEqual(formatted_contract_number(None), '')
+        self.assertEqual(formatted_contract_number('unknown'), 'unknown')
 
     def test_quota_contract_suffix(self):
         self.assertEqual(quota_contract_suffix(_sale('', 350)), '350')
@@ -43,5 +51,6 @@ class ContractUtilsTests(SimpleTestCase):
     def test_parse_contract_identifier(self):
         self.assertEqual(parse_contract_identifier('M-001'), ('M', 1))
         self.assertEqual(parse_contract_identifier('350'), ('', 350))
+        self.assertEqual(parse_contract_identifier('CTR350'), ('', 350))
         self.assertIsNone(parse_contract_identifier(''))
         self.assertIsNone(parse_contract_identifier(None))
