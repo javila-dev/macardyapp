@@ -1,16 +1,14 @@
 $(document).ready(function () {
-    // Abrir el modal y cargar los archivos
-    function openSalesFilesModal(contractNumber, project) {
-        $('#contract-number').val(contractNumber);
+    function openSalesFilesModal(saleId, project) {
+        $('#contract-number').val(saleId);
         $('#project').val(project);
         $('#sales-files-modal').modal('show');
-        loadFiles(contractNumber, project);
+        loadFiles(saleId, project);
     }
 
-    // Cargar archivos asociados al contrato
-    function loadFiles(contractNumber, project) {
+    function loadFiles(saleId, project) {
         $.ajax({
-            url: `/sales/${project}/files/${contractNumber}/get/`,
+            url: `/sales/${project}/files/${saleId}/get/`,
             type: 'GET',
             success: function (response) {
                 if (response.status === 'success') {
@@ -48,16 +46,15 @@ $(document).ready(function () {
         });
     }
 
-    // Manejar el envío del formulario para agregar un archivo
     $('#add-file-form').on('submit', function (e) {
         e.preventDefault();
         const formData = new FormData(this);
-        const contractNumber = $('#contract-number').val();
+        const saleId = $('#contract-number').val();
         const project = $('#project').val();
         const form = $(this);
         form.addClass('loading');
         $.ajax({
-            url: `/sales/${project}/files/${contractNumber}/add/`,
+            url: `/sales/${project}/files/${saleId}/add/`,
             type: 'POST',
             data: formData,
             processData: false,
@@ -65,7 +62,7 @@ $(document).ready(function () {
             success: function (response) {
                 if (response.status === 'success') {
                     alert(response.message);
-                    loadFiles(contractNumber, project);
+                    loadFiles(saleId, project);
                     $('#add-file-form')[0].reset();
                 } else {
                     alert('Error al subir el archivo.');
@@ -80,10 +77,8 @@ $(document).ready(function () {
         });
     });
 
-    // Manejar la eliminación de un archivo
     $(document).on('click', '.delete-file-btn', function () {
         const fileId = $(this).data('file-id');
-        const contractNumber = $('#contract-number').val();
         const project = $('#project').val();
 
         $.ajax({
@@ -104,7 +99,6 @@ $(document).ready(function () {
         });
     });
 
-    // Filtrar archivos por búsqueda
     $('#search-files').on('keydown', function () {
         const searchTerm = $(this).val().toLowerCase();
         $('.card').each(function () {

@@ -1,4 +1,4 @@
-{%extends 'base.html'%}{%load static%}{%load finance_extras%}
+{%extends 'base.html'%}{%load static%}{%load finance_extras%}{% load sales_extras %}
 {%block content%}
 <div>
     <table>
@@ -146,22 +146,22 @@
         instrumento,
         el día que sea diligenciado el pagaré. Dichas sumas serán las que resultaren de aplicar los cargos por concepto
         de cuotas
-        financiadas en el contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, saldos de capital
+        financiadas en el contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u>, saldos de capital
         adeudado según lo expresado en el
-        contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, multas, clausulas penales, intereses de
+        contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u>, multas, clausulas penales, intereses de
         plazo, moratorios y demás sumas
-        de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>.
+        de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u>.
     </p>
     <p style="text-align: justify;">
         <b>2. </b>La fecha de vencimiento será el día en que se diligencien los espacios dejados en blanco en el pagaré.
         <b>3. </b>Este pagaré
         solo podrá ser llenado y utilizado cambiariamente, en el evento en que el obligado incurra en el no pago de
         cuotas
-        financiadas en el contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, saldos de capital
+        financiadas en el contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u>, saldos de capital
         adeudado según la expresado en el
-        contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u>, multas, clausulas penales, intereses de
+        contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u>, multas, clausulas penales, intereses de
         plazo, moratorios y demás
-        sumas de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{sale.contract_number}}</u> y
+        sumas de dinero adeudadas en virtud del contrato de promesa de compraventa No. <u>{{ sale|contract_display }}</u> y
         que se le adeude a
         <b>CONSTRUCTORA MACARDY S.A.S. </b>En ningún caso, los beneficiarios del pagaré podrán colocar como valor
         del mismo, sumas que correspondan a acreencias o compensaciones derivadas de contratos o negocios jurídicos

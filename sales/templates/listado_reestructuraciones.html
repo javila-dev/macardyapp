@@ -1,3 +1,4 @@
+{% load sales_extras %}
 <!-- filepath: /code/sales/templates/sales/listado_reestructuraciones.html -->
 {% extends "site_base.html" %}
 {%block title%}Ventas | Reestructuraciones{%endblock%}
@@ -40,7 +41,7 @@
             <tr>
                 <td>{{ r.id_restructuring }}</td>
                 <td style="min-width: 220px; max-width: 320px; white-space: normal;">
-                    CTR{{ r.sale.contract_number }}
+                    {{ r.sale|contract_label }}
                     <br>
                     <span style="font-size: 0.95em; color: #555;">
                         {{ r.sale.first_owner.full_name|truncatechars:40 }}

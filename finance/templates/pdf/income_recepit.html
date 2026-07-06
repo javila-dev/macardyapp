@@ -104,7 +104,7 @@
 <table style="margin-top:1.2rem;font-size: small;">
     <tr>
         <td style="width:14%" class="title">OBSERVACIONES</td>
-        <td class='' style="width:86%"><u>Contrato <b>{{income.sale.contract_number}}</b>; Inmueble <b>{{income.sale.property_sold.description}}</b>&nbsp;</u></td>        
+        <td class='' style="width:86%"><u>Contrato <b>{{ income.sale|contract_display }}</b>; Inmueble <b>{{income.sale.property_sold.description}}</b>&nbsp;</u></td>        
     </tr>
 </table>
 <table style="margin-top:1.6rem">

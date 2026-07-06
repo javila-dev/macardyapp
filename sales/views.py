@@ -14,7 +14,7 @@ from django.urls.conf import path
 from django.db.models import Sum, Count, Exists, OuterRef, Max, Value, DecimalField as ModelDecimalField
 from django.db.models.query import F
 from django.db.models.query_utils import Q
-from django.contrib.auth.models import User
+from django.db import transaction
 from finance.models import Collection_feed, Collector_per_sale, Credit_info, Incomes, Incomes_detail, Sales_extra_info, Incomes_return
 from finance.views import apply_income
 from mcd_site.models import Counters, Parameters, Projects, Timeline
@@ -28,6 +28,13 @@ from sales.forms import adjudicate_saleForm, change_plan_Form, change_property_F
 from sales.models import (Assigned_comission, Comission_position, Payment_plans, Paid_comissions, Properties, Sales,
                           Sales_history, Sales_plans, backup_payment_plans, IncomeDetailsBackup)
 from terceros.models import Clients
+from sales.contract_utils import (
+    build_id_quota,
+    contract_filename_slug,
+    formatted_contract_label,
+    normalize_counter_prefix,
+    resolve_sale,
+)
 from sales.utils import backup_plan_pagos, recalcular_plan_pagos
 # Create your views here.
 
@@ -97,10 +104,6 @@ def new_sale(request, project):
         value_extra_quota = rq.get('value_extra_quota')
         observations = rq.get('observations')
         club = True if rq.get('club') == 'on' else False
-        
-        
-
-        consecutive = Counters.objects.get(name='contratos', project=project)
 
         prop = Properties.objects.get(
             description=id_property, project=obj_project.pk)
@@ -117,106 +120,115 @@ def new_sale(request, project):
                 'seleccionado ya no está disponible. Puede estar asignado a otra venta activa.'
             )
         else:
-            sale = Sales.objects.create(
-                project=obj_project, contract_number=consecutive.value, first_owner=Clients.objects.get(
-                    pk=first_owner),
-                second_owner=Clients.objects.get(pk=second_owner),
-                third_owner=Clients.objects.get(pk=third_owner),
-                fourth_owner=Clients.objects.get(pk=fourth_owner),
-                property_sold=prop,
-                value=sale_value, comission_base=sale_value, sale_plan=Sales_plans.objects.get(
-                    pk=sale_plan),
-                observations=observations, status='Pendiente', club = club
-            )
+            with transaction.atomic():
+                consecutive = Counters.objects.select_for_update().get(
+                    name='contratos', project=project
+                )
+                contract_prefix = normalize_counter_prefix(consecutive.prefix)
+                contract_number = consecutive.value
 
-            consecutive.value += 1
-            consecutive.save()
+                sale = Sales.objects.create(
+                    project=obj_project,
+                    contract_prefix=contract_prefix,
+                    contract_number=contract_number,
+                    first_owner=Clients.objects.get(pk=first_owner),
+                    second_owner=Clients.objects.get(pk=second_owner),
+                    third_owner=Clients.objects.get(pk=third_owner),
+                    fourth_owner=Clients.objects.get(pk=fourth_owner),
+                    property_sold=prop,
+                    value=sale_value,
+                    comission_base=sale_value,
+                    sale_plan=Sales_plans.objects.get(pk=sale_plan),
+                    observations=observations,
+                    status='Pendiente',
+                    club=club,
+                )
 
-            prop.state = 'Asignado'
-            prop.save()
+                consecutive.value += 1
+                consecutive.save()
 
-            # create a payment plan
-            # initial
-            counter = 1
-            for i in range(0, len(quanty_ci_quota)):
-                quanty = quanty_ci_quota[i]
-                initial_date = date_ci_quota[i]
-                dt_initial_date = datetime.datetime.strptime(
-                    initial_date, '%B %d, %Y')
-                value = value_ci_quota[i].replace(',', '')
-                date = dt_initial_date
+                prop.state = 'Asignado'
+                prop.save()
 
-                for j in range(0, int(quanty)):
-                    id_quota = f'CI{counter}CTR{sale.contract_number}'
-                    Payment_plans.objects.create(
-                        id_quota=id_quota, sale=sale, pay_date=date,
-                        capital=value, interest=0, others=0,
-                        project=obj_project, quota_type='CI'
-                    )
-                    counter += 1
-                    date += relativedelta(months=1)
+                counter = 1
+                for i in range(0, len(quanty_ci_quota)):
+                    quanty = quanty_ci_quota[i]
+                    initial_date = date_ci_quota[i]
+                    dt_initial_date = datetime.datetime.strptime(
+                        initial_date, '%B %d, %Y')
+                    value = value_ci_quota[i].replace(',', '')
+                    date = dt_initial_date
 
-            # to_finance
-            if quanty_to_finance_quota:
-                quanty = int(quanty_to_finance_quota)
-                initial_date = initial_date_to_finance_quota
-                dt_initial_date = datetime.datetime.strptime(initial_date, '%B %d, %Y')
-                quota = int(value_to_finance_quota.replace(',', ''))
-                remaining_value = int(to_finance.replace(',', ''))
-                rate_mv = float(rate)/100
-                vp_regular = 0
+                    for j in range(0, int(quanty)):
+                        id_quota = build_id_quota('CI', counter, sale)
+                        Payment_plans.objects.create(
+                            id_quota=id_quota, sale=sale, pay_date=date,
+                            capital=value, interest=0, others=0,
+                            project=obj_project, quota_type='CI'
+                        )
+                        counter += 1
+                        date += relativedelta(months=1)
+
+                if quanty_to_finance_quota:
+                    quanty = int(quanty_to_finance_quota)
+                    initial_date = initial_date_to_finance_quota
+                    dt_initial_date = datetime.datetime.strptime(initial_date, '%B %d, %Y')
+                    quota = int(value_to_finance_quota.replace(',', ''))
+                    remaining_value = int(to_finance.replace(',', ''))
+                    rate_mv = float(rate)/100
+                    vp_regular = 0
+                    if periodicity_extra_quota:
+                        vp_regular = int(numpy_financial.pv(rate_mv, quanty, quota))*-1
+                        remaining_value = vp_regular
+
+                    date = dt_initial_date
+                    for i in range(1, quanty+1):
+                        interest = int(remaining_value*rate_mv)
+                        capital = quota - interest
+                        if capital + 1000 > remaining_value:
+                            capital = remaining_value
+                        others = 0
+                        id_quota = build_id_quota('SCR', i, sale)
+                        Payment_plans.objects.create(
+                            id_quota=id_quota, sale=sale, pay_date=date,
+                            capital=capital, interest=interest, others=others,
+                            project=obj_project, quota_type='SCR'
+                        )
+                        date += relativedelta(months=1)
+                        remaining_value -= capital
+
                 if periodicity_extra_quota:
-                    vp_regular = int(numpy_financial.pv(rate_mv, quanty, quota))*-1
-                    remaining_value = vp_regular
+                    periodicity = int(periodicity_extra_quota)
+                    quanty = int(quanty_extra_quota)
+                    initial_date = initial_date_extra_quota
+                    dt_initial_date = datetime.datetime.strptime(
+                        initial_date, '%B %d, %Y')
+                    quota = int(value_extra_quota.replace(',', ''))
+                    remaining_value = int(to_finance.replace(',', '')) - vp_regular
+                    date = dt_initial_date
 
-                date = dt_initial_date
-                for i in range(1, quanty+1):
-                    interest = int(remaining_value*rate_mv)
-                    capital = quota - interest
-                    if capital + 1000 > remaining_value:
-                        capital = remaining_value
-                    others = 0
-                    id_quota = f'SCR{i}CTR{sale.contract_number}'
-                    Payment_plans.objects.create(
-                        id_quota=id_quota, sale=sale, pay_date=date,
-                        capital=capital, interest=interest, others=others,
-                        project=obj_project, quota_type='SCR'
-                    )
-                    date += relativedelta(months=1)
-                    remaining_value -= capital
+                    for i in range(1, quanty+1):
+                        interest = int(remaining_value*rate_mv*periodicity)
+                        capital = quota - interest
+                        if capital + 1000 > remaining_value:
+                            capital = remaining_value
+                        if i == quanty and capital != remaining_value:
+                            capital = remaining_value
+                        others = 0
+                        id_quota = build_id_quota('SCE', i, sale)
+                        Payment_plans.objects.create(
+                            id_quota=id_quota, sale=sale, pay_date=date,
+                            capital=capital, interest=interest, others=others,
+                            project=obj_project, quota_type='SCE'
+                        )
+                        date += relativedelta(months=periodicity)
+                        remaining_value -= capital
 
-            if periodicity_extra_quota:
-                periodicity = int(periodicity_extra_quota)
-                quanty = int(quanty_extra_quota)
-                initial_date = initial_date_extra_quota
-                dt_initial_date = datetime.datetime.strptime(
-                    initial_date, '%B %d, %Y')
-                quota = int(value_extra_quota.replace(',', ''))
-                remaining_value = int(to_finance.replace(',', '')) - vp_regular
-                date = dt_initial_date
-
-                for i in range(1, quanty+1):
-                    interest = int(remaining_value*rate_mv*periodicity)
-                    capital = quota - interest
-                    if capital + 1000 > remaining_value:
-                        capital = remaining_value
-                    if i == quanty and capital != remaining_value:
-                        capital = remaining_value
-                    others = 0
-                    id_quota = f'SCE{i}CTR{sale.contract_number}'
-                    Payment_plans.objects.create(
-                        id_quota=id_quota, sale=sale, pay_date=date,
-                        capital=capital, interest=interest, others=others,
-                        project=obj_project, quota_type='SCE'
-                    )
-                    date += relativedelta(months=periodicity)
-                    remaining_value -= capital
-
-            Sales_history.objects.create(
-                sale=sale,
-                action='Creó el contrato de venta',
-                user=request.user
-            )
+                Sales_history.objects.create(
+                    sale=sale,
+                    action='Creó el contrato de venta',
+                    user=request.user
+                )
 
             messages.success(
                 request, '<div class="header">¡Excelente!</div>Creaste un contrato nuevo, puedes verlo en la sección VENTAS SIN APROBAR')
@@ -284,7 +296,7 @@ def non_approved_sales(request, project):
     }
     if request.method == 'GET' and request.GET:
         sale = request.GET.get('sale')
-        obj_sale = Sales.objects.get(contract_number=sale, project=project)
+        obj_sale = resolve_sale(project, sale)
         payment_plan = Payment_plans.objects.filter(sale=obj_sale.pk)
         if obj_sale.status != 'Pendiente':
             messages.error(
@@ -420,7 +432,7 @@ def non_approved_sales(request, project):
     if request.is_ajax():
         if request.method == 'POST':
             sale = request.POST.get('sale')
-            obj_sale = Sales.objects.get(contract_number=sale, project=project)
+            obj_sale = resolve_sale(project, sale)
             action = request.POST.get('action')
             if action == 'modify':
                 if not user_check_perms(request, 'modificar venta'):
@@ -510,7 +522,7 @@ def non_approved_sales(request, project):
                     date = dt_initial_date
 
                     for j in range(0, int(quanty)):
-                        id_quota = f'CI{counter}CTR{obj_sale.contract_number}'
+                        id_quota = build_id_quota('CI', counter, obj_sale)
                         Payment_plans.objects.create(
                             id_quota=id_quota, sale=obj_sale, pay_date=date,
                             capital=value, interest=0, others=0,
@@ -540,7 +552,7 @@ def non_approved_sales(request, project):
                     if capital > remaining_value:
                         capital = remaining_value
                     others = 0
-                    id_quota = f'SCR{i}CTR{obj_sale.contract_number}'
+                    id_quota = build_id_quota('SCR', i, obj_sale)
                     Payment_plans.objects.create(
                         id_quota=id_quota, sale=obj_sale, pay_date=date,
                         capital=capital, interest=interest, others=others,
@@ -568,7 +580,7 @@ def non_approved_sales(request, project):
                         if i == quanty and capital != remaining_value:
                             capital = remaining_value
                         others = 0
-                        id_quota = f'SCE{i}CTR{obj_sale.contract_number}'
+                        id_quota = build_id_quota('SCE', i, obj_sale)
                         Payment_plans.objects.create(
                             id_quota=id_quota, sale=obj_sale, pay_date=date,
                             capital=capital, interest=interest, others=others,
@@ -676,7 +688,7 @@ def to_adjudicate_sales(request, project):
 
     if request.method == 'GET' and request.GET:
         sale = request.GET.get('sale')
-        obj_sale = Sales.objects.get(contract_number=sale, project=project)
+        obj_sale = resolve_sale(project, sale)
         payment_plan = Payment_plans.objects.filter(sale=obj_sale.pk)
         if obj_sale.status != 'Aprobado':
             messages.error(
@@ -840,13 +852,13 @@ def to_adjudicate_sales(request, project):
 
             Timeline.objects.create(
                 user=request.user,
-                action=f'Asignó a {request.user.username} como gestor de cobro del contrato Nº {obj_sale.contract_number}',
+                action=f'Asignó a {request.user.username} como gestor de cobro del contrato Nº {obj_sale.formatted_contract_number()}',
                 aplication='finance',
                 project=Projects.objects.get(name=project)
             )
 
             messages.success(
-                request, f'<div class="header">¡Lo hicimos!</div>Se adjudicó el contrato {obj_sale.contract_number}')
+                request, f'<div class="header">¡Lo hicimos!</div>Se adjudicó el contrato {obj_sale.formatted_contract_number()}')
 
             return HttpResponseRedirect('/sales/'+project+'/adjudicatesales')
 
@@ -862,7 +874,7 @@ def to_adjudicate_sales(request, project):
             )
 
             messages.success(
-                request, f'<div class="header">¡Lo hicimos!</div>Se desaprobó el contrato {obj_sale.contract_number}')
+                request, f'<div class="header">¡Lo hicimos!</div>Se desaprobó el contrato {obj_sale.formatted_contract_number()}')
 
             return HttpResponseRedirect('/sales/'+project+'/nonapprovedsales')
 
@@ -883,15 +895,10 @@ def adjudicate_sales(request, project):
     }
     if request.GET:
         sale_identifier = request.GET.get('sale')
-        obj_sale = None
-        # Permitir identificar por PK o número de contrato, priorizando el PK para evitar colisiones
         try:
-            obj_sale = Sales.objects.get(project=project, pk=int(sale_identifier))
-        except (Sales.DoesNotExist, ValueError, TypeError):
-            try:
-                obj_sale = Sales.objects.get(project=project, contract_number=sale_identifier)
-            except Sales.DoesNotExist:
-                obj_sale = None
+            obj_sale = resolve_sale(project, sale_identifier)
+        except Sales.DoesNotExist:
+            obj_sale = None
         if obj_sale is None:
             return redirect(f'/sales/{project}/adjudicatesales')
         obj_sale_credit = Sales_extra_info.objects.get(pk=obj_sale.pk)
@@ -966,7 +973,7 @@ def adjudicate_sales(request, project):
                 if income_sale:
                     receipt = detail.income.receipt
                     contract = income_sale.pk
-                    contract_number = income_sale.contract_number
+                    contract_number = income_sale.formatted_contract_number()
                     sale_status = income_sale.status or 'Sin venta'
                     sale_client = income_sale.first_owner.full_name()
                     project_name = income_sale.project.name_to_show
@@ -1175,20 +1182,13 @@ from .forms import SalesFileForm
 
 @login_required
 @project_permission
-def get_sales_files(request, project, contract_number):
+def get_sales_files(request, project, sale_id):
     """
-    Endpoint para obtener los documentos asociados a una venta por contract_number y proyecto.
+    Endpoint para obtener los documentos asociados a una venta por sale_id y proyecto.
     """
     if request.method == 'GET' and request.is_ajax():
         obj_project = Projects.objects.get(name=project)
-        try:
-            sale = Sales.objects.get(contract_number=contract_number, project=obj_project)
-        except Sales.DoesNotExist:
-            return JsonResponse({
-                'status': 'error', 
-                'message': f'No se encontró la venta con contrato #{contract_number} en el proyecto {project}'
-            }, status=404)
-        
+        sale = get_object_or_404(Sales, pk=sale_id, project=obj_project)
         files = SalesFiles.objects.filter(sale=sale, is_active=True).order_by('-upload_date')
 
         files_data = [
@@ -1209,10 +1209,10 @@ def get_sales_files(request, project, contract_number):
 
 @login_required
 @project_permission
-def add_sales_file(request, project, contract_number):
+def add_sales_file(request, project, sale_id):
     if request.method == 'POST' and request.is_ajax():
         obj_project = Projects.objects.get(name=project)
-        sale = get_object_or_404(Sales, contract_number=contract_number, project=obj_project)
+        sale = get_object_or_404(Sales, pk=sale_id, project=obj_project)
         form = SalesFileForm(request.POST, request.FILES)
         if form.is_valid():
             sales_file = form.save(commit=False)
@@ -1356,6 +1356,7 @@ def plan_pagos_detalle(request, sale_id):
         'saldo_total': saldo_real,
         'preferred_rate': rate_decimal,
         'preferred_rate_js': float(rate_decimal),
+        'quota_contract_suffix': sale.quota_contract_suffix(),
     }
     
     return render(request, 'plan_pagos_detalle.html', context)
@@ -1611,7 +1612,7 @@ def aprobar_reestructuracion(request, id):
             # 5. Agregar entrada al historial de ventas
             Sales_history.objects.create(
                 sale=sale,
-                action=f'Se aprobó una reestructuración del plan de pagos para el contrato CTR{sale.contract_number}',
+                action=f'Se aprobó una reestructuración del plan de pagos para el contrato {formatted_contract_label(sale)}',
                 user=request.user
             )
 
@@ -1736,7 +1737,7 @@ def ajax_get_plans_info(request):
 
 def ajax_comissions(request, project, sale):
     obj_project = Projects.objects.get(name=project)
-    obj_sale = Sales.objects.get(project=obj_project.pk, contract_number=sale)
+    obj_sale = resolve_sale(project, sale)
     obj_comissions = Assigned_comission.objects.filter(
         project=obj_project.pk, sale=obj_sale.pk,
     )
@@ -1756,7 +1757,7 @@ def ajax_comissions(request, project, sale):
             private_positions = get_positions_queryset(obj_project, 'Privado', include_default=True)
             msj = ''
             for pos in private_positions:
-                id_comission = f'{pos.pk}CTR{sale}'
+                id_comission = f'{pos.pk}CTR{obj_sale.quota_contract_suffix()}'
                 if pos.default == None:
                     msj += f'El cargo privado <b>{pos.name}</b> no tiene asesor por defecto asignado.<br>'
                     continue
@@ -1773,7 +1774,7 @@ def ajax_comissions(request, project, sale):
             for i in range(0, len(positions)):
                 obj_position = get_position_for_project(obj_project, positions[i])
                 obj_seller = Sellers.objects.get(pk=sellers_id[i])
-                id_comission = f'{obj_position.pk}CTR{sale}'
+                id_comission = f'{obj_position.pk}CTR{obj_sale.quota_contract_suffix()}'
 
                 Assigned_comission.objects.create(
                     id_comission=id_comission,
@@ -1812,7 +1813,7 @@ def ajax_print_documents(request, project):
     if request.method == "GET" and request.GET:
         sale = request.GET.get('sale')
         doc_type = request.GET.get('type')
-        obj_sale = Sales.objects.get(project=project, contract_number=sale)
+        obj_sale = resolve_sale(project, sale)
         
         if doc_type == 'comissions-report':
             comissions_executive_object = Assigned_comission.objects.filter(sale=obj_sale.pk,
@@ -1850,7 +1851,7 @@ def ajax_print_documents(request, project):
                 
             }
             
-            filename = f'Hoja_de_radicacion_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Hoja_de_radicacion_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -1974,7 +1975,7 @@ def ajax_print_documents(request, project):
                 'sale': obj_sale,
                 'plan': plan,
             }
-            filename = f'Oferta_Comercial_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Oferta_Comercial_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -1998,7 +1999,7 @@ def ajax_print_documents(request, project):
                 'sale': obj_sale,
                 'plan': plan,
             }
-            filename = f'Formulario_Verificacion_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Formulario_Verificacion_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2018,7 +2019,7 @@ def ajax_print_documents(request, project):
                 'sale': obj_sale,
                 'plan': plan,
             }
-            filename = f'Pagare_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Pagare_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2168,7 +2169,7 @@ def ajax_print_documents(request, project):
                 'user': request.user
             }
 
-            filename = f'Estado_de_cuenta_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Estado_de_cuenta_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2206,7 +2207,7 @@ def ajax_print_documents(request, project):
                 'total_s':total_s,
                 'today':datetime.date.today()
             }
-            filename = f'Carta_cobro_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Carta_cobro_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2230,7 +2231,7 @@ def ajax_print_documents(request, project):
                 'fecha_actual': datetime.date.today(),
             }
             
-            filename = f'Solicitud_Admision_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Solicitud_Admision_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2261,7 +2262,7 @@ def ajax_print_documents(request, project):
                 'sale': obj_sale,
             }
             template = 'pdf/data_authorization.html'
-            filename = f'Autorizacion_Datos_CTR{sale}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+            filename = f'Autorizacion_Datos_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
             pdf = pdf_gen(template, context, filename)
 
             pdf_url = pdf.get('url')
@@ -2399,7 +2400,7 @@ def ajax_reestructurate_payment(request, sale):
                     date = dt_initial_date
 
                     for j in range(0, int(quanty)):
-                        id_quota = f'CI{counter}CTR{obj_sale.contract_number}'
+                        id_quota = build_id_quota('CI', counter, obj_sale)
                         Payment_plans.objects.create(
                             id_quota=id_quota, sale=obj_sale, pay_date=date,
                             capital=value, interest=0, others=0,
@@ -2467,7 +2468,7 @@ def ajax_reestructurate_payment(request, sale):
                         if i == counter_scr+quanty -1 and capital != remaining_value:
                             capital = remaining_value
                         others = 0
-                        id_quota = f'SCR{i}CTR{obj_sale.contract_number}'
+                        id_quota = build_id_quota('SCR', i, obj_sale)
                         Payment_plans.objects.create(
                             id_quota=id_quota, sale=obj_sale, pay_date=date,
                             capital=capital, interest=interest, others=others,
@@ -2495,7 +2496,7 @@ def ajax_reestructurate_payment(request, sale):
                             if i == counter_sce+quanty -1 and capital != remaining_value:
                                 capital = remaining_value
                             others = 0
-                            id_quota = f'SCE{i}CTR{obj_sale.contract_number}'
+                            id_quota = build_id_quota('SCE', i, obj_sale)
                             Payment_plans.objects.create(
                                 id_quota=id_quota, sale=obj_sale, pay_date=date,
                                 capital=capital, interest=interest, others=others,
@@ -2795,7 +2796,7 @@ def generar_plan_pagos_pdf(request, project, sale_id):
     }
     
     template = 'pdf/plan_pagos.html'
-    filename = f'Plan_Pagos_CTR{obj_sale.contract_number}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+    filename = f'Plan_Pagos_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
     
     pdf = pdf_gen(template, context, filename)
     
@@ -2863,7 +2864,7 @@ def generar_recibos_pdf(request, project, sale_id):
     }
     
     template = 'pdf/listado_recibos.html'
-    filename = f'Listado_Recibos_CTR{obj_sale.contract_number}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
+    filename = f'Listado_Recibos_{contract_filename_slug(obj_sale)}_{obj_project.name_to_show}.pdf'.replace('ñ','n')
     
     pdf = pdf_gen(template, context, filename)
     
@@ -3343,6 +3344,55 @@ def generar_plantilla_excel(request):
             status=500
         )
 
+def _referencia_plan_pagos_excel(sale):
+    """
+    Referencia para validar Excel (fallback si no viene referencia_ui del navegador).
+    Replica la lógica de recalcularAmortizacion(): saldo en la primera cuota pendiente
+    = suma de capitales del plan antes de esa cuota (por fecha).
+    """
+    cuotas = list(Payment_plans.objects.filter(sale=sale).order_by('pay_date', 'quota_type'))
+    saldo_walk = sum(Decimal(str(c.capital)) for c in cuotas)
+    saldo_inicial_primera_pendiente = None
+
+    for cuota in cuotas:
+        pagado = Decimal(str(cuota.paid()))
+        total = Decimal(str(cuota.total_payment()))
+        pendiente = total - pagado
+
+        if pendiente > Decimal('0') and saldo_inicial_primera_pendiente is None:
+            saldo_inicial_primera_pendiente = saldo_walk
+
+        saldo_walk -= Decimal(str(cuota.capital))
+
+    if saldo_inicial_primera_pendiente is None:
+        try:
+            sale_extra = Sales_extra_info.objects.get(pk=sale.pk)
+            saldo_inicial_primera_pendiente = Decimal(str(sale_extra.remain_value()))
+        except Sales_extra_info.DoesNotExist:
+            saldo_inicial_primera_pendiente = Decimal(str(sale.value))
+
+    return {
+        'capital_pendiente': saldo_inicial_primera_pendiente,
+        'saldo_inicial': saldo_inicial_primera_pendiente,
+    }
+
+
+def _referencia_desde_ui(request):
+    """Usa la referencia calculada en pantalla (primera cuota pendiente)."""
+    raw = request.POST.get('referencia_ui')
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        saldo = Decimal(str(data.get('saldoInicial', data.get('capitalPendiente', 0))))
+        return {
+            'capital_pendiente': saldo,
+            'saldo_inicial': saldo,
+        }
+    except (ValueError, TypeError, json.JSONDecodeError, InvalidOperation):
+        return None
+
+
 @login_required
 @require_POST
 def procesar_excel_plan_pagos(request):
@@ -3464,7 +3514,7 @@ def procesar_excel_plan_pagos(request):
             
             # Añadir cuota válida
             cuotas.append({
-                'id_quota': f"{tipo_cuota}1CTR{sale.contract_number}",  # Se ajustará después
+                'id_quota': build_id_quota(tipo_cuota, 1, sale),  # Se ajustará después
                 'tipo': tipo_cuota,
                 'fecha': fecha_str,
                 'capital': float(capital_val),
@@ -3478,9 +3528,11 @@ def procesar_excel_plan_pagos(request):
         
         if not cuotas:
             return JsonResponse({'success': False, 'error': 'No se encontraron cuotas válidas en el Excel'})
-        
+
+        referencia = _referencia_desde_ui(request) or _referencia_plan_pagos_excel(sale)
+        valor_esperado = referencia['capital_pendiente']
+
         # OVERRIDE PARA VENTAS SIN PLAN: Permitir diferencia si no tiene plan existente
-        valor_esperado = Decimal(str(sale.value))
         if not tiene_plan_existente:
             # Para ventas sin plan, ser más flexible con la validación
             diferencia = abs(total_capital - valor_esperado)
@@ -3505,7 +3557,7 @@ def procesar_excel_plan_pagos(request):
             tipo = cuota['tipo']
             if tipo not in contadores_tipo:
                 contadores_tipo[tipo] = 1
-            cuota['id_quota'] = f"{tipo}{contadores_tipo[tipo]}CTR{sale.contract_number}"
+            cuota['id_quota'] = build_id_quota(tipo, contadores_tipo[tipo], sale)
             contadores_tipo[tipo] += 1
         
         # Registrar en historial si es override
@@ -3519,6 +3571,10 @@ def procesar_excel_plan_pagos(request):
         return JsonResponse({
             'success': True, 
             'data': cuotas,
+            'referencia': {
+                'capital_pendiente': float(referencia['capital_pendiente']),
+                'saldo_inicial': float(referencia['saldo_inicial']),
+            },
             'override_sin_plan': not tiene_plan_existente,
             'mensaje': 'Plan cargado correctamente' + (' (aplicado override para venta sin plan)' if not tiene_plan_existente else '')
         })
@@ -3528,7 +3584,77 @@ def procesar_excel_plan_pagos(request):
         print(f"Error al procesar Excel: {str(e)}")
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)})
-    
+
+
+def _excel_numeric_or_raw(value):
+    if value is None or value == '':
+        return value
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return value
+
+
+@login_required
+@project_permission
+@user_permission('ver ventas adjudicadas')
+def export_adjudicated_sales_report(request, project):
+    obj_project = Projects.objects.get(name=project)
+    sales = (
+        Sales_extra_info.objects.filter(project=project, status='Adjudicado')
+        .select_related('first_owner', 'property_sold')
+        .annotate(recaudo_total=Coalesce(Sum('sale_income__value'), Value(0)))
+        .order_by('contract_number')
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Informe'
+
+    headers = ['CLIENTE', 'CONTRATO', 'ETAPA', 'LOTE ', 'MANZANA', 'VALOR DEL LOTE ', 'RECAUDO T.']
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+
+    for row_idx, sale in enumerate(sales, start=2):
+        recaudo = sale.recaudo_total or 0
+        recaudo_value = recaudo if recaudo > 0 else 'NO'
+
+        ws.cell(row=row_idx, column=1, value=sale.first_owner.full_name().upper())
+        ws.cell(row=row_idx, column=2, value=sale.formatted_contract_number())
+        ws.cell(row=row_idx, column=3, value=_excel_numeric_or_raw(sale.property_sold.stage))
+        ws.cell(row=row_idx, column=4, value=_excel_numeric_or_raw(sale.property_sold.location))
+        ws.cell(row=row_idx, column=5, value=_excel_numeric_or_raw(sale.property_sold.block))
+        ws.cell(row=row_idx, column=6, value=sale.value)
+        ws.cell(row=row_idx, column=7, value=recaudo_value)
+
+    ws.column_dimensions['A'].width = 38.86
+    ws.column_dimensions['B'].width = 13
+    ws.column_dimensions['C'].width = 13
+    ws.column_dimensions['D'].width = 13
+    ws.column_dimensions['E'].width = 13
+    ws.column_dimensions['F'].width = 15.71
+    ws.column_dimensions['G'].width = 18.29
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    project_label = obj_project.name_to_show.replace('ñ', 'n').replace(' ', '_')
+    filename = f'Informe_ventas_{project_label}.xlsx'
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 @login_required
 @require_POST
 @user_permission('gestionar_recaudos')
@@ -3597,7 +3723,7 @@ def desvincular_recaudos(request, project, sale_id):
             # Registrar en timeline del proyecto
             Timeline.objects.create(
                 user=request.user,
-                action=f'Desvinculó recaudos de CTR{sale.contract_number}',
+                action=f'Desvinculó recaudos de {formatted_contract_label(sale)}',
                 project=sale.project,
                 aplication='sales'
             )
@@ -3716,7 +3842,7 @@ def desaplicar_recibos(request, project, sale_id):
 
         Timeline.objects.create(
             user=request.user,
-            action=truncate_text(f'Desaplicó recibos {receipts_summary} de CTR{sale.contract_number}'),
+            action=truncate_text(f'Desaplicó recibos {receipts_summary} de {formatted_contract_label(sale)}'),
             project=sale.project,
             aplication='sales'
         )
@@ -3766,7 +3892,7 @@ def eliminar_detalles_orfanos(request, project, sale_id):
             'others': float(detail.others) if detail.others else 0,
             'arrears': float(detail.arrears) if detail.arrears else 0,
             'arrears_days': detail.arrears_days,
-            'orphan_from_sale': detail.income.sale.contract_number if detail.income_id else None,
+            'orphan_from_sale': detail.income.sale.formatted_contract_number() if detail.income_id else None,
         })
 
     IncomeDetailsBackup.objects.create(
@@ -3787,7 +3913,7 @@ def eliminar_detalles_orfanos(request, project, sale_id):
 
     Timeline.objects.create(
         user=request.user,
-        action=f'Eliminó {deleted_count} aplicaciones huérfanas de CTR{sale.contract_number}',
+        action=f'Eliminó {deleted_count} aplicaciones huérfanas de {formatted_contract_label(sale)}',
         project=sale.project,
         aplication='sales'
     )
@@ -3852,7 +3978,7 @@ def review_properties_status(request, project):
                         status__in=['Desistido', 'Anulado']
                     ).first()
                     if sale:
-                        sale_contract = f"CTR-{sale.contract_number}"
+                        sale_contract = sale.formatted_contract_label()
                 
                 if change_needed:
                     changes.append({
@@ -3919,10 +4045,11 @@ urlpattern = [
     path('<project>/nonapprovedsales', non_approved_sales),
     path('<project>/toadjudicatesales', to_adjudicate_sales),
     path('<project>/adjudicatesales', adjudicate_sales),
+    path('<project>/adjudicatesales/informe-excel', export_adjudicated_sales_report, name='export_adjudicated_sales_report'),
     path('<project>/properties', properties_for_sales),
     path('<project>/graphs',graphs),
-    path('<str:project>/files/<int:contract_number>/get/', get_sales_files, name='get_sales_files'),
-    path('<str:project>/files/<int:contract_number>/add/', add_sales_file, name='add_sales_file'),
+    path('<str:project>/files/<int:sale_id>/get/', get_sales_files, name='get_sales_files'),
+    path('<str:project>/files/<int:sale_id>/add/', add_sales_file, name='add_sales_file'),
     path('<str:project>/files/<int:file_id>/delete/', delete_sales_file, name='delete_sales_file'),
     path('venta/<int:sale_id>/plan-pagos/', plan_pagos_detalle, name='plan_pagos_detalle'),
     path('cuota/<int:cuota_id>/editar/', editar_cuota, name='editar_cuota'),

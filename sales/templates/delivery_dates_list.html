@@ -1,3 +1,4 @@
+{% load sales_extras %}
 {% extends 'site_base.html' %}
 {% load humanize %}
 
@@ -105,7 +106,7 @@
                 {% for item in delivery_data %}
                 <tr class="{% if item.delivery_delay > 0 and not item.is_delivered %}negative{% elif item.delivery_delay < 0 and item.is_delivered %}positive{% endif %}">
                     <td>
-                        <strong>CTR{{ item.sale.contract_number }}</strong>
+                        <strong>{{ item.sale|contract_label }}</strong>
                     </td>
                     <td>
                         {{ item.sale.first_owner.first_name }} {{ item.sale.first_owner.last_name }}

@@ -134,7 +134,7 @@
         </thead>
         <tbody>
             {%for pay in full_comissions%}<tr style="font-size: 11px;{%if pay.assign_paid.state == 'Inactivo'%}background-color: red;{%endif%}">
-                <td style="text-align: center;">{{pay.assign_paid.sale.contract_number}}</td>
+                <td style="text-align: center;">{{ pay.assign_paid.sale|contract_display }}</td>
                 <td>{{pay.assign_paid.sale.first_owner.full_name}}</td>
                 <td>{{pay.assign_paid.seller.full_name}}</td>
                 <td>{{pay.assign_paid.position.name}}</td>

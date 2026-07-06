@@ -27,7 +27,7 @@ class Notifications_emailAdmin(admin.ModelAdmin):
     
 @admin.register(models.Counters)
 class CountersAdmin(admin.ModelAdmin):
-    list_display = ['name','project','value']
+    list_display = ['name', 'project', 'prefix', 'value']
     list_filter = ['project']
     
 @admin.register(models.Parameters)

@@ -27,6 +27,10 @@
                 Listado de ventas adjudicadas
               </div>
             </h2>
+            <a href="{% url 'export_adjudicated_sales_report' project.name %}" class="ui green button">
+                <i class="file excel outline icon"></i>
+                Informe Excel
+            </a>
           </div>
           <div class="ui two pointing item basic menu" id="salestypes">
             <a class="item green active" data-tab="tab-active-sales">Activas</a>
@@ -48,7 +52,7 @@
                     </thead>
                     <tbody>{%for sale in adjudicatedsales%}
                     <tr class='center aligned' data-sale="{{ sale.pk }}">
-                        <td>{{sale.contract_number}}</td>
+                        <td>{{ sale|contract_display }}</td>
                         <td>{{sale.add_date|date:"Y/m/d"}}</td>
                         <td class='left aligned'>{{sale.first_owner.full_name}}</td>
                         <td>{{sale.property_sold.description}}</td>                        
@@ -74,7 +78,7 @@
                     </thead>
                     <tbody>{%for sale in desistsales%}
                     <tr class='center aligned' data-sale="{{ sale.pk }}">
-                        <td>{{sale.contract_number}}</td>
+                        <td>{{ sale|contract_display }}</td>
                         <td>{{sale.add_date|date:"Y/m/d"}}</td>
                         <td class='left aligned'>{{sale.first_owner.full_name}}</td>
                         <td>{{sale.property_sold.description}}</td>                        
@@ -93,7 +97,7 @@
             <div class="header item">
                 <h2>
                     <i class="info circle icon"></i>
-                    Adjudicación contrato {{sale.contract_number}}
+                    Adjudicación contrato {{ sale|contract_display }}
                     
                 </h2>
             </div>
@@ -106,7 +110,7 @@
                             <i class="copy outline icon"></i>Documentos
                             <div class="menu submenu">
                                 <a class="item" id='print-comissions-report'><i class="file contract icon"></i>Hoja de radicación</a>
-                                <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale.contract_number }}', '{{ project.name }}')">
+                                <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale|contract_display }}', '{{ project.name }}')">
                                     <i class="folder open icon"></i>Archivos de la venta</a>
                                 <a class="item" id='actions-print-account'>
                                     <i class="file invoice dollar icon"></i>Estado de cuenta</a>
@@ -300,7 +304,7 @@
                                             <td>{{ orphan.receipt }}</td>
                                             <td>
                                                 {% if orphan.contract_number %}
-                                                    CTR{{ orphan.contract_number }}<br>
+                                                    {{ orphan.contract_number }}<br>
                                                     <small>{{ orphan.project_name }}</small>
                                                 {% else %}
                                                     N/A
@@ -1038,7 +1042,7 @@
                         <td>{{ orphan.receipt }}</td>
                         <td>
                             {% if orphan.contract_number %}
-                                CTR{{ orphan.contract_number }}
+                                {{ orphan.contract_number }}
                             {% else %}
                                 N/A
                             {% endif %}
@@ -1114,7 +1118,7 @@
 <script>
     const project = '{{project.name}}'
     var sale = '{{sale.pk}}'
-    var contract_number = '{{sale.contract_number}}'
+    var contract_number = '{{ sale|contract_display }}'
 </script>
 <script src="{% static 'js/sales_files_modal.js' %}"></script>
 <script>

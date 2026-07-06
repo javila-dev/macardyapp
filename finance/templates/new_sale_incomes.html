@@ -1,4 +1,4 @@
-{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}{% load sales_extras %}
 {%block title%}Finanzas | Recaudos{%endblock%}
 {%block submenu%}
 <div class='header item'>
@@ -43,7 +43,7 @@
                     <td>{{r.add_date}}</td>
                     <td>{{r.receipt|unlocalize}}</td>
                     <td>{{r.sale.first_owner.full_name}}</td>
-                    <td>{{r.sale.contract_number}}</td>
+                    <td>{{ r.sale|contract_display }}</td>
                     <td>{{r.payment_method.name}}</td>
                     <td>${{r.value|format_number}}</td>
                 </tr>

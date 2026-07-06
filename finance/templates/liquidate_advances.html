@@ -1,4 +1,4 @@
-{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}{% load sales_extras %}
 {%block title%}Finanzas | Liquidar anticipos{%endblock%}
 {%block submenu%}
 <div class='header item'>
@@ -42,7 +42,7 @@
               </thead>
               <tbody>
                   {%for sale in advances%}{%if sale.check_comission_advance%}<tr class='center aligned'>
-                    <td>{{sale.contract_number}}</td>
+                    <td data-sale-id="{{ sale.pk }}">{{ sale|contract_display }}</td>
                     <td>{{sale.first_owner.full_name.upper}}</td>
                     <td>{{sale.add_date}}</td>
                     <td>{{sale.value|format_number}}</td>
@@ -57,7 +57,7 @@
       <h2 class="ui header">
         <i class="percent teal icon"></i>
         <div class="content">
-            Liquidar anticipo comision contrato {{sale.contract_number}} - {{sale.first_owner.full_name}}
+            Liquidar anticipo comision contrato {{ sale|contract_display }} - {{sale.first_owner.full_name}}
         </div>
         </h2>
         <div class="ui container">
@@ -98,8 +98,8 @@
 <script>
     $(document).ready(function(){
         $('#tableComissions tbody').on('click','tr',function(){
-            let contract_number = this.cells[0].innerText
-            window.location.href = '/finance/'+project+'/comissions/advances?sale='+contract_number
+            let saleId = $(this).find('td[data-sale-id]').data('sale-id')
+            window.location.href = '/finance/'+project+'/comissions/advances?sale='+saleId
             $('#tableComissions').parents('.ui.basic.segment').first()
             .addClass('loading')
         })

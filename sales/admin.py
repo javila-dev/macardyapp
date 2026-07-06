@@ -15,7 +15,7 @@ class sales_plansAdmin(admin.ModelAdmin):
 
 @admin.register(models.Sales)
 class salesAdmin(admin.ModelAdmin):
-    list_display = ['id_sale', 'contract_number','project', 'first_owner', 'property_sold', 'value', 'add_date']
+    list_display = ['id_sale', 'contract_prefix', 'contract_number', 'project', 'first_owner', 'property_sold', 'value', 'add_date']
     list_filter = ['project']
     search_fields = ['property_sold__description','first_owner__first_name','first_owner__last_name',
                      'second_owner__first_name','second_owner__last_name',

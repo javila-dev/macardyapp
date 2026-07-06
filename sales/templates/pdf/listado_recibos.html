@@ -26,7 +26,7 @@
                 <h2>Información del Cliente:</h2>
                 <strong>Titular:</strong> {{sale.first_owner.full_name}}<br>
                 {%if sale.second_owner.full_name != " "%}<strong>Cotitular:</strong> {{sale.second_owner.full_name}}<br>{%endif%}
-                <strong>Contrato No.:</strong> CTR{{sale.contract_number}}<br>
+                <strong>Contrato No.:</strong> {{ sale|contract_label }}<br>
                 <strong>Inmueble:</strong> {{sale.property_sold.description}}<br>
             </td>
             <td>

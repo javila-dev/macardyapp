@@ -1,0 +1,54 @@
+services:
+  macardyapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    entrypoint: ["/entrypoint-staging.sh"]
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-false}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      APP_DOMAIN: ${APP_DOMAIN}
+      APP_ENV: staging
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_SOURCE_NAME: ${DB_SOURCE_NAME:-macardyapp}
+      PRODUCTION_DB_NAME: ${PRODUCTION_DB_NAME:-macardyapp}
+      REFRESH_STAGING_DB: ${REFRESH_STAGING_DB:-false}
+      PG_MAINTENANCE_DB: ${PG_MAINTENANCE_DB:-postgres}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      USE_S3_MEDIA: ${USE_S3_MEDIA}
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME}
+      AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_REGION_NAME: ${AWS_S3_REGION_NAME:-us-east-1}
+      AWS_DEFAULT_ACL: ${AWS_DEFAULT_ACL:-public-read}
+      AWS_QUERYSTRING_AUTH: ${AWS_QUERYSTRING_AUTH:-false}
+      AWS_S3_FILE_OVERWRITE: ${AWS_S3_FILE_OVERWRITE:-false}
+      AWS_S3_ADDRESSING_STYLE: ${AWS_S3_ADDRESSING_STYLE:-path}
+      AWS_S3_SIGNATURE_VERSION: ${AWS_S3_SIGNATURE_VERSION:-s3v4}
+      PERSISTENT_MEDIA_BASE_URL: ${PERSISTENT_MEDIA_BASE_URL}
+      TMP_MEDIA_URL: ${TMP_MEDIA_URL:-/media/tmp/}
+      TMP_MEDIA_PREFIX: ${TMP_MEDIA_PREFIX:-tmp/}
+    networks:
+      - dokploy-network
+      - shared-services
+
+networks:
+  dokploy-network:
+    external: true
+  shared-services:
+    external: true

@@ -752,7 +752,7 @@
             type: 'GET',
             url: '/sales/ajax/' + project + '/printsalesdocuments',
             data: {
-              'sale': row.sale.contract_number,
+              'sale': row.sale.id,
               'type': 'collection_letter',
             },
             success: function (xhr) {
@@ -767,7 +767,7 @@
             type: 'GET',
             url: '/sales/ajax/' + project + '/printsalesdocuments',
             data: {
-              'sale': row.sale.contract_number,
+              'sale': row.sale.id,
               'type': 'statement_of_account',
             },
             success: function (xhr) {
@@ -783,7 +783,7 @@
             .modal('show')
           break
         case "go-to-sale":
-          window.open('/sales/' + project + '/adjudicatesales?sale=' + row.sale.contract_number, '_blank')
+          window.open('/sales/' + project + '/adjudicatesales?sale=' + row.sale.id, '_blank')
           break
         case "action-reasign":
           $('#modal-change-collector').modal('show');
@@ -882,7 +882,7 @@
       if (window.chartPagos) window.chartPagos.destroy();
 
       
-      $.get(`/finance/ajax/${project}/detallecliente`, { contrato }, function (data) {
+      $.get(`/finance/ajax/${project}/detallecliente`, { contrato: row.sale.id }, function (data) {
         // KPIs
         $('#dias-mora').text(data.dias_mora ?? '—');
         $('#dias-promedio').text(data.dias_promedio_pago?.join(', ') || '—');

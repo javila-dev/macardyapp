@@ -88,6 +88,8 @@ class Sales(models.Model):
     id_sale = models.AutoField(primary_key=True, verbose_name='Id Venta')
     project = models.ForeignKey(
         Projects, on_delete=models.PROTECT, verbose_name='Proyecto')
+    contract_prefix = models.CharField(
+        max_length=10, blank=True, default='', verbose_name='Prefijo contrato')
     contract_number = models.IntegerField(verbose_name='Numero de contrato')
     first_owner = models.ForeignKey(Clients, on_delete=models.PROTECT,
                                     related_name='first_owner', verbose_name='Primer propietario')
@@ -128,10 +130,22 @@ class Sales(models.Model):
     class Meta:
         verbose_name = 'Venta'
         verbose_name_plural = 'Ventas'
-        unique_together = ['project', 'contract_number']
+        unique_together = ['project', 'contract_prefix', 'contract_number']
+
+    def formatted_contract_number(self):
+        from sales.contract_utils import formatted_contract_number
+        return formatted_contract_number(self)
+
+    def formatted_contract_label(self):
+        from sales.contract_utils import formatted_contract_label
+        return formatted_contract_label(self)
+
+    def quota_contract_suffix(self):
+        from sales.contract_utils import quota_contract_suffix
+        return quota_contract_suffix(self)
 
     def __str__(self):
-        return 'CTR' + str(self.contract_number) + ' - '+self.first_owner.full_name()
+        return self.formatted_contract_label() + ' - ' + self.first_owner.full_name()
 
     def portfolio_values(self):
         payment_plan = Payment_plans.objects.filter(

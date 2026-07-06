@@ -1,4 +1,4 @@
-{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}
+{%extends 'site_base.html'%}{%load static%}{% load crispy_forms_tags %}{%load l10n%}{%load finance_extras%}{% load sales_extras %}
 {%block title%}Ventas | Sin aprobar{%endblock%}
 {%block submenu%}
 <div class='header item'>
@@ -43,7 +43,7 @@
                     </thead>
                     <tbody>{%for sale in nonapprovedsales%}
                     <tr>
-                        <td>{{sale.contract_number}}</td>
+                        <td>{{ sale|contract_display }}</td>
                         <td>{{sale.first_owner.full_name}}</td>
                         <td>{{sale.sale_id_history.first.user.username}}</td>
                         <td>{{sale.add_date|date:"d/m/Y"}}</td>
@@ -64,7 +64,7 @@
             <div class="header item">
                 <h2>
                     <i class="info circle teal icon"></i>
-                    Detalles contrato {{sale.contract_number}}
+                    Detalles contrato {{ sale|contract_display }}
                 </h2>
             </div>
             <div class="right menu">
@@ -92,7 +92,7 @@
 
                     </div>
                   </div>
-                  <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale.contract_number }}', '{{ project.name }}')">
+                  <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale|contract_display }}', '{{ project.name }}')">
                             <i class="copy outline icon"></i>Cargar Documentos</a>
                   <a class='item' id='actions-comissions'>
                       <i class="list ol icon"></i>Escala de Comisiones
@@ -281,7 +281,7 @@
                     <td>{{r.add_date}}</td>
                     <td>{{r.receipt}}</td>
                     <td>{{r.sale.first_owner.full_name}}</td>
-                    <td>{{r.sale.contract_number}}</td>
+                    <td>{{ r.sale|contract_display }}</td>
                     <td>{{r.payment_method.name}}</td>
                     <td>${{r.value|format_number}}</td>
                 </tr>
@@ -303,8 +303,8 @@
 <script src="{%static 'js/jquery.mask.js'%}"></script>
 <script>
     const project = '{{project.name}}'
-    var sale = '{{sale.contract_number}}'
-    var contract_number = '{{sale.contract_number}}'
+    var sale = '{{ sale.pk }}'
+    var contract_number = '{{ sale|contract_display }}'
     const saleHasScale = {{ sale_has_scale|yesno:"true,false"|lower }};
 </script>
 <script src="{% static 'js/sales_files_modal.js' %}"></script>
@@ -581,7 +581,7 @@
             $(this).addClass('loading')
             let dataform = new FormData(this)
             dataform.append('action','modify')
-            dataform.append('sale','{{sale.contract_number}}')
+            dataform.append('sale','{{ sale|contract_display }}')
             $.ajax({
                 url:'/sales/'+project+'/nonapprovedsales',
                 type:'POST',
@@ -622,7 +622,7 @@
                         data:{
                             'csrfmiddlewaretoken':'{{csrf_token}}',
                             'action':'approve',
-                            'sale':'{{sale.contract_number}}'
+                            'sale':'{{ sale|contract_display }}'
                         },
                         success:function(xhr){
                             console.log(xhr)
@@ -661,7 +661,7 @@
                         data:{
                             'csrfmiddlewaretoken':'{{csrf_token}}',
                             'action':'nullify',
-                            'sale':'{{sale.contract_number}}'
+                            'sale':'{{ sale|contract_display }}'
                         },
                         success:function(xhr){
                             $('#nullify-confirmation').modal('hide')

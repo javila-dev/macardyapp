@@ -1,5 +1,5 @@
 from django_cron import CronJobBase, Schedule
-from finance.models import Sales_extra_info
+from sales.contract_utils import formatted_contract_number
 from mcd_site.models import Notifications_email, Perfil, Projects
 from mcd_site.utils import send_email_template
 
@@ -28,7 +28,7 @@ class cronjobcollect(CronJobBase):
                         i += 1
                         msj += f'''
                                 <li>
-                                <strong>Contrato #{sale.contract_number}</strong>
+                                <strong>Contrato #{formatted_contract_number(sale)}</strong>
                                 {sale.first_owner.full_name()}, valor pendiente $
                                 {budget.get('budget_pending'):,.0f} con {budget.get('arrears_days')}
                                 dias de mora
@@ -65,7 +65,7 @@ class cronjobcollect(CronJobBase):
                                 collector_name = budget.get('collector_sale').get_full_name()
                             msj += f'''
                                     <li>
-                                    <strong>Contrato:</strong> {sale.contract_number}
+                                    <strong>Contrato:</strong> {formatted_contract_number(sale)}
                                     {sale.first_owner.full_name()}, valor pendiente $
                                     {budget.get('budget_pending'):,.0f} con {budget.get('arrears_days')}
                                     de mora (asignado a {collector_name})

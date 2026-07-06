@@ -50,6 +50,16 @@ from mcd_site.utils import (
 )
 from sales.forms import collectionfeed_Form, ComissionPositionForm
 from sales.models import Assigned_comission, Comission_position, Paid_comissions, Payment_plans, Sales, Sales_history
+from sales.contract_utils import (
+    build_id_quota,
+    contract_filename_slug,
+    filter_sales_by_contract,
+    formatted_contract_label,
+    formatted_contract_number,
+    parse_contract_identifier,
+    quota_contract_suffix,
+    resolve_sale,
+)
 from terceros.models import Sellers
 from django.db import transaction
 
@@ -166,7 +176,7 @@ def new_sales_incomes(request, project):
         receipt.value += 1
         receipt.save()
         
-        filename = f'Recibocaja{receipt_nro}_CTR{obj_sale.contract_number}_{project}.pdf'.replace(
+        filename = f'Recibocaja{receipt_nro}_{contract_filename_slug(obj_sale)}_{project}.pdf'.replace(
             'ñ', 'n')
 
         divisor = 1
@@ -177,7 +187,7 @@ def new_sales_incomes(request, project):
 
         divided_income = f'{int(income.value)/divisor:,.2f}'
 
-        filename = f'Recibocaja{income.receipt}_CTR{income.sale.contract_number}_{project}.pdf'.replace(
+        filename = f'Recibocaja{income.receipt}_{contract_filename_slug(income.sale)}_{project}.pdf'.replace(
             'ñ', 'n')
 
         pdf_file = pdf_gen(
@@ -284,7 +294,7 @@ def adjudicated_sales_incomes(request, project):
         print('abono_capital:', abono_capital)
         apply_income(income, condonate_arrears=int(arrears_condonate), abono_capital=abono_capital, tipo_abono=tipo_abono)
 
-        filename = f'Recibocaja{receipt_number}_CTR{obj_sale.contract_number}_{project}.pdf'.replace(
+        filename = f'Recibocaja{receipt_number}_{contract_filename_slug(obj_sale)}_{project}.pdf'.replace(
             'ñ', 'n')
 
         divisor = 1
@@ -374,7 +384,8 @@ def incomes_list(request, project):
                             'first_name': getattr(first_owner, 'first_name', '') if first_owner else '',
                             'last_name': getattr(first_owner, 'last_name', '') if first_owner else '',
                         },
-                        'contract_number': getattr(sale, 'contract_number', '') if sale else '',
+                        'contract_number': sale.formatted_contract_number() if sale else '',
+                        'contract_display': sale.formatted_contract_number() if sale else '',
                         'property_sold': {
                             'description': getattr(prop, 'description', '') if prop else '',
                         },
@@ -401,13 +412,13 @@ def incomes_list(request, project):
                     incomes_data.append({
                         'add_date_uk': datetime.strftime(i.date, '%Y/%m/%d'),
                         'payment_date_uk': datetime.strftime(i.date, '%Y/%m/%d'),
-                        'receipt': f'DEV-CTR{i.sale.contract_number}',
+                        'receipt': f'DEV-{i.sale.formatted_contract_label()}',
                         'sale': {
                             'first_owner': {
                                 'first_name': i.sale.first_owner.first_name,
                                 'last_name': i.sale.first_owner.last_name
                             },
-                            'contract_number': i.sale.contract_number,
+                            'contract_number': i.sale.formatted_contract_number(),
                             'property_sold': {
                                 'description': i.sale.property_sold.description
                             },
@@ -569,13 +580,12 @@ def liquidate_comissions_advances(request, project):
         'project': obj_project,
     }
     if request.method == 'GET' and request.GET:
-        contract_number = request.GET.get('sale') 
-        sale = Sales.objects.get(
-            project=project, contract_number=contract_number) 
+        contract_number = request.GET.get('sale')
+        obj_sale = resolve_sale(project, contract_number)
         context.update({
-            'advance_detail': Comissions_Payment.objects.filter(sale=sale.pk),
+            'advance_detail': Comissions_Payment.objects.filter(sale=obj_sale.pk),
             'selected': True,
-            'sale': sale,
+            'sale': obj_sale,
         })
 
     if request.method == 'POST':
@@ -630,10 +640,7 @@ def liquidate_comissions(request, project):
 
     if request.method == 'GET' and request.GET:
         contract_number = request.GET.get('contract_number')
-        obj_sale = Sales.objects.get(
-            project=project,
-            contract_number=contract_number,
-        )
+        obj_sale = resolve_sale(project, contract_number)
         scale = Comissions_Payment.objects.filter(
             sale=obj_sale.pk
         )
@@ -1080,7 +1087,7 @@ def reprint_receipt(request, project):
 
         divided_income = f'{income.value/divisor:,.2f}'
 
-        filename = f'Recibocaja{income.receipt}_CTR{income.sale.contract_number}_{project}.pdf'.replace(
+        filename = f'Recibocaja{income.receipt}_{contract_filename_slug(income.sale)}_{project}.pdf'.replace(
             'ñ', 'n')
 
         pdf_file = pdf_gen(
@@ -1308,7 +1315,7 @@ def incomes_actions(request, project):
                 aplication='finance'
             )
 
-            filename = f'RC Anulado-{obj_income.receipt}_CTR{obj_income.sale.contract_number}_{project}.pdf'.replace(
+            filename = f'RC Anulado-{obj_income.receipt}_{contract_filename_slug(obj_income.sale)}_{project}.pdf'.replace(
                 'ñ', 'n')
 
             pdf_file = pdf_gen(
@@ -1603,9 +1610,10 @@ def collection_budget(request, project, portfolio_type=None):
                 obj_budget = obj_budget.filter(collector=request.user)
             
             if search_by == 'sale':
-                contract = to_search.split(' - ')[0]
-                obj_budget = obj_budget.filter(sale__contract_number=contract,
-                                               sale__project=project)
+                contract = to_search.split(' - ')[0].strip()
+                obj_budget = filter_sales_by_contract(
+                    obj_budget, contract, lookup_prefix='sale__'
+                ).filter(sale__project=project)
             elif search_by == 'collector':
                 collector = to_search.split(' - ')[0]
                 obj_budget = obj_budget.filter(collector=collector)
@@ -1619,11 +1627,24 @@ def collection_budget(request, project, portfolio_type=None):
                 ).distinct()
             )
 
-            data = {
-                'data': JsonRender(obj_budget,
+            rendered = JsonRender(obj_budget,
                                    query_functions=('total', 'period_incomes'),
                                    annotates=('sale_name', 'collector_name')
-                                   ).render(),
+                                   ).render()
+            sale_ids = [item['sale'] for item in rendered if item.get('sale')]
+            sales_map = {
+                sale.pk: sale for sale in Sales.objects.filter(pk__in=sale_ids)
+            }
+            for item in rendered:
+                sale_obj = sales_map.get(item.get('sale'))
+                if sale_obj:
+                    item['sale'] = {
+                        'id': sale_obj.pk,
+                        'contract_number': sale_obj.formatted_contract_number(),
+                    }
+
+            data = {
+                'data': rendered,
                 'entering': entering,
                 'collector_options': collector_options,
                 
@@ -1654,8 +1675,9 @@ def collection_budget(request, project, portfolio_type=None):
                 if to_change == 'collector':
                     obj_budget = obj_budget.filter(collector=to_search, portfolio_type=portfolio_type)
                 elif to_change == 'client':
-                    obj_budget = obj_budget.filter(
-                        sale__contract_number=to_search)
+                    obj_budget = filter_sales_by_contract(
+                        obj_budget, to_search, lookup_prefix='sale__'
+                    )
 
                 for bg in obj_budget:
                     bg.collector = User.objects.get(pk=new_user)
@@ -1673,8 +1695,9 @@ def collection_budget(request, project, portfolio_type=None):
                 if to_change == 'collector':
                     obj_budget = obj_budget.filter(collector=to_search)
                 elif to_change == 'client':
-                    obj_budget = obj_budget.filter(
-                        sale__contract_number=to_search)
+                    obj_budget = filter_sales_by_contract(
+                        obj_budget, to_search, lookup_prefix='sale__'
+                    )
 
                 for bg in obj_budget:
                     bg.delete()
@@ -1691,8 +1714,9 @@ def collection_budget(request, project, portfolio_type=None):
                 if to_change == 'collector':
                     obj_budget = obj_budget.filter(collector=to_search)
                 elif to_change == 'client':
-                    obj_budget = obj_budget.filter(
-                        sale__contract_number=to_search)
+                    obj_budget = filter_sales_by_contract(
+                        obj_budget, to_search, lookup_prefix='sale__'
+                    )
 
                 for bg in obj_budget:
                     sale = Sales_extra_info.objects.get(pk=bg.sale.pk)
@@ -2062,7 +2086,7 @@ def detalle_cliente(request, project):
         return JsonResponse({'error': 'Contrato no especificado'}, status=400)
 
     try:
-        venta = Sales.objects.get(contract_number=contrato, project__name=project)
+        venta = resolve_sale(project, contrato)
     except Sales.DoesNotExist:
         return JsonResponse({'error': 'Venta no encontrada'}, status=404)
 
@@ -3144,7 +3168,7 @@ def get_cartera_proyecto_data(request, project_id, tipo_cartera=None):
             collector = '—'
 
         data.append({
-            'contrato': f'CTR{venta.contract_number}',
+            'contrato': venta.formatted_contract_label(),
             'cliente': venta.first_owner.full_name(),
             'tipo_cartera': "Comercial" if es_comercial else "Financiera",
             'pagado': f'${total_pagado:,.0f}',
@@ -3445,7 +3469,7 @@ def _validar_solicitud_venta_nueva(request, obj_project, solicitud, solicitud_pk
 
                 divided_income = f'{int(income.value)/divisor:,.2f}'
 
-                filename = f'Recibocaja{income.receipt}_CTR{income.sale.contract_number}_{obj_project.name}.pdf'.replace('ñ', 'n')
+                filename = f'Recibocaja{income.receipt}_{contract_filename_slug(income.sale)}_{obj_project.name}.pdf'.replace('ñ', 'n')
 
                 pdf_file = pdf_gen(
                     'pdf/income_recepit.html',
@@ -4072,7 +4096,7 @@ def preview_reversion_abono(request, project, abono_id):
                 'tipo': abono.get_tipo_display(),
                 'cuotas_afectadas': abono.cuotas_afectadas,
                 'cliente': sale.first_owner.full_name(),
-                'contrato': sale.contract_number
+                'contrato': sale.formatted_contract_number()
             },
             'backup': backup_info,
             'actual': actual_info,
@@ -4178,13 +4202,13 @@ def revertir_abono_capital(request, project, abono_id):
                 # Recalcular id_quota para cuotas ABCAP si usan sale.pk en lugar de contract_number
                 id_quota = cuota_backup.id_quota
                 if cuota_backup.quota_type == 'ABCAP':
-                    match = re.match(r'ABCAP(\d+)CTR(\d+)', id_quota)
+                    match = re.match(r'ABCAP(\d+)CTR(.+)$', id_quota)
                     if match:
-                        numero_secuencia = match.group(1)
-                        numero_en_codigo = int(match.group(2))
-                        # Si el código usa pk en lugar de contract_number, corregirlo
-                        if numero_en_codigo != sale.contract_number:
-                            id_quota = f"ABCAP{numero_secuencia}CTR{sale.contract_number}"
+                        numero_secuencia = int(match.group(1))
+                        numero_en_codigo = match.group(2)
+                        expected_suffix = quota_contract_suffix(sale)
+                        if numero_en_codigo != expected_suffix:
+                            id_quota = build_id_quota('ABCAP', numero_secuencia, sale)
 
                 Payment_plans.objects.create(
                     id_payment=cuota_backup.id_payment,
@@ -4243,7 +4267,7 @@ def revertir_abono_capital(request, project, abono_id):
 
             Timeline.objects.create(
                 user=request.user,
-                action=f'Revirtió abono a capital en CTR{sale.contract_number}. Motivo: {motivo}',
+                action=f'Revirtió abono a capital en {formatted_contract_label(sale)}. Motivo: {motivo}',
                 project=sale.project,
                 aplication='finance'
             )
@@ -4461,7 +4485,7 @@ def export_abono_capital_receipt(request, project, abono_id):
             'user': request.user,
         }
         
-        filename = f'Recibo_AbonoCapital_{abono.id}_CTR{abono.sale.contract_number}_{obj_project.name}.pdf'.replace('ñ', 'n')
+        filename = f'Recibo_AbonoCapital_{abono.id}_{contract_filename_slug(abono.sale)}_{obj_project.name}.pdf'.replace('ñ', 'n')
         
         pdf_file = pdf_gen(
             'pdf/abono_capital_receipt.html',
@@ -4708,7 +4732,7 @@ def ajax_detalle_recaudos_gestor(request, project):
                     es_abono_capital = pago.income.description and 'abono' in pago.income.description.lower() and 'capital' in pago.income.description.lower()
                     
                     recibos_dict[recibo_key] = {
-                        'contrato': f'CTR{detalle.sale.contract_number}',
+                        'contrato': detalle.sale.formatted_contract_label(),
                         'cliente': detalle.sale.first_owner.full_name(),  # Llamar al método aquí
                         'fecha_pago': pago.income.payment_date.strftime('%d/%m/%Y'),
                         'recibo': pago.income.receipt,
@@ -4755,7 +4779,8 @@ def ajax_get_sale_status(request, project, sale_id):
         sale = Sales.objects.get(pk=sale_id)
         return JsonResponse({
             'status': sale.status,
-            'contract_number': sale.contract_number,
+            'contract_number': sale.formatted_contract_number(),
+            'contract_display': sale.formatted_contract_number(),
             'client': sale.first_owner.full_name(),
         })
     except Sales.DoesNotExist:
@@ -5120,7 +5145,7 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
 
     # Crear cuota tipo ABCAP
     n_abonos = Payment_plans.objects.filter(sale=sale, quota_type='ABCAP').count()
-    id_abono = f"ABCAP{n_abonos + 1}CTR{sale.contract_number}"
+    id_abono = build_id_quota('ABCAP', n_abonos + 1, sale)
     cuota_abono = Payment_plans.objects.create(
         sale=sale,
         id_quota=id_abono,
@@ -5247,7 +5272,7 @@ def get_ci_status_notifications(project, year, month, dets):
         
         if prev and prev.portfolio_type == 'comercial':
             entering.append({
-                "contract_number": d.sale.contract_number,
+                "contract_number": d.sale.formatted_contract_number(),
                 "first_owner": d.sale.first_owner.full_name(),
                 "sale_id": d.sale_id
             })

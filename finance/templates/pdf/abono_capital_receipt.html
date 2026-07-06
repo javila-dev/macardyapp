@@ -1,4 +1,4 @@
-{% load humanize %}{% load finance_extras %}{% load static %}
+{% load humanize %}{% load finance_extras %}{% load static %}{% load sales_extras %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -194,7 +194,7 @@
             </tr>
             <tr>
                 <td class="label">Contrato:</td>
-                <td class="value">{{sale.contract_number}}</td>
+                <td class="value">{{ sale|contract_display }}</td>
                 <td class="label">Inmueble:</td>
                 <td class="value">{{sale.property_sold.description|default:"N/A"}}</td>
             </tr>

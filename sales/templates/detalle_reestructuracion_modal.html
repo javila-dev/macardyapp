@@ -1,7 +1,7 @@
-{% load humanize %}
+{% load humanize %}{% load sales_extras %}
 <div>
     <h4 class="ui header">
-        Contrato: CTR{{ restructuring.sale.contract_number }} | Proyecto: {{ restructuring.sale.project }}
+        Contrato: {{ restructuring.sale|contract_label }} | Proyecto: {{ restructuring.sale.project }}
         <div class="sub header">
             <strong>Solicitado por:</strong> {{ restructuring.created_by.get_full_name }} el <strong>{{ restructuring.created_at|date:"d/m/Y H:i" }}</strong><br>
             <strong>Estado:</strong>

@@ -58,7 +58,7 @@
     </ol>
     <h2>INFORMACIÓN DEL CONTRATO</h2>
     <p style="font-size: 12px;">
-        <b>Numero de contrato</b> <u>{{sale.contract_number}}</u>
+        <b>Numero de contrato</b> <u>{{ sale|contract_display }}</u>
         <b>Fecha contrato</b> <u>{{sale.add_date}}</u>
         <b>Precio</b> <u>$ {{sale.value|format_number}}</u> 
         <b>Base Comisión</b> <u>$ {{sale.comission_base|format_number}}</u>

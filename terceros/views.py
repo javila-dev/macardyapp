@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from mcd_site.utils import JsonRender
 from sales.models import Assigned_comission, Sales
+from sales.contract_utils import formatted_contract_label
 from terceros import forms
 from terceros.models import (
     Clients, Collaborator_contracts, Collaborators, Sellers, 
@@ -870,16 +871,16 @@ def ajax_sales_by_client(request):
                 data += f'<div class="item">Ningun contrato asociado</div>'
             for sale in obj_sales:
                 if sale.status == 'Adjudicado' or sale.status == 'Desistido':
-                    href = f'/sales/{sale.project.name}/adjudicatesales?sale={sale.contract_number}'
-                    msj = f'{sale.project.name_to_show}: <a href="{href}">CTR{sale.contract_number}</a> ({sale.status})'
+                    href = f'/sales/{sale.project.name}/adjudicatesales?sale={sale.pk}'
+                    msj = f'{sale.project.name_to_show}: <a href="{href}">{formatted_contract_label(sale)}</a> ({sale.status})'
                 elif sale.status == 'Pendiente':
-                    href = f'/sales/{sale.project.name}/nonapprovedsales?sale={sale.contract_number}'
-                    msj = f'{sale.project.name_to_show}: <a href="{href}">CTR{sale.contract_number}</a> ({sale.status})'
+                    href = f'/sales/{sale.project.name}/nonapprovedsales?sale={sale.pk}'
+                    msj = f'{sale.project.name_to_show}: <a href="{href}">{formatted_contract_label(sale)}</a> ({sale.status})'
                 elif sale.status == 'Aprobado': 
-                    href = f'/sales/{sale.project.name}/toadjudicatesales?sale={sale.contract_number}'
-                    msj = f'{sale.project.name_to_show}: <a href="{href}">CTR{sale.contract_number}</a> ({sale.status})'
+                    href = f'/sales/{sale.project.name}/toadjudicatesales?sale={sale.pk}'
+                    msj = f'{sale.project.name_to_show}: <a href="{href}">{formatted_contract_label(sale)}</a> ({sale.status})'
                 elif sale.status == 'Anulado':
-                    msj = f'{sale.project.name_to_show}: CTR{sale.contract_number} ({sale.status})'
+                    msj = f'{sale.project.name_to_show}: {formatted_contract_label(sale)} ({sale.status})'
                 data += f'<div class="item">{msj}</div>'
                 
             data += '</div>'
@@ -1102,7 +1103,7 @@ def ajax_clients_projects(request):
                     'name': sale.project.name_to_show,
                     'logo_url': sale.project.logo.url  # Suponiendo que el modelo Project tiene este campo
                 })
-                clients_data[client_key]['contracts'].append(f"CTR{sale.contract_number} ({sale.status})")
+                clients_data[client_key]['contracts'].append(f"{formatted_contract_label(sale)} ({sale.status})")
                 clients_data[client_key]['roles'].add("Titular 1")
 
             # Procesar el segundo titular
@@ -1122,7 +1123,7 @@ def ajax_clients_projects(request):
                     'name': sale.project.name_to_show,
                     'logo_url': sale.project.logo.url
                 })
-                clients_data[client_key]['contracts'].append(f"CTR{sale.contract_number} ({sale.status})")
+                clients_data[client_key]['contracts'].append(f"{formatted_contract_label(sale)} ({sale.status})")
                 clients_data[client_key]['roles'].add("Titular 2")
 
             # Procesar el tercer propietario
@@ -1142,7 +1143,7 @@ def ajax_clients_projects(request):
                     'name': sale.project.name_to_show,
                     'logo_url': sale.project.logo.url
                 })
-                clients_data[client_key]['contracts'].append(f"CTR{sale.contract_number} ({sale.status})")
+                clients_data[client_key]['contracts'].append(f"{formatted_contract_label(sale)} ({sale.status})")
                 clients_data[client_key]['roles'].add("Titular 3")
 
         # Convertir los datos a una lista y formatear los campos

@@ -1,3 +1,4 @@
+{% load sales_extras %}
 {% extends 'site_base.html' %}
 {% load humanize l10n %}{% load static %}
 {%block title%}Ventas | Reestructuracion{%endblock%}
@@ -7,7 +8,7 @@
     <h2 class="ui header" style="margin-top: -0.6em;">
         Plan de pagos para {{ sale }}
         <div class="sub header">
-            Contrato: CTR{{ sale.contract_number }} | Proyecto: {{ sale.project }}<br>
+            Contrato: {{ sale|contract_label }} | Proyecto: {{ sale.project }}<br>
             <span>
                 <strong>Valor total:</strong> {{ sale.value|intcomma }} &nbsp;|&nbsp;
                 <strong>Saldo pendiente:</strong> {{ saldo_total|intcomma }} &nbsp;|&nbsp;
@@ -1676,7 +1677,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                 }
 
                 // Buscar el último consecutivo usado para cada tipo en la tabla
-                const ctr = '{{ sale.contract_number }}';
+                const ctr = '{{ quota_contract_suffix }}';
                 let maxSCR = 0, maxSCE = 0;
                 $('#plan-pagos-table tbody tr').each(function() {
                     const tipo = $(this).data('tipo-cuota');
@@ -2418,7 +2419,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             
             // Encontrar el siguiente número disponible para esta cuota
             let numeroFinal = siguienteNumeroDisponible(siguienteNumero + i);
-            let codigoCuota = `${tipoCuota}${numeroFinal}CTR{{ sale.contract_number }}`;
+            let codigoCuota = `${tipoCuota}${numeroFinal}{{ sale|contract_label }}`;
             
             // Marcar este número como usado
             numerosUsados.add(numeroFinal);
@@ -2579,6 +2580,53 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         $('#saldo-total').text(saldoTotal.toLocaleString('es-CO'));
     }
 
+    function parseNumeroTabla(texto) {
+        return parseFloat((texto || '').toString().replace(/\./g, '').replace(/,/g, '.')) || 0;
+    }
+
+    function obtenerSaldoPendienteEsperado() {
+        const valorVenta = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
+        let capitalPagado = 0;
+        $('#plan-pagos-table tbody tr').each(function() {
+            capitalPagado += parseNumeroTabla($(this).find('td').eq(8).text());
+        });
+        return Math.max(0, valorVenta - capitalPagado);
+    }
+
+    /**
+     * Referencia para Excel: lo que muestra la UI en la primera cuota pendiente (por fecha).
+     * capitalPendiente = saldo crédito de esa fila (monto que debe cubrir el Excel al reemplazar pendientes).
+     */
+    function obtenerReferenciaPlanExcel() {
+        const filasPendientes = $('#plan-pagos-table tbody tr').filter(function() {
+            return parseNumeroTabla($(this).find('.pendiente-cell').text()) > 0;
+        }).toArray().sort(function(a, b) {
+            return parsearFecha($(a).find('td').eq(2).text()) - parsearFecha($(b).find('td').eq(2).text());
+        });
+
+        let saldoInicial = 0;
+        let sumaCapitalPendiente = 0;
+
+        if (filasPendientes.length > 0) {
+            saldoInicial = parseNumeroTabla($(filasPendientes[0]).find('.saldo-cell').text());
+            filasPendientes.forEach(function(fila) {
+                const $fila = $(fila);
+                const capital = parseNumeroTabla($fila.find('.capital-cell').text());
+                const capitalPagado = parseNumeroTabla($fila.find('td').eq(8).text());
+                sumaCapitalPendiente += Math.max(0, capital - capitalPagado);
+            });
+        } else {
+            saldoInicial = obtenerSaldoPendienteEsperado();
+            sumaCapitalPendiente = saldoInicial;
+        }
+
+        return {
+            saldoInicial: saldoInicial,
+            capitalPendiente: saldoInicial,
+            sumaCapitalPendiente: sumaCapitalPendiente
+        };
+    }
+
     function verificarConsistenciaSaldo() {
         // Valor de venta (fuente de verdad)
         const valorVenta = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
@@ -2654,7 +2702,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             tiposCuota.add($(this).data('tipo-cuota'));
         });
         
-        const ctr = '{{ sale.contract_number }}';
+        const ctr = '{{ quota_contract_suffix }}';
         
         // Primero, reorganizar la tabla por fecha para asegurar el orden correcto
         reorganizarTablaPorFecha();
@@ -2823,7 +2871,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
     function splitCuota(cuotaId) {
         const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
         const tipoCuota = fila.data('tipo-cuota');
-        const ctr = '{{ sale.contract_number }}';
+        const ctr = '{{ quota_contract_suffix }}';
         
         // Obtener el ID de la cuota original y extraer su número
         const idCuotaOriginal = fila.find('td').eq(0).text().trim();
@@ -2928,7 +2976,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
     // Modificación a la función renumerarCuotasDesdeNumero para que renumere correctamente todas las cuotas
 
     function renumerarCuotasDesdeNumero(filaInicio, tipoCuota, numeroInicio) {
-        const ctr = '{{ sale.contract_number }}';
+        const ctr = '{{ quota_contract_suffix }}';
         let numeroActual = numeroInicio;
         
         // Obtener TODAS las cuotas pendientes del mismo tipo que tengan un número mayor o igual al nuevoNumero
@@ -3030,7 +3078,6 @@ $('#btn-descargar-plantilla').on('click', function() {
     // Mostrar indicador de carga
     showToast('Generando plantilla...', 'info');
     
-    let saldoPendienteTotal = 0;
     let fechaBase = '';
     let sinPlanPagos = false;
     
@@ -3040,41 +3087,27 @@ $('#btn-descargar-plantilla').on('click', function() {
         return pendiente > 0;
     }).first();
 
+    const refPlan = obtenerReferenciaPlanExcel();
+
     // Verificar si hay plan de pagos
     if (primeraCuotaPendiente.length === 0) {
-        // No hay cuotas pendientes - posiblemente no hay plan de pagos
         sinPlanPagos = true;
-        
-        // Usar el valor total de la venta como saldo pendiente
-        saldoPendienteTotal = parseFloat('{{ sale.value }}'.replace(/\./g, '').replace(/,/g, '.')) || 0;
-        
-        // Usar la fecha actual como fecha base
         const hoy = new Date();
         fechaBase = hoy.toLocaleDateString('es-CO', {day: '2-digit', month: '2-digit', year: 'numeric'});
     } else {
-        // Hay plan de pagos - calculamos el saldo pendiente
-        $('#plan-pagos-table tbody tr').filter(function() {
-            const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
-            return pendiente > 0;
-        }).each(function() {
-            const capital = parseFloat($(this).find('.capital-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
-            saldoPendienteTotal += capital;
-        });
-        
-        // Obtener la fecha de la primera cuota pendiente
         fechaBase = primeraCuotaPendiente.find('td').eq(2).text();
     }
     
     // Preparar datos para el Excel
     const data = {
         venta: '{{ sale }}',
-        contrato: 'CTR{{ sale.contract_number }}',
+        contrato: '{{ sale|contract_label }}',
         proyecto: '{{ sale.project }}',
         valor_total: '{{ sale.value|intcomma }}',
-        saldo_pendiente: saldoPendienteTotal.toLocaleString('es-CO'),
+        saldo_pendiente: refPlan.capitalPendiente.toLocaleString('es-CO'),
         tasa: preferredRate,
         fecha_base: fechaBase,
-        saldo_total: saldoPendienteTotal,
+        saldo_total: refPlan.saldoInicial,
         sin_plan_pagos: sinPlanPagos  // Nueva bandera para indicar si hay plan de pagos
     };
 
@@ -3140,6 +3173,7 @@ $('#btn-descargar-plantilla').on('click', function() {
         const formData = new FormData();
         formData.append('excel_file', file);
         formData.append('sale_id', $('#sale-id').val());
+        formData.append('referencia_ui', JSON.stringify(obtenerReferenciaPlanExcel()));
         
         // Mostrar estado de carga
         $('#excel-validation-results').html(`
@@ -3161,7 +3195,7 @@ $('#btn-descargar-plantilla').on('click', function() {
                     $('#subir-excel-modal').modal('hide');
                     
                     // Actualizar plan de pagos
-                    actualizarPlanPagosDesdeExcel(response.data);
+                    actualizarPlanPagosDesdeExcel(response.data, response.referencia);
                     
                 } else {
                     // Mostrar errores en el modal
@@ -3190,14 +3224,20 @@ $('#btn-descargar-plantilla').on('click', function() {
         });
     });
 
-    function actualizarPlanPagosDesdeExcel(cuotas) {
+    function actualizarPlanPagosDesdeExcel(cuotas, referenciaServidor) {
         if (!cuotas || !cuotas.length) {
             showToast('El archivo Excel no contiene cuotas válidas.', 'error');
             return;
         }
+
+        const refTabla = obtenerReferenciaPlanExcel();
+        const referencia = referenciaServidor ? {
+            capitalPendiente: referenciaServidor.capital_pendiente,
+            saldoInicial: referenciaServidor.saldo_inicial
+        } : refTabla;
         
         // 1. VALIDACIÓN: Verificar integridad de los datos
-        let erroresValidacion = validarPlanExcel(cuotas);
+        let erroresValidacion = validarPlanExcel(cuotas, referencia);
         if (erroresValidacion.length > 0) {
             // Mostrar todos los errores en un modal o alerta
             let mensajeError = 'Errores en el plan de pagos:<ul>';
@@ -3228,8 +3268,8 @@ $('#btn-descargar-plantilla').on('click', function() {
             return pendiente > 0;
         }).remove();
         
-        // Agregar las nuevas cuotas
-        let saldo = parseFloat(cuotas[0].saldo_anterior) || 0;
+        // Agregar las nuevas cuotas (saldo inicial = primera cuota pendiente de la tabla)
+        let saldo = referencia.saldoInicial;
         cuotas.forEach(function(cuota) {
             const capital = parseFloat(cuota.capital) || 0;
             const interes = parseFloat(cuota.interes) || 0;
@@ -3294,18 +3334,25 @@ $('#btn-descargar-plantilla').on('click', function() {
     }
 
     // Función de validación personalizable
-    function validarPlanExcel(cuotas) {
+    function validarPlanExcel(cuotas, referencia) {
         let errores = [];
-        let saldoOriginal = parseFloat(cuotas[0].saldo_anterior) || 0;
+        const ref = referencia || obtenerReferenciaPlanExcel();
+        const capitalPendienteEsperado = ref.capitalPendiente ?? ref.capital_pendiente ?? 0;
+        const saldoInicialEsperado = ref.saldoInicial ?? ref.saldo_inicial ?? 0;
+        const saldoExcelPrimeraFila = parseFloat(cuotas[0].saldo_anterior) || 0;
         
-        // 3. Validar que el capital total sume el saldo pendiente
+        // 3. Validar que el capital total cubra el capital vigente pendiente (plan parcial o completo)
         let capitalTotal = 0;
         cuotas.forEach(function(cuota, idx) {
             capitalTotal += parseFloat(cuota.capital) || 0;
         });
         
-        if (Math.abs(capitalTotal - saldoOriginal) > 1) {
-            errores.push(`La suma del capital de todas las cuotas (${capitalTotal.toLocaleString('es-CO')}) no coincide con el saldo pendiente (${saldoOriginal.toLocaleString('es-CO')}).`);
+        if (Math.abs(capitalTotal - capitalPendienteEsperado) > 1) {
+            errores.push(`La suma del capital de todas las cuotas (${capitalTotal.toLocaleString('es-CO')}) no coincide con el saldo crédito de la primera cuota pendiente (${capitalPendienteEsperado.toLocaleString('es-CO')}).`);
+        }
+
+        if (Math.abs(saldoExcelPrimeraFila - saldoInicialEsperado) > 1) {
+            errores.push(`El "Saldo Restante" de la primera fila del Excel (${saldoExcelPrimeraFila.toLocaleString('es-CO')}) no coincide con el saldo crédito de la primera cuota pendiente (${saldoInicialEsperado.toLocaleString('es-CO')}). Actualice esa celda o descargue una plantilla nueva.`);
         }
         
         // 4. Validar que todos los tipos de cuota sean válidos

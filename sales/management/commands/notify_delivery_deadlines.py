@@ -4,7 +4,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.conf import settings
 from datetime import date, timedelta
-from sales.models import Sales
+from sales.contract_utils import formatted_contract_label
 import logging
 import smtplib
 from email.mime.text import MIMEText
@@ -110,13 +110,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("\n⚠️ ENTREGAS VENCIDAS:"))
             for sale in entregas_vencidas:
                 dias_vencidos = (date.today() - sale.scheduled_delivery_date).days
-                self.stdout.write(f"  • CTR{sale.contract_number} - {sale.first_owner.first_name} {sale.first_owner.last_name} - {dias_vencidos} días vencido")
+                self.stdout.write(f"  • {formatted_contract_label(sale)} - {sale.first_owner.first_name} {sale.first_owner.last_name} - {dias_vencidos} días vencido")
         
         if entregas_vencen:
             self.stdout.write(self.style.WARNING("\n📅 ENTREGAS PRÓXIMAS:"))
             for sale in entregas_vencen:
                 dias_restantes = (sale.scheduled_delivery_date - date.today()).days
-                self.stdout.write(f"  • CTR{sale.contract_number} - {sale.first_owner.first_name} {sale.first_owner.last_name} - {dias_restantes} días restantes")
+                self.stdout.write(f"  • {formatted_contract_label(sale)} - {sale.first_owner.first_name} {sale.first_owner.last_name} - {dias_restantes} días restantes")
 
     def _enviar_notificacion(self, entregas_vencen, escrituras_vencen, entregas_vencidas, escrituras_vencidas, days_ahead):
         """Envía email con notificaciones de vencimientos"""

@@ -1,3 +1,4 @@
+{% load sales_extras %}
 <!-- filepath: /code/sales/templates/sales/emails/delivery_alerts.html -->
 <!DOCTYPE html>
 <html>
@@ -40,7 +41,7 @@
             <tbody>
                 {% for sale in entregas_vencidas %}
                 <tr>
-                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale|contract_label }}</td>
                     <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
                     <td>{{ sale.property_sold.project.name_to_show }}</td>
                     <td>{{ sale.property_sold.description }}</td>
@@ -70,7 +71,7 @@
             <tbody>
                 {% for sale in entregas_vencen %}
                 <tr>
-                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale|contract_label }}</td>
                     <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
                     <td>{{ sale.property_sold.project.name_to_show }}</td>
                     <td>{{ sale.property_sold.description }}</td>
@@ -100,7 +101,7 @@
             <tbody>
                 {% for sale in escrituras_vencidas %}
                 <tr>
-                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale|contract_label }}</td>
                     <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
                     <td>{{ sale.property_sold.project.name_to_show }}</td>
                     <td>{{ sale.property_sold.description }}</td>
@@ -130,7 +131,7 @@
             <tbody>
                 {% for sale in escrituras_vencen %}
                 <tr>
-                    <td>CTR{{ sale.contract_number }}</td>
+                    <td>{{ sale|contract_label }}</td>
                     <td>{{ sale.first_owner.first_name }} {{ sale.first_owner.last_name }}</td>
                     <td>{{ sale.property_sold.project.name_to_show }}</td>
                     <td>{{ sale.property_sold.description }}</td>
