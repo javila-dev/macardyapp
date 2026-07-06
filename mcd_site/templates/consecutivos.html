@@ -1,0 +1,270 @@
+{% extends 'site_base.html' %}{% load static %}
+{% block title %}Admin | Consecutivos{% endblock %}
+{% block submenu %}
+<div class='header item'>Administración</div>
+<div class='header item'>
+  <img class='avatar image' src="{{ project.logo.url }}">{{ project.name_to_show }}
+</div>
+<a class='item submenu' href="/sales/{{ project.name }}/properties">Inventario</a>
+<a class='item submenu' href="/finance/{{ project.name }}/expenses">Gastos</a>
+<a class='item active submenu' href="/sales/{{ project.name }}/consecutivos">Consecutivos</a>
+{% endblock %}
+{% block content %}
+<h2 class="ui dividing header">
+  <i class="sort numeric up icon"></i>
+  Consecutivos del proyecto
+</h2>
+
+<div class="ui grid stackable">
+  <div class="eight wide column">
+    <div class="ui fluid raised card" id="card-contratos">
+      <div class="content">
+        <div class="header">Numeración de contratos</div>
+        <div class="meta">Define cómo se numerarán los contratos nuevos</div>
+      </div>
+      <div class="content">
+        <div class="ui form" id="form-contratos">
+          {% csrf_token %}
+          <div class="field">
+            <label>Formato</label>
+            <div class="ui fluid buttons" id="format-toggle">
+              <button type="button" class="ui button {% if not contract_state.use_prefix %}active primary{% endif %}" data-format="classic" {% if contract_state.prefix_locked %}disabled{% endif %}>
+                Clásico
+              </button>
+              <button type="button" class="ui button {% if contract_state.use_prefix %}active primary{% endif %}" data-format="prefixed" {% if contract_state.prefix_locked %}disabled{% endif %}>
+                Con prefijo
+              </button>
+            </div>
+            {% if contract_state.prefix_locked %}
+            <div class="ui tiny info message mt-2">
+              El formato quedó fijado porque ya existen contratos con prefijo en este proyecto.
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="field" id="field-prefix" {% if not contract_state.use_prefix %}style="display:none;"{% endif %}>
+            <label>Prefijo</label>
+            <input type="text" id="input-prefix" maxlength="3" value="{{ contract_state.prefix }}"
+              {% if contract_state.prefix_locked %}readonly{% endif %}
+              placeholder="Ej: M" style="text-transform: uppercase; max-width: 120px;">
+          </div>
+
+          <div class="field">
+            <label>Próximo consecutivo</label>
+            <input type="number" id="input-contract-value" min="{{ contract_state.min_value }}" value="{{ contract_state.next_value }}" style="max-width: 160px;">
+            <div class="ui pointing label">
+              Debe ser mayor a {{ contract_state.max_used }} (último usado en este formato).
+            </div>
+          </div>
+
+          <div class="ui segment">
+            <div><strong>Vista previa:</strong> <span class="ui teal label" id="contract-preview">{{ contract_state.preview }}</span></div>
+            <div class="mt-2"><strong>Último contrato creado:</strong> {{ contract_state.last_display }}</div>
+            {% if contract_state.legacy_max %}
+            <div class="mt-1"><strong>Mayor número clásico:</strong> {{ contract_state.legacy_max }}</div>
+            {% endif %}
+            {% if contract_state.prefixed_count %}
+            <div class="mt-1"><strong>Contratos con prefijo:</strong> {{ contract_state.prefixed_count }}</div>
+            {% endif %}
+          </div>
+
+          <div class="ui warning message" id="prefix-warning" style="display:none;">
+            <div class="header">Activar numeración con prefijo</div>
+            <p>Los contratos existentes no cambiarán. Solo los contratos nuevos usarán el prefijo configurado.</p>
+          </div>
+
+          <button type="button" class="ui primary button" id="btn-save-contratos">Guardar contratos</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="eight wide column">
+    <div class="ui fluid raised card" id="card-recibos">
+      <div class="content">
+        <div class="header">Recibos de caja</div>
+        <div class="meta">Próximo número de recibo para este proyecto</div>
+      </div>
+      <div class="content">
+        <div class="ui form" id="form-recibos">
+          {% csrf_token %}
+          <div class="field">
+            <label>Próximo recibo</label>
+            <input type="number" id="input-receipt-value" min="{{ receipt_state.min_value }}" value="{{ receipt_state.next_value }}" style="max-width: 160px;">
+            <div class="ui pointing label">
+              Debe ser mayor a {{ receipt_state.max_used }} (último recibo emitido).
+            </div>
+          </div>
+
+          <div class="ui segment">
+            <div><strong>Vista previa:</strong> <span class="ui teal label" id="receipt-preview">{{ receipt_state.preview }}</span></div>
+            {% if receipt_state.max_used %}
+            <div class="mt-2"><strong>Último recibo emitido:</strong> {{ receipt_state.max_used }}</div>
+            {% endif %}
+          </div>
+
+          <button type="button" class="ui primary button" id="btn-save-recibos">Guardar recibos</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ui info message">
+      <div class="header">Notas</div>
+      <ul class="list">
+        <li>Los cambios aplican solo a documentos <strong>nuevos</strong>.</li>
+        <li>Al activar un prefijo por primera vez, el sistema pedirá confirmación.</li>
+        <li>No es posible reducir el consecutivo por debajo del último número ya usado.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="ui small modal" id="confirm-prefix-modal">
+  <div class="header">Confirmar activación de prefijo</div>
+  <div class="content">
+    <p>Estás activando numeración con prefijo para contratos nuevos.</p>
+    <p><strong>Los contratos existentes no se modifican.</strong></p>
+    <p>Próximo contrato: <span class="ui teal label" id="confirm-preview"></span></p>
+  </div>
+  <div class="actions">
+    <div class="ui cancel button">Cancelar</div>
+    <div class="ui primary approve button">Confirmar y guardar</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+$(function(){
+  const saveUrl = '/sales/ajax/{{ project.name }}/consecutivos';
+  const initialUsePrefix = {{ contract_state.use_prefix|yesno:"true,false" }};
+  const prefixedCount = {{ contract_state.prefixed_count|default:0 }};
+  let usePrefix = initialUsePrefix;
+  let pendingContractSave = null;
+
+  function getCsrfToken() {
+    return $('#form-contratos input[name=csrfmiddlewaretoken]').val();
+  }
+
+  function updateContractPreview() {
+    const value = parseInt($('#input-contract-value').val(), 10) || 0;
+    let preview = String(value);
+    if (usePrefix) {
+      const prefix = ($('#input-prefix').val() || '').trim().toUpperCase();
+      preview = prefix ? `${prefix}-${String(value).padStart(3, '0')}` : '—';
+    }
+    $('#contract-preview').text(preview);
+  }
+
+  function updateReceiptPreview() {
+    const value = parseInt($('#input-receipt-value').val(), 10) || 0;
+    $('#receipt-preview').text(String(value));
+  }
+
+  $('#format-toggle .button').click(function(){
+    if ($(this).is(':disabled')) return;
+    $('#format-toggle .button').removeClass('active primary');
+    $(this).addClass('active primary');
+    usePrefix = $(this).data('format') === 'prefixed';
+    $('#field-prefix').toggle(usePrefix);
+    $('#prefix-warning').toggle(usePrefix && !initialUsePrefix && prefixedCount === 0);
+    updateContractPreview();
+  });
+
+  $('#input-prefix, #input-contract-value').on('input', updateContractPreview);
+  $('#input-receipt-value').on('input', updateReceiptPreview);
+
+  function showErrors(errors) {
+    const message = Array.isArray(errors) ? errors.join('<br>') : errors;
+    $('body').toast({
+      class: 'error',
+      message: message,
+      showProgress: 'bottom',
+      displayTime: 8000
+    });
+  }
+
+  function showSuccess(message) {
+    $('body').toast({
+      class: 'success',
+      message: message,
+      showProgress: 'bottom'
+    });
+  }
+
+  function postCounter(data, onSuccess) {
+    $.post(saveUrl, data)
+      .done(function(resp){
+        showSuccess(resp.message || 'Guardado.');
+        if (resp.preview) {
+          if (data.counter_type === 'contratos') {
+            $('#contract-preview').text(resp.preview);
+          } else {
+            $('#receipt-preview').text(resp.preview);
+          }
+        }
+        if (onSuccess) onSuccess(resp);
+      })
+      .fail(function(xhr){
+        const resp = xhr.responseJSON || {};
+        showErrors(resp.errors || resp.message || 'No se pudo guardar.');
+      });
+  }
+
+  function saveContract(skipConfirm) {
+    const payload = {
+      csrfmiddlewaretoken: getCsrfToken(),
+      counter_type: 'contratos',
+      use_prefix: usePrefix ? 'true' : 'false',
+      prefix: $('#input-prefix').val(),
+      next_value: $('#input-contract-value').val()
+    };
+
+    const activatingPrefix = usePrefix && !initialUsePrefix && prefixedCount === 0;
+    if (activatingPrefix && !skipConfirm) {
+      pendingContractSave = payload;
+      $('#confirm-preview').text($('#contract-preview').text());
+      $('#confirm-prefix-modal').modal('show');
+      return;
+    }
+
+    postCounter(payload, function(){
+      if (activatingPrefix) {
+        $('#prefix-warning').hide();
+        location.reload();
+      }
+    });
+  }
+
+  $('#btn-save-contratos').click(function(){
+    saveContract(false);
+  });
+
+  $('#confirm-prefix-modal').modal({
+    onApprove: function(){
+      if (pendingContractSave) {
+        postCounter(pendingContractSave, function(){
+          location.reload();
+        });
+        pendingContractSave = null;
+      }
+      return false;
+    },
+    onDeny: function(){
+      pendingContractSave = null;
+    },
+    onHide: function(){
+      pendingContractSave = null;
+    }
+  });
+
+  $('#btn-save-recibos').click(function(){
+    postCounter({
+      csrfmiddlewaretoken: getCsrfToken(),
+      counter_type: 'recibos',
+      next_value: $('#input-receipt-value').val()
+    });
+  });
+});
+</script>
+{% endblock %}

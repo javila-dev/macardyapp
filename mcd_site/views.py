@@ -27,7 +27,15 @@ import numpy_financial as npf
 from dateutil.relativedelta import relativedelta
 from mcd_site.forms import usersForm
 from mcd_site.models import Perfil, Rol, Timeline, Projects, Permiso
-from mcd_site.utils import JsonRender, link_callback, parse_semantic_date, passwordgenerate, send_email_template, user_permission
+from mcd_site.counter_utils import (
+    build_contract_counter_state,
+    build_receipt_counter_state,
+    contract_preview,
+    describe_contract_counter_change,
+    validate_contract_counter_update,
+    validate_receipt_counter_update,
+)
+from mcd_site.utils import JsonRender, link_callback, parse_semantic_date, passwordgenerate, send_email_template, project_permission, user_permission
 from terceros.models import Collaborators
 
 
@@ -739,6 +747,95 @@ def smtp_email_debug(request):
                 pass
 
     return JsonResponse(diag)
+
+
+@login_required
+@project_permission
+@user_permission('configurar consecutivos')
+def consecutivos(request, project):
+    obj_project = Projects.objects.get(name=project)
+    contract_state = build_contract_counter_state(obj_project)
+    receipt_state = build_receipt_counter_state(obj_project)
+    return render(request, 'consecutivos.html', {
+        'project': obj_project,
+        'contract_state': contract_state,
+        'receipt_state': receipt_state,
+    })
+
+
+@login_required
+@project_permission
+@user_permission('configurar consecutivos')
+def ajax_save_consecutivos(request, project):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
+
+    obj_project = Projects.objects.get(name=project)
+    counter_type = (request.POST.get('counter_type') or '').strip()
+
+    if counter_type == 'contratos':
+        use_prefix = request.POST.get('use_prefix') in ('true', '1', 'on', 'yes')
+        result = validate_contract_counter_update(
+            obj_project,
+            use_prefix=use_prefix,
+            prefix=request.POST.get('prefix', ''),
+            next_value=request.POST.get('next_value'),
+        )
+        if isinstance(result, list):
+            return JsonResponse({'status': 'error', 'errors': result}, status=400)
+
+        counter = result['counter']
+        counter.prefix = result['storage_prefix']
+        counter.value = result['next_value']
+        counter.save()
+
+        Timeline.objects.create(
+            user=request.user,
+            project=obj_project,
+            action=describe_contract_counter_change(obj_project, result),
+            aplication='mcd_site',
+        )
+
+        preview = contract_preview(
+            result['use_prefix'],
+            result['active_prefix'],
+            result['next_value'],
+        )
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Numeración de contratos actualizada.',
+            'preview': preview,
+            'prefix_locked': result['use_prefix'] and bool(result['active_prefix']),
+        })
+
+    if counter_type == 'recibos':
+        result = validate_receipt_counter_update(
+            obj_project,
+            next_value=request.POST.get('next_value'),
+        )
+        if isinstance(result, list):
+            return JsonResponse({'status': 'error', 'errors': result}, status=400)
+
+        counter = result['counter']
+        counter.value = result['next_value']
+        counter.save()
+
+        Timeline.objects.create(
+            user=request.user,
+            project=obj_project,
+            action=(
+                f'Actualizó consecutivo de recibos en {obj_project.name_to_show}: '
+                f'próximo {result["next_value"]}.'
+            ),
+            aplication='mcd_site',
+        )
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Consecutivo de recibos actualizado.',
+            'preview': str(result['next_value']),
+        })
+
+    return JsonResponse({'status': 'error', 'message': 'Tipo de consecutivo no válido.'}, status=400)
 
 
 urlpattern = [

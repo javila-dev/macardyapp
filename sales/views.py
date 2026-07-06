@@ -24,6 +24,7 @@ from dateutil.relativedelta import relativedelta
 from decimal import Decimal, InvalidOperation
 from django.db.models.functions import Coalesce
 
+from mcd_site.views import consecutivos, ajax_save_consecutivos
 from sales.forms import adjudicate_saleForm, change_plan_Form, change_property_Form, collectionfeed_Form, newsaleForm, SalesPlanForm
 from sales.models import (Assigned_comission, Comission_position, Payment_plans, Paid_comissions, Properties, Sales,
                           Sales_history, Sales_plans, backup_payment_plans, IncomeDetailsBackup)
@@ -4047,6 +4048,7 @@ urlpattern = [
     path('<project>/adjudicatesales', adjudicate_sales),
     path('<project>/adjudicatesales/informe-excel', export_adjudicated_sales_report, name='export_adjudicated_sales_report'),
     path('<project>/properties', properties_for_sales),
+    path('<project>/consecutivos', consecutivos),
     path('<project>/graphs',graphs),
     path('<str:project>/files/<int:sale_id>/get/', get_sales_files, name='get_sales_files'),
     path('<str:project>/files/<int:sale_id>/add/', add_sales_file, name='add_sales_file'),
@@ -4062,6 +4064,7 @@ urlpattern = [
     path('generar_plantilla_excel/', generar_plantilla_excel, name='generar_plantilla_excel'),
     path('procesar_excel_plan_pagos/', procesar_excel_plan_pagos, name='procesar_excel_plan_pagos'),
 ] + [
+    path('ajax/<project>/consecutivos', ajax_save_consecutivos),
     path('ajax/salesplansinfo', ajax_get_plans_info),
     path('ajax/<project>/comissions/<sale>', ajax_comissions),
     path('ajax/<project>/printsalesdocuments', ajax_print_documents),
