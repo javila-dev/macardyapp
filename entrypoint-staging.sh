@@ -45,13 +45,24 @@ database_exists() {
     psql_maintenance -tAc "SELECT 1 FROM pg_database WHERE datname = '$1'" | grep -q 1
 }
 
-ensure_staging_database() {
+create_staging_database_if_missing() {
     if database_exists "$DB_NAME"; then
         return 0
     fi
 
     echo "Creating empty staging database: $DB_NAME"
-    psql_maintenance -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$PGUSER\";"
+    if psql_maintenance -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$PGUSER\";"; then
+        return 0
+    fi
+
+    echo "ERROR: Cannot create database '$DB_NAME' (permission denied)."
+    echo "Create it once in pgAdmin, then redeploy:"
+    echo "  CREATE DATABASE macardyapp_staging OWNER mcduser;"
+    exit 1
+}
+
+ensure_staging_database() {
+    create_staging_database_if_missing
 }
 
 disconnect_staging_sessions() {
@@ -89,21 +100,6 @@ disconnect_staging_sessions() {
     echo "WARNING: Could not close all sessions on $DB_NAME."
 }
 
-drop_staging_database() {
-    if ! database_exists "$DB_NAME"; then
-        return 0
-    fi
-
-    disconnect_staging_sessions
-
-    echo "Recreating staging database..."
-    if psql_maintenance -c "DROP DATABASE IF EXISTS \"$DB_NAME\" WITH (FORCE);" 2>/dev/null; then
-        return 0
-    fi
-
-    psql_maintenance -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
-}
-
 refresh_staging_database() {
     echo "Refreshing staging database: $DB_SOURCE_NAME -> $DB_NAME"
 
@@ -112,8 +108,8 @@ refresh_staging_database() {
         exit 1
     fi
 
-    drop_staging_database
-    psql_maintenance -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$PGUSER\";"
+    create_staging_database_if_missing
+    disconnect_staging_sessions
 
     echo "Running pg_dump from $DB_SOURCE_NAME..."
     pg_dump \
@@ -126,18 +122,22 @@ refresh_staging_database() {
         --no-acl \
         -f "$DUMP_PATH"
 
-    echo "Running pg_restore into $DB_NAME..."
+    echo "Running pg_restore into $DB_NAME (in-place refresh)..."
     set +e
     pg_restore \
         -h "$PGHOST" \
         -p "$PGPORT" \
         -U "$PGUSER" \
         -d "$DB_NAME" \
+        --clean \
+        --if-exists \
         --no-owner \
         --no-acl \
         "$DUMP_PATH"
     restore_exit=$?
     set -e
+
+    psql_maintenance -c "GRANT CONNECT ON DATABASE \"$DB_NAME\" TO PUBLIC;" >/dev/null 2>&1 || true
 
     rm -f "$DUMP_PATH"
 
