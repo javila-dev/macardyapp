@@ -54,6 +54,56 @@ ensure_staging_database() {
     psql_maintenance -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$PGUSER\";"
 }
 
+disconnect_staging_sessions() {
+    if ! database_exists "$DB_NAME"; then
+        return 0
+    fi
+
+    echo "Closing active connections to $DB_NAME..."
+    attempt=1
+    while [ "$attempt" -le 10 ]; do
+        psql_maintenance -c "
+            REVOKE CONNECT ON DATABASE \"$DB_NAME\" FROM PUBLIC;
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = '$DB_NAME'
+              AND pid <> pg_backend_pid();
+        " >/dev/null 2>&1 || true
+
+        active_sessions=$(psql_maintenance -tAc "
+            SELECT COUNT(*)
+            FROM pg_stat_activity
+            WHERE datname = '$DB_NAME'
+              AND pid <> pg_backend_pid();
+        " 2>/dev/null || echo "1")
+
+        if [ "${active_sessions:-1}" = "0" ]; then
+            return 0
+        fi
+
+        echo "Waiting for ${active_sessions} session(s) on $DB_NAME to close (attempt $attempt/10)..."
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    echo "WARNING: Could not close all sessions on $DB_NAME."
+}
+
+drop_staging_database() {
+    if ! database_exists "$DB_NAME"; then
+        return 0
+    fi
+
+    disconnect_staging_sessions
+
+    echo "Recreating staging database..."
+    if psql_maintenance -c "DROP DATABASE IF EXISTS \"$DB_NAME\" WITH (FORCE);" 2>/dev/null; then
+        return 0
+    fi
+
+    psql_maintenance -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+}
+
 refresh_staging_database() {
     echo "Refreshing staging database: $DB_SOURCE_NAME -> $DB_NAME"
 
@@ -62,16 +112,7 @@ refresh_staging_database() {
         exit 1
     fi
 
-    echo "Terminating active connections to $DB_NAME..."
-    psql_maintenance -c "
-        SELECT pg_terminate_backend(pid)
-        FROM pg_stat_activity
-        WHERE datname = '$DB_NAME'
-          AND pid <> pg_backend_pid();
-    " >/dev/null 2>&1 || true
-
-    echo "Recreating staging database..."
-    psql_maintenance -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+    drop_staging_database
     psql_maintenance -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$PGUSER\";"
 
     echo "Running pg_dump from $DB_SOURCE_NAME..."
