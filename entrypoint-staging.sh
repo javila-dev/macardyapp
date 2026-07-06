@@ -126,4 +126,8 @@ echo "Applying database migrations..."
 python manage.py migrate --noinput
 
 echo "Starting STAGING application..."
+if [ $# -eq 0 ]; then
+    echo "ERROR: No startup command (gunicorn). Check docker-compose command/CMD."
+    exit 1
+fi
 exec "$@"
