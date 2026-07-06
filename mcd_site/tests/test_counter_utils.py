@@ -6,6 +6,7 @@ from django.test import SimpleTestCase, TestCase
 from mcd_site.counter_utils import (
     contract_preview,
     counter_uses_prefix,
+    describe_contract_counter_change,
     validate_contract_counter_update,
     validate_prefix_value,
     validate_receipt_counter_update,
@@ -28,6 +29,20 @@ class CounterUtilsSimpleTests(SimpleTestCase):
         self.assertEqual(validate_prefix_value('m')[0], 'M')
         self.assertIsNotNone(validate_prefix_value('123')[1])
         self.assertIsNotNone(validate_prefix_value('TOOLONG')[1])
+
+    def test_describe_contract_counter_change_restart(self):
+        project = SimpleNamespace(name_to_show='Mangata')
+        previous = {'use_prefix': False, 'prefix': '', 'next_value': 351}
+        result = {
+            'use_prefix': True,
+            'active_prefix': 'M',
+            'next_value': 1,
+            'can_restart_at_one': True,
+        }
+        message = describe_contract_counter_change(project, previous, result)
+        self.assertIn('activó prefijo', message)
+        self.assertIn('reinicio en 1', message)
+        self.assertIn('351→1', message)
 
 
 class CounterUtilsValidationTests(TestCase):

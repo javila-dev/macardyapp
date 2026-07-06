@@ -49,11 +49,23 @@
               placeholder="Ej: M" style="text-transform: uppercase; max-width: 120px;">
           </div>
 
+          {% if contract_state.can_restart_at_one %}
+          <div class="ui positive message" id="restart-hint">
+            <div class="header">Puedes reiniciar desde 1</div>
+            <p id="restart-hint-text">{{ contract_state.rules_hint }}</p>
+          </div>
+          {% else %}
+          <div class="ui positive message" id="restart-hint" style="display:none;">
+            <div class="header">Puedes reiniciar desde 1</div>
+            <p id="restart-hint-text"></p>
+          </div>
+          {% endif %}
+
           <div class="field">
             <label>Próximo consecutivo</label>
             <input type="number" id="input-contract-value" min="{{ contract_state.min_value }}" value="{{ contract_state.next_value }}" style="max-width: 160px;">
-            <div class="ui pointing label">
-              Debe ser mayor a {{ contract_state.max_used }} (último usado en este formato).
+            <div class="ui pointing label" id="contract-value-hint">
+              {{ contract_state.rules_hint }}
             </div>
           </div>
 
@@ -71,6 +83,7 @@
           <div class="ui warning message" id="prefix-warning" style="display:none;">
             <div class="header">Activar numeración con prefijo</div>
             <p>Los contratos existentes no cambiarán. Solo los contratos nuevos usarán el prefijo configurado.</p>
+            <p id="prefix-warning-restart" style="display:none;"><strong>Este prefijo puede iniciar desde 1.</strong></p>
           </div>
 
           <button type="button" class="ui primary button" id="btn-save-contratos">Guardar contratos</button>
@@ -112,6 +125,7 @@
       <div class="header">Notas</div>
       <ul class="list">
         <li>Los cambios aplican solo a documentos <strong>nuevos</strong>.</li>
+        <li>Al cambiar a un prefijo nuevo sin contratos, puedes <strong>reiniciar desde 1</strong>.</li>
         <li>Al activar un prefijo por primera vez, el sistema pedirá confirmación.</li>
         <li>No es posible reducir el consecutivo por debajo del último número ya usado.</li>
       </ul>
@@ -125,6 +139,7 @@
     <p>Estás activando numeración con prefijo para contratos nuevos.</p>
     <p><strong>Los contratos existentes no se modifican.</strong></p>
     <p>Próximo contrato: <span class="ui teal label" id="confirm-preview"></span></p>
+    <p id="confirm-restart-note" style="display:none;">Este prefijo no tiene contratos previos. La numeración inicia en 1.</p>
   </div>
   <div class="actions">
     <div class="ui cancel button">Cancelar</div>
@@ -137,13 +152,68 @@
 <script>
 $(function(){
   const saveUrl = '/sales/ajax/{{ project.name }}/consecutivos';
+  const rulesUrl = '/sales/ajax/{{ project.name }}/consecutivos/rules';
   const initialUsePrefix = {{ contract_state.use_prefix|yesno:"true,false" }};
   const prefixedCount = {{ contract_state.prefixed_count|default:0 }};
+  const prefixLocked = {{ contract_state.prefix_locked|yesno:"true,false" }};
   let usePrefix = initialUsePrefix;
   let pendingContractSave = null;
+  let canRestartAtOne = {{ contract_state.can_restart_at_one|yesno:"true,false" }};
+  let rulesTimer = null;
 
   function getCsrfToken() {
     return $('#form-contratos input[name=csrfmiddlewaretoken]').val();
+  }
+
+  function applyContractRules(rules) {
+    canRestartAtOne = !!rules.can_restart_at_one;
+    $('#contract-value-hint').text(rules.hint || '');
+    $('#input-contract-value').attr('min', rules.min_value || 1);
+
+    if (canRestartAtOne) {
+      $('#restart-hint').show();
+      $('#restart-hint-text').text(rules.hint);
+      $('#prefix-warning-restart').show();
+      $('#confirm-restart-note').show();
+      if (!$('#input-contract-value').is(':focus')) {
+        $('#input-contract-value').val(1);
+      }
+    } else {
+      $('#restart-hint').hide();
+      $('#prefix-warning-restart').hide();
+      $('#confirm-restart-note').hide();
+      const currentValue = parseInt($('#input-contract-value').val(), 10) || 0;
+      if (currentValue < rules.min_value) {
+        $('#input-contract-value').val(rules.min_value);
+      }
+    }
+    updateContractPreview();
+  }
+
+  function refreshContractRules() {
+    if (!usePrefix) {
+      $.get(rulesUrl, { use_prefix: 'false' }).done(function(resp){
+        applyContractRules(resp);
+      });
+      return;
+    }
+
+    const prefix = ($('#input-prefix').val() || '').trim();
+    if (!prefix) {
+      $('#restart-hint').hide();
+      $('#contract-value-hint').text('Define el prefijo para ver la numeración disponible.');
+      updateContractPreview();
+      return;
+    }
+
+    $.get(rulesUrl, { use_prefix: 'true', prefix: prefix }).done(function(resp){
+      applyContractRules(resp);
+    });
+  }
+
+  function scheduleRulesRefresh() {
+    clearTimeout(rulesTimer);
+    rulesTimer = setTimeout(refreshContractRules, 250);
   }
 
   function updateContractPreview() {
@@ -167,12 +237,19 @@ $(function(){
     $(this).addClass('active primary');
     usePrefix = $(this).data('format') === 'prefixed';
     $('#field-prefix').toggle(usePrefix);
-    $('#prefix-warning').toggle(usePrefix && !initialUsePrefix && prefixedCount === 0);
-    updateContractPreview();
+    $('#prefix-warning').toggle(usePrefix && !prefixLocked && prefixedCount === 0);
+    scheduleRulesRefresh();
   });
 
-  $('#input-prefix, #input-contract-value').on('input', updateContractPreview);
+  $('#input-prefix').on('input', scheduleRulesRefresh);
+  $('#input-contract-value').on('input', updateContractPreview);
   $('#input-receipt-value').on('input', updateReceiptPreview);
+
+  if (usePrefix && !prefixLocked) {
+    refreshContractRules();
+  } else if (!usePrefix) {
+    refreshContractRules();
+  }
 
   function showErrors(errors) {
     const message = Array.isArray(errors) ? errors.join('<br>') : errors;
@@ -221,7 +298,7 @@ $(function(){
     };
 
     const activatingPrefix = usePrefix && !initialUsePrefix && prefixedCount === 0;
-    if (activatingPrefix && !skipConfirm) {
+    if ((activatingPrefix || canRestartAtOne) && !skipConfirm) {
       pendingContractSave = payload;
       $('#confirm-preview').text($('#contract-preview').text());
       $('#confirm-prefix-modal').modal('show');

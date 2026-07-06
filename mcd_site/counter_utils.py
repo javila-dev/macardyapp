@@ -82,14 +82,64 @@ def get_or_create_receipt_counter(project):
     return counter
 
 
+def contract_rules_for_prefix(project, use_prefix, prefix=''):
+    active_prefix = normalize_counter_prefix(prefix) if use_prefix else ''
+    max_used = max_contract_number(project, active_prefix)
+    min_value = max_used + 1
+    can_restart_at_one = bool(use_prefix and active_prefix and max_used == 0)
+
+    if can_restart_at_one:
+        hint = (
+            f'El prefijo {active_prefix} no tiene contratos registrados. '
+            'Puedes reiniciar la numeración desde 1.'
+        )
+    elif use_prefix and active_prefix:
+        if max_used:
+            hint = (
+                f'Último contrato {active_prefix}-{max_used:03d}. '
+                f'El próximo debe ser al menos {min_value}.'
+            )
+        else:
+            hint = 'Define el prefijo para ver la numeración disponible.'
+    else:
+        if max_used:
+            hint = f'Último contrato clásico: {max_used}. El próximo debe ser al menos {min_value}.'
+        else:
+            hint = 'No hay contratos clásicos. Puedes iniciar desde 1.'
+
+    return {
+        'use_prefix': use_prefix,
+        'prefix': active_prefix,
+        'max_used': max_used,
+        'min_value': min_value,
+        'can_restart_at_one': can_restart_at_one,
+        'hint': hint,
+        'preview': contract_preview(use_prefix, active_prefix, min_value if can_restart_at_one else max(min_value, 1)),
+    }
+
+
+def snapshot_contract_counter(counter):
+    return {
+        'use_prefix': counter_uses_prefix(counter),
+        'prefix': normalize_counter_prefix(counter.prefix),
+        'storage_prefix': (counter.prefix or '').strip(),
+        'next_value': counter.value,
+    }
+
+
+def snapshot_receipt_counter(counter):
+    return {
+        'next_value': counter.value,
+    }
+
+
 def build_contract_counter_state(project):
     counter = get_or_create_contract_counter(project)
     use_prefix = counter_uses_prefix(counter)
     active_prefix = normalize_counter_prefix(counter.prefix)
+    rules = contract_rules_for_prefix(project, use_prefix, active_prefix)
     legacy_max = max_contract_number(project, '')
-    prefixed_max = max_contract_number(project, active_prefix) if use_prefix else 0
     locked = prefix_is_locked(project)
-    min_value = (prefixed_max if use_prefix else legacy_max) + 1
 
     from sales.models import Sales
 
@@ -106,11 +156,13 @@ def build_contract_counter_state(project):
         'use_prefix': use_prefix,
         'prefix': active_prefix,
         'next_value': counter.value,
-        'min_value': min_value,
-        'max_used': prefixed_max if use_prefix else legacy_max,
+        'min_value': rules['min_value'],
+        'max_used': rules['max_used'],
         'legacy_max': legacy_max,
         'prefixed_count': Sales.objects.filter(project=project).exclude(contract_prefix='').count(),
         'prefix_locked': locked,
+        'can_restart_at_one': rules['can_restart_at_one'],
+        'rules_hint': rules['hint'],
         'last_display': last_display,
         'preview': contract_preview(use_prefix, active_prefix, counter.value),
     }
@@ -177,12 +229,15 @@ def validate_contract_counter_update(project, *, use_prefix, prefix, next_value)
         return errors
 
     storage_prefix = storage_prefix_for_mode(use_prefix, normalized_prefix)
+    rules = contract_rules_for_prefix(project, use_prefix, active_prefix)
     return {
         'counter': counter,
         'storage_prefix': storage_prefix,
         'next_value': next_value,
         'use_prefix': use_prefix,
         'active_prefix': active_prefix,
+        'can_restart_at_one': rules['can_restart_at_one'] and next_value == 1,
+        'max_used': max_used,
     }
 
 
@@ -213,13 +268,36 @@ def validate_receipt_counter_update(project, next_value):
     }
 
 
-def describe_contract_counter_change(project, result):
-    if result['use_prefix'] and result['active_prefix']:
-        return (
-            f'Actualizó numeración de contratos en {project.name_to_show}: '
-            f'prefijo {result["active_prefix"]}, próximo {result["next_value"]}.'
-        )
-    return (
-        f'Actualizó numeración de contratos en {project.name_to_show}: '
-        f'formato clásico, próximo {result["next_value"]}.'
+def describe_contract_counter_change(project, previous, result):
+    parts = []
+
+    if not previous['use_prefix'] and result['use_prefix']:
+        parts.append('activó prefijo')
+    elif previous['use_prefix'] and not result['use_prefix']:
+        parts.append('volvió a formato clásico')
+
+    if result['use_prefix'] and previous['prefix'] != result['active_prefix']:
+        if previous['prefix']:
+            parts.append(f"prefijo {previous['prefix']}→{result['active_prefix']}")
+        else:
+            parts.append(f"prefijo {result['active_prefix']}")
+
+    if result.get('can_restart_at_one'):
+        parts.append('reinicio en 1')
+
+    if previous['next_value'] != result['next_value']:
+        parts.append(f"próximo {previous['next_value']}→{result['next_value']}")
+
+    if not parts:
+        parts.append('sin cambios')
+
+    message = f"Consecutivos contratos {project.name_to_show}: {', '.join(parts)}."
+    return message[:255]
+
+
+def describe_receipt_counter_change(project, previous, result):
+    message = (
+        f"Consecutivos recibos {project.name_to_show}: "
+        f"próximo {previous['next_value']}→{result['next_value']}."
     )
+    return message[:255]

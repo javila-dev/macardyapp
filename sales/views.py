@@ -24,7 +24,7 @@ from dateutil.relativedelta import relativedelta
 from decimal import Decimal, InvalidOperation
 from django.db.models.functions import Coalesce
 
-from mcd_site.views import consecutivos, ajax_save_consecutivos
+from mcd_site.views import consecutivos, ajax_save_consecutivos, ajax_contract_counter_rules
 from sales.forms import adjudicate_saleForm, change_plan_Form, change_property_Form, collectionfeed_Form, newsaleForm, SalesPlanForm
 from sales.models import (Assigned_comission, Comission_position, Payment_plans, Paid_comissions, Properties, Sales,
                           Sales_history, Sales_plans, backup_payment_plans, IncomeDetailsBackup)
@@ -4065,6 +4065,7 @@ urlpattern = [
     path('procesar_excel_plan_pagos/', procesar_excel_plan_pagos, name='procesar_excel_plan_pagos'),
 ] + [
     path('ajax/<project>/consecutivos', ajax_save_consecutivos),
+    path('ajax/<project>/consecutivos/rules', ajax_contract_counter_rules),
     path('ajax/salesplansinfo', ajax_get_plans_info),
     path('ajax/<project>/comissions/<sale>', ajax_comissions),
     path('ajax/<project>/printsalesdocuments', ajax_print_documents),

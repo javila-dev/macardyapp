@@ -31,7 +31,13 @@ from mcd_site.counter_utils import (
     build_contract_counter_state,
     build_receipt_counter_state,
     contract_preview,
+    contract_rules_for_prefix,
     describe_contract_counter_change,
+    describe_receipt_counter_change,
+    get_or_create_contract_counter,
+    get_or_create_receipt_counter,
+    snapshot_contract_counter,
+    snapshot_receipt_counter,
     validate_contract_counter_update,
     validate_receipt_counter_update,
 )
@@ -766,6 +772,20 @@ def consecutivos(request, project):
 @login_required
 @project_permission
 @user_permission('configurar consecutivos')
+def ajax_contract_counter_rules(request, project):
+    obj_project = Projects.objects.get(name=project)
+    use_prefix = request.GET.get('use_prefix') in ('true', '1', 'on', 'yes')
+    prefix = request.GET.get('prefix', '')
+    rules = contract_rules_for_prefix(obj_project, use_prefix, prefix)
+    return JsonResponse({
+        'status': 'success',
+        **rules,
+    })
+
+
+@login_required
+@project_permission
+@user_permission('configurar consecutivos')
 def ajax_save_consecutivos(request, project):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Método no permitido.'}, status=405)
@@ -775,6 +795,8 @@ def ajax_save_consecutivos(request, project):
 
     if counter_type == 'contratos':
         use_prefix = request.POST.get('use_prefix') in ('true', '1', 'on', 'yes')
+        counter = get_or_create_contract_counter(obj_project)
+        previous = snapshot_contract_counter(counter)
         result = validate_contract_counter_update(
             obj_project,
             use_prefix=use_prefix,
@@ -784,7 +806,6 @@ def ajax_save_consecutivos(request, project):
         if isinstance(result, list):
             return JsonResponse({'status': 'error', 'errors': result}, status=400)
 
-        counter = result['counter']
         counter.prefix = result['storage_prefix']
         counter.value = result['next_value']
         counter.save()
@@ -792,8 +813,8 @@ def ajax_save_consecutivos(request, project):
         Timeline.objects.create(
             user=request.user,
             project=obj_project,
-            action=describe_contract_counter_change(obj_project, result),
-            aplication='mcd_site',
+            action=describe_contract_counter_change(obj_project, previous, result),
+            aplication='Administración',
         )
 
         preview = contract_preview(
@@ -809,6 +830,8 @@ def ajax_save_consecutivos(request, project):
         })
 
     if counter_type == 'recibos':
+        counter = get_or_create_receipt_counter(obj_project)
+        previous = snapshot_receipt_counter(counter)
         result = validate_receipt_counter_update(
             obj_project,
             next_value=request.POST.get('next_value'),
@@ -816,18 +839,14 @@ def ajax_save_consecutivos(request, project):
         if isinstance(result, list):
             return JsonResponse({'status': 'error', 'errors': result}, status=400)
 
-        counter = result['counter']
         counter.value = result['next_value']
         counter.save()
 
         Timeline.objects.create(
             user=request.user,
             project=obj_project,
-            action=(
-                f'Actualizó consecutivo de recibos en {obj_project.name_to_show}: '
-                f'próximo {result["next_value"]}.'
-            ),
-            aplication='mcd_site',
+            action=describe_receipt_counter_change(obj_project, previous, result),
+            aplication='Administración',
         )
         return JsonResponse({
             'status': 'success',
