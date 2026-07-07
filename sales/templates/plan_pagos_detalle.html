@@ -1176,6 +1176,24 @@ function parseQuotaId(idCuota) {
     };
 }
 
+function parseQuotaSequence(idCuota, expectedTipo) {
+    const parsed = parseQuotaId(idCuota);
+    if (!parsed) return null;
+    if (expectedTipo && parsed.prefijo !== expectedTipo) return null;
+    return parsed.numero;
+}
+
+function maxQuotaSequenceForTipo(tipo, onlyPaid) {
+    let maxNum = 0;
+    $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipo + '"]').each(function() {
+        const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
+        if (onlyPaid && pendiente !== 0) return;
+        const seq = parseQuotaSequence($(this).find('td').eq(0).text().trim(), tipo);
+        if (seq !== null && seq > maxNum) maxNum = seq;
+    });
+    return maxNum;
+}
+
 function buildQuotaId(prefijo, numero) {
     return `${prefijo}${numero}${QUOTA_ID_SUFFIX}`;
 }
@@ -1693,19 +1711,8 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                 }
 
                 // Buscar el último consecutivo usado para cada tipo en la tabla
-                const ctr = '{{ quota_contract_suffix }}';
-                let maxSCR = 0, maxSCE = 0;
-                $('#plan-pagos-table tbody tr').each(function() {
-                    const tipo = $(this).data('tipo-cuota');
-                    const idCuota = $(this).find('td').eq(0).text();
-                    let match = idCuota.match(/^([A-Z]+)(\d+)CTR/);
-                    if (match) {
-                        let tipoFila = match[1];
-                        let num = parseInt(match[2]);
-                        if (tipoFila === 'SCR' && num > maxSCR) maxSCR = num;
-                        if (tipoFila === 'SCE' && num > maxSCE) maxSCE = num;
-                    }
-                });
+                let maxSCR = maxQuotaSequenceForTipo('SCR', false);
+                let maxSCE = maxQuotaSequenceForTipo('SCE', false);
                 let consecutivoSCR = maxSCR + 1;
                 let consecutivoSCE = maxSCE + 1;
 
@@ -1724,7 +1731,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                         if (capitalReg > saldo) capitalReg = saldo;
                         if (capitalReg < 0) capitalReg = 0;
                         let totalReg = capitalReg + interesReg;
-                        let codigoCuotaReg = `SCR${consecutivoSCR++}CTR${ctr}`;
+                        let codigoCuotaReg = buildQuotaId('SCR', consecutivoSCR++);
                         cuotasGeneradas.push({
                             tipo: 'SCR',
                             codigo: codigoCuotaReg,
@@ -1742,7 +1749,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                         if (capitalExt > saldo) capitalExt = saldo;
                         if (capitalExt < 0) capitalExt = 0;
                         let totalExt = capitalExt + interesExt;
-                        let codigoCuotaExt = `SCE${consecutivoSCE++}CTR${ctr}`;
+                        let codigoCuotaExt = buildQuotaId('SCE', consecutivoSCE++);
                         cuotasGeneradas.push({
                             tipo: 'SCE',
                             codigo: codigoCuotaExt,
@@ -1760,7 +1767,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                         if (capitalExt > saldo) capitalExt = saldo;
                         if (capitalExt < 0) capitalExt = 0;
                         let totalExt = capitalExt + interesExt;
-                        let codigoCuotaExt = `SCE${consecutivoSCE++}CTR${ctr}`;
+                        let codigoCuotaExt = buildQuotaId('SCE', consecutivoSCE++);
                         cuotasGeneradas.push({
                             tipo: 'SCE',
                             codigo: codigoCuotaExt,
@@ -1778,7 +1785,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
                         if (capitalReg > saldo) capitalReg = saldo;
                         if (capitalReg < 0) capitalReg = 0;
                         let totalReg = capitalReg + interesReg;
-                        let codigoCuotaReg = `SCR${consecutivoSCR++}CTR${ctr}`;
+                        let codigoCuotaReg = buildQuotaId('SCR', consecutivoSCR++);
                         cuotasGeneradas.push({
                             tipo: 'SCR',
                             codigo: codigoCuotaReg,
@@ -2318,12 +2325,9 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         let numerosUsados = new Set();
         $('#plan-pagos-table tbody tr[data-tipo-cuota="' + tipoCuota + '"]').each(function() {
             const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
-            if (pendiente === 0) { // Solo cuotas pagadas
-                const idCuota = $(this).find('td').eq(0).text();
-                const match = idCuota.match(/^([A-Z]+)(\d+)/);
-                if (match) {
-                    numerosUsados.add(parseInt(match[2]));
-                }
+            if (pendiente === 0) {
+                const seq = parseQuotaSequence($(this).find('td').eq(0).text().trim(), tipoCuota);
+                if (seq !== null) numerosUsados.add(seq);
             }
         });
 
@@ -2718,8 +2722,6 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             tiposCuota.add($(this).data('tipo-cuota'));
         });
         
-        const ctr = '{{ quota_contract_suffix }}';
-        
         // Primero, reorganizar la tabla por fecha para asegurar el orden correcto
         reorganizarTablaPorFecha();
         
@@ -2728,22 +2730,8 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         
         // Para cada tipo de cuota, buscar el último número usado en cuotas ya pagadas
         tiposCuota.forEach(function(tipo) {
-            if (!tipo) return; // Ignorar si no hay tipo (por seguridad)
-            
-            let maxNum = 0;
-            // Busca todas las filas PAGADAS del mismo tipo
-            $('#plan-pagos-table tbody tr[data-tipo-cuota="'+tipo+'"]').filter(function() {
-                const pendiente = parseFloat($(this).find('.pendiente-cell').text().replace(/\./g, '').replace(/,/g, '.')) || 0;
-                return pendiente === 0; // Solo cuotas pagadas
-            }).each(function() {
-                const idCuota = $(this).find('td').eq(0).text().trim();
-                const match = idCuota.match(/^([A-Z]+)(\d+)/);
-                if (match && match[1] === tipo) {
-                    const num = parseInt(match[2]);
-                    if (num > maxNum) maxNum = num;
-                }
-            });
-            ultimoNumeroPorTipo[tipo] = maxNum;
+            if (!tipo) return;
+            ultimoNumeroPorTipo[tipo] = maxQuotaSequenceForTipo(tipo, true);
         });
         
         // Crear un array con todas las filas pendientes ordenadas por fecha
@@ -2887,8 +2875,6 @@ $('#btn-guardar-reestructuracion').on('click', function() {
     function splitCuota(cuotaId) {
         const fila = $('tr').has('.capital-cell[data-id="'+cuotaId+'"]');
         const tipoCuota = fila.data('tipo-cuota');
-        const ctr = '{{ quota_contract_suffix }}';
-        
         // Obtener el ID de la cuota original y extraer su número
         const idCuotaOriginal = fila.find('td').eq(0).text().trim();
         const parsedQuota = parseQuotaId(idCuotaOriginal);
@@ -2992,7 +2978,6 @@ $('#btn-guardar-reestructuracion').on('click', function() {
     // Modificación a la función renumerarCuotasDesdeNumero para que renumere correctamente todas las cuotas
 
     function renumerarCuotasDesdeNumero(filaInicio, tipoCuota, numeroInicio) {
-        const ctr = '{{ quota_contract_suffix }}';
         let numeroActual = numeroInicio;
         
         // Obtener TODAS las cuotas pendientes del mismo tipo que tengan un número mayor o igual al nuevoNumero
@@ -3005,13 +2990,9 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             if ($(this).is(filaInicio)) return false;
             
             // Extraer el número de la cuota actual
-            const idCuota = $(this).find('td').eq(0).text().trim();
-            const match = idCuota.match(/^([A-Z]+)(\d+)/);
-            if (!match) return false;
-            
-            // Incluir cuotas con número >= al de inicio (necesitan ser renumeradas)
-            const num = parseInt(match[2]);
-            return num >= numeroInicio;
+            const seq = parseQuotaSequence($(this).find('td').eq(0).text().trim(), tipoCuota);
+            if (seq === null) return false;
+            return seq >= numeroInicio;
         });
         
         // Obtener las filas en un array para poder ordenarlas

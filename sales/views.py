@@ -35,6 +35,7 @@ from sales.contract_utils import (
     contract_filename_slug,
     formatted_contract_label,
     normalize_counter_prefix,
+    quota_display_sequence,
     resolve_sale,
 )
 from sales.utils import backup_plan_pagos, recalcular_plan_pagos
@@ -2779,7 +2780,7 @@ def generar_plan_pagos_pdf(request, project, sale_id):
     payment_plan = [
         {
             'quota_type': 'Cuota Inicial' if quota.quota_type.startswith('CI') else 'Saldo',
-            'id_quota': re.search(r'\d+', quota.id_quota).group(),  # Extrae solo los números
+            'id_quota': quota_display_sequence(quota.id_quota),
             'pay_date': quota.pay_date,
             'capital': quota.capital,
             'interest': quota.interest,

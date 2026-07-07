@@ -80,6 +80,24 @@ def build_id_quota(quota_type, sequence, sale):
     return f'{quota_type}{sequence}CTR{quota_contract_suffix(sale)}'
 
 
+def parse_quota_id(id_quota):
+    match = re.match(r'^([A-Z]+)(\d+)CTR(.+)$', str(id_quota or '').strip())
+    if not match:
+        return None
+    return {
+        'prefix': match.group(1),
+        'sequence': int(match.group(2)),
+        'contract_suffix': f'CTR{match.group(3)}',
+    }
+
+
+def quota_display_sequence(id_quota):
+    parsed = parse_quota_id(id_quota)
+    if parsed:
+        return str(parsed['sequence'])
+    return str(id_quota or '')
+
+
 def contract_filename_slug(sale):
     return formatted_contract_label(sale).replace('-', '_').replace('ñ', 'n')
 

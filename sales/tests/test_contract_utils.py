@@ -7,7 +7,9 @@ from sales.contract_utils import (
     formatted_contract_number,
     normalize_counter_prefix,
     parse_contract_identifier,
+    parse_quota_id,
     quota_contract_suffix,
+    quota_display_sequence,
 )
 
 
@@ -47,6 +49,24 @@ class ContractUtilsTests(SimpleTestCase):
     def test_build_id_quota(self):
         self.assertEqual(build_id_quota('CI', 1, _sale('', 350)), 'CI1CTR350')
         self.assertEqual(build_id_quota('CI', 1, _sale('M', 1)), 'CI1CTRM001')
+
+    def test_parse_quota_id(self):
+        self.assertEqual(parse_quota_id('SCR10CTRM001'), {
+            'prefix': 'SCR',
+            'sequence': 10,
+            'contract_suffix': 'CTRM001',
+        })
+        self.assertEqual(parse_quota_id('CI1CTR350'), {
+            'prefix': 'CI',
+            'sequence': 1,
+            'contract_suffix': 'CTR350',
+        })
+        self.assertIsNone(parse_quota_id('invalid'))
+
+    def test_quota_display_sequence(self):
+        self.assertEqual(quota_display_sequence('SCR10CTRM001'), '10')
+        self.assertEqual(quota_display_sequence('CI1CTRM001'), '1')
+        self.assertEqual(quota_display_sequence('legacy'), 'legacy')
 
     def test_parse_contract_identifier(self):
         self.assertEqual(parse_contract_identifier('M-001'), ('M', 1))
