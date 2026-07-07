@@ -110,7 +110,7 @@
                             <i class="copy outline icon"></i>Documentos
                             <div class="menu submenu">
                                 <a class="item" id='print-comissions-report'><i class="file contract icon"></i>Hoja de radicación</a>
-                                <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale|contract_display }}', '{{ project.name }}')">
+                                <a class="item" id='documents-sale' onclick="openSalesFilesModal('{{ sale.pk }}', '{{ project.name }}')">
                                     <i class="folder open icon"></i>Archivos de la venta</a>
                                 <a class="item" id='actions-print-account'>
                                     <i class="file invoice dollar icon"></i>Estado de cuenta</a>
