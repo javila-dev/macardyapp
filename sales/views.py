@@ -10,6 +10,7 @@ from django.http import HttpResponse, JsonResponse
 from django.http.response import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.urls.conf import path
 from django.db.models import Sum, Count, Exists, OuterRef, Max, Value, DecimalField as ModelDecimalField
 from django.db.models.query import F
@@ -830,7 +831,7 @@ def to_adjudicate_sales(request, project):
             comission_base = request.POST.get(
                 'comission_base').replace(',', '')
             collector_user = request.POST.get('collector_user')
-            obj_collector = User.objects.get(user_profile=collector_user)
+            obj_collector = User.objects.get(user_profile__pk=collector_user)
 
             obj_incomes = Incomes.objects.filter(sale=obj_sale.pk)
             for income in obj_incomes:
