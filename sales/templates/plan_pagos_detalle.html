@@ -1162,7 +1162,24 @@
 <script src="{% static 'js/jquery.mask.js' %}"></script>
 <script>
 const preferredRate = Number('{{ preferred_rate_js|unlocalize }}');
+const QUOTA_CONTRACT_SUFFIX = '{{ quota_contract_suffix }}';
+const QUOTA_ID_SUFFIX = `CTR${QUOTA_CONTRACT_SUFFIX}`;
 let bloqueandoActualizacionValorVenta = false;
+
+function parseQuotaId(idCuota) {
+    const match = String(idCuota).trim().match(/^([A-Z]+)(\d+)CTR(.+)$/);
+    if (!match) return null;
+    return {
+        prefijo: match[1],
+        numero: parseInt(match[2], 10),
+        sufijo: `CTR${match[3]}`
+    };
+}
+
+function buildQuotaId(prefijo, numero) {
+    return `${prefijo}${numero}${QUOTA_ID_SUFFIX}`;
+}
+
 function parseCurrencyInput(value) {
     if (typeof value !== 'string') value = (value ?? '').toString();
     const normalized = value.replace(/\./g, '').replace(/,/g, '.');
@@ -2418,7 +2435,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             
             // Encontrar el siguiente número disponible para esta cuota
             let numeroFinal = siguienteNumeroDisponible(siguienteNumero + i);
-            let codigoCuota = `${tipoCuota}${numeroFinal}{{ sale|contract_label }}`;
+            let codigoCuota = buildQuotaId(tipoCuota, numeroFinal);
             
             // Marcar este número como usado
             numerosUsados.add(numeroFinal);
@@ -2759,7 +2776,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
             const nuevoNumero = ultimoNumeroPorTipo[tipo];
             
             // Aplicar el nuevo número a la fila
-            item.fila.find('td').eq(0).text(`${tipo}${nuevoNumero}CTR${ctr}`);
+            item.fila.find('td').eq(0).text(buildQuotaId(tipo, nuevoNumero));
         }
         
         // Actualizar la visualización después de renumerar
@@ -2874,16 +2891,16 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         
         // Obtener el ID de la cuota original y extraer su número
         const idCuotaOriginal = fila.find('td').eq(0).text().trim();
-        const match = idCuotaOriginal.match(/^([A-Z]+)(\d+)(CTR\d+)/);
-        
-        if (!match) {
+        const parsedQuota = parseQuotaId(idCuotaOriginal);
+
+        if (!parsedQuota) {
             showToast('Error: Formato de ID de cuota inválido', 'error');
             return;
         }
-        
-        const prefijo = match[1]; // Por ejemplo: "SCR"
-        const numeroOriginal = parseInt(match[2]); // Por ejemplo: 1
-        const sufijo = match[3]; // Por ejemplo: "CTR366"
+
+        const prefijo = parsedQuota.prefijo;
+        const numeroOriginal = parsedQuota.numero;
+        const sufijo = parsedQuota.sufijo;
         
         // Obtén valores pagados y originales
         const capitalPagado = parseFloat(fila.find('td').eq(8).text().replace(/\./g, '').replace(/,/g, '.')) || 0;
@@ -2934,7 +2951,7 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         
         // La nueva cuota tendrá el siguiente número secuencial
         const nuevoNumero = numeroOriginal + 1;
-        let nuevaIdCuota = `${prefijo}${nuevoNumero}${sufijo}`;
+        let nuevaIdCuota = buildQuotaId(prefijo, nuevoNumero);
         
         // Construye la nueva fila
         let nuevaFila = `
@@ -3013,11 +3030,9 @@ $('#btn-guardar-reestructuracion').on('click', function() {
         // Renumerar secuencialmente
         $(filasArray).each(function() {
             const idActual = $(this).find('td').eq(0).text();
-            const match = idActual.match(/^([A-Z]+)\d+(CTR\d+)/);
-            if (match) {
-                const prefijo = match[1];
-                const sufijo = match[2];
-                $(this).find('td').eq(0).text(`${prefijo}${numeroActual}${sufijo}`);
+            const parsedActual = parseQuotaId(idActual);
+            if (parsedActual) {
+                $(this).find('td').eq(0).text(buildQuotaId(parsedActual.prefijo, numeroActual));
                 numeroActual++;
             }
         });
