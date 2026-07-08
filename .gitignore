@@ -20,6 +20,7 @@ auxiliares/
 # Local helper outputs
 log_importacion.txt
 exclude-file.txt
+docs/
 
 # OS-specific noise
 desktop.ini
