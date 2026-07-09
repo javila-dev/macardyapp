@@ -1,5 +1,6 @@
 from django.test import SimpleTestCase
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from sales.contract_utils import (
     build_id_quota,
@@ -10,6 +11,8 @@ from sales.contract_utils import (
     parse_quota_id,
     quota_contract_suffix,
     quota_display_sequence,
+    resolve_sale,
+    resolve_sale_by_pk,
 )
 
 
@@ -74,3 +77,34 @@ class ContractUtilsTests(SimpleTestCase):
         self.assertEqual(parse_contract_identifier('CTR350'), ('', 350))
         self.assertIsNone(parse_contract_identifier(''))
         self.assertIsNone(parse_contract_identifier(None))
+
+
+class ResolveSaleTests(SimpleTestCase):
+    @patch('sales.models.Sales')
+    def test_resolve_sale_looks_up_contract_number(self, Sales):
+        Sales.DoesNotExist = type('DoesNotExist', (Exception,), {})
+        expected = object()
+        Sales.objects.get.return_value = expected
+
+        result = resolve_sale('demo', '350')
+
+        self.assertIs(result, expected)
+        Sales.objects.get.assert_called_once_with(
+            contract_prefix='',
+            contract_number=350,
+            project__name='demo',
+        )
+
+    @patch('sales.models.Sales')
+    def test_resolve_sale_by_pk_looks_up_primary_key(self, Sales):
+        Sales.DoesNotExist = type('DoesNotExist', (Exception,), {})
+        expected = object()
+        Sales.objects.get.return_value = expected
+
+        result = resolve_sale_by_pk('demo', 350)
+
+        self.assertIs(result, expected)
+        Sales.objects.get.assert_called_once_with(
+            pk=350,
+            project__name='demo',
+        )

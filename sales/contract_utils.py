@@ -113,7 +113,15 @@ def filter_sales_by_contract(qs, identifier, lookup_prefix=''):
     })
 
 
+def resolve_sale_by_pk(project, sale_id, *, project_field='name'):
+    from sales.models import Sales
+
+    lookup = {f'project__{project_field}': project}
+    return Sales.objects.get(pk=int(sale_id), **lookup)
+
+
 def resolve_sale(project, identifier, *, project_field='name'):
+    """Resolve a sale from a contract label entered by users (350, CTR350, M-001)."""
     from sales.models import Sales
 
     if identifier is None or str(identifier).strip() == '':
@@ -121,13 +129,6 @@ def resolve_sale(project, identifier, *, project_field='name'):
 
     text = str(identifier).strip()
     lookup = {f'project__{project_field}': project}
-
-    if text.isdigit():
-        pk = int(text)
-        try:
-            return Sales.objects.get(pk=pk, **lookup)
-        except Sales.DoesNotExist:
-            pass
 
     parsed = parse_contract_identifier(text)
     if parsed is not None:

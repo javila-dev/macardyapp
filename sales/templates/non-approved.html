@@ -42,7 +42,7 @@
                         </tr>
                     </thead>
                     <tbody>{%for sale in nonapprovedsales%}
-                    <tr>
+                    <tr data-sale="{{ sale.pk }}">
                         <td>{{ sale|contract_display }}</td>
                         <td>{{sale.first_owner.full_name}}</td>
                         <td>{{sale.sale_id_history.first.user.username}}</td>
@@ -312,7 +312,8 @@
     $(document).ready(function(){
         $('.money').mask('#,##0', {reverse: true});
         $('#tablenonapproved tbody').on('click','tr',function(){
-            let sale = this.cells[0].innerText
+            let sale = $(this).data('sale')
+            if (!sale) return
             window.location.href = '/sales/'+project+'/nonapprovedsales?sale='+sale
         })
         $('.dropdown').dropdown({
@@ -581,7 +582,7 @@
             $(this).addClass('loading')
             let dataform = new FormData(this)
             dataform.append('action','modify')
-            dataform.append('sale','{{ sale|contract_display }}')
+            dataform.append('sale', sale)
             $.ajax({
                 url:'/sales/'+project+'/nonapprovedsales',
                 type:'POST',
@@ -622,7 +623,7 @@
                         data:{
                             'csrfmiddlewaretoken':'{{csrf_token}}',
                             'action':'approve',
-                            'sale':'{{ sale|contract_display }}'
+                            'sale': sale
                         },
                         success:function(xhr){
                             console.log(xhr)
@@ -661,7 +662,7 @@
                         data:{
                             'csrfmiddlewaretoken':'{{csrf_token}}',
                             'action':'nullify',
-                            'sale':'{{ sale|contract_display }}'
+                            'sale': sale
                         },
                         success:function(xhr){
                             $('#nullify-confirmation').modal('hide')

@@ -1442,7 +1442,7 @@
                 url:'/sales/ajax/'+project+'/printsalesdocuments',
                 data:{
                     'type':'statement_of_account',
-                    'sale':contract_number
+                    'sale':sale
                 },
                 success:function(xhr){
                     new_message(xhr.type,xhr.title,xhr.msj,true)
@@ -1967,7 +1967,7 @@
                 url:'/sales/ajax/'+project+'/printsalesdocuments',
                 data:{
                     'type':'comissions-report',
-                    'sale':contract_number
+                    'sale':sale
                 },
                 success:function(xhr){
                     new_message(xhr.type,xhr.title,xhr.msj,true)

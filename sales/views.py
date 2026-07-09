@@ -37,6 +37,7 @@ from sales.contract_utils import (
     normalize_counter_prefix,
     quota_display_sequence,
     resolve_sale,
+    resolve_sale_by_pk,
 )
 from sales.utils import backup_plan_pagos, recalcular_plan_pagos
 # Create your views here.
@@ -299,7 +300,7 @@ def non_approved_sales(request, project):
     }
     if request.method == 'GET' and request.GET:
         sale = request.GET.get('sale')
-        obj_sale = resolve_sale(project, sale)
+        obj_sale = resolve_sale_by_pk(project, sale)
         payment_plan = Payment_plans.objects.filter(sale=obj_sale.pk)
         if obj_sale.status != 'Pendiente':
             messages.error(
@@ -435,7 +436,7 @@ def non_approved_sales(request, project):
     if request.is_ajax():
         if request.method == 'POST':
             sale = request.POST.get('sale')
-            obj_sale = resolve_sale(project, sale)
+            obj_sale = resolve_sale_by_pk(project, sale)
             action = request.POST.get('action')
             if action == 'modify':
                 if not user_check_perms(request, 'modificar venta'):
@@ -691,7 +692,7 @@ def to_adjudicate_sales(request, project):
 
     if request.method == 'GET' and request.GET:
         sale = request.GET.get('sale')
-        obj_sale = resolve_sale(project, sale)
+        obj_sale = resolve_sale_by_pk(project, sale)
         payment_plan = Payment_plans.objects.filter(sale=obj_sale.pk)
         if obj_sale.status != 'Aprobado':
             messages.error(
@@ -899,7 +900,7 @@ def adjudicate_sales(request, project):
     if request.GET:
         sale_identifier = request.GET.get('sale')
         try:
-            obj_sale = resolve_sale(project, sale_identifier)
+            obj_sale = resolve_sale_by_pk(project, sale_identifier)
         except Sales.DoesNotExist:
             obj_sale = None
         if obj_sale is None:
@@ -1740,7 +1741,7 @@ def ajax_get_plans_info(request):
 
 def ajax_comissions(request, project, sale):
     obj_project = Projects.objects.get(name=project)
-    obj_sale = resolve_sale(project, sale)
+    obj_sale = resolve_sale_by_pk(project, sale)
     obj_comissions = Assigned_comission.objects.filter(
         project=obj_project.pk, sale=obj_sale.pk,
     )
@@ -1816,7 +1817,7 @@ def ajax_print_documents(request, project):
     if request.method == "GET" and request.GET:
         sale = request.GET.get('sale')
         doc_type = request.GET.get('type')
-        obj_sale = resolve_sale(project, sale)
+        obj_sale = resolve_sale_by_pk(project, sale)
         
         if doc_type == 'comissions-report':
             comissions_executive_object = Assigned_comission.objects.filter(sale=obj_sale.pk,

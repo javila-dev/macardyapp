@@ -59,6 +59,7 @@ from sales.contract_utils import (
     parse_contract_identifier,
     quota_contract_suffix,
     resolve_sale,
+    resolve_sale_by_pk,
 )
 from terceros.models import Sellers
 from django.db import transaction
@@ -581,7 +582,7 @@ def liquidate_comissions_advances(request, project):
     }
     if request.method == 'GET' and request.GET:
         contract_number = request.GET.get('sale')
-        obj_sale = resolve_sale(project, contract_number)
+        obj_sale = resolve_sale_by_pk(project, contract_number)
         context.update({
             'advance_detail': Comissions_Payment.objects.filter(sale=obj_sale.pk),
             'selected': True,
