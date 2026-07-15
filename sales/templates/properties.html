@@ -116,6 +116,7 @@
           <th>Precio m2</th>
           <th>Matricula</th>
           <th>Estado</th>
+          <th></th>
         </tr>
       </thead>
     </table>
@@ -199,6 +200,36 @@
   </div>
 </div>
 
+<!-- Modal historial del lote -->
+<div class="ui modal" id="modal-property-history">
+  <i class="close icon"></i>
+  <div class="header">
+    <i class="history icon"></i>
+    Historial de <span id="history-property-name"></span>
+  </div>
+  <div class="content">
+    <div class="ui segment" id="history-loading" style="display:none;">
+      <div class="ui active inverted dimmer">
+        <div class="ui text loader">Cargando historial...</div>
+      </div>
+      <p style="min-height:80px;"></p>
+    </div>
+    <div id="history-empty" class="ui icon message" style="display:none;">
+      <i class="info circle icon"></i>
+      <div class="content">
+        <div class="header">Sin eventos registrados</div>
+        <p>No hay trazabilidad disponible para este lote con la información actual.</p>
+      </div>
+    </div>
+    <div id="history-feed-wrap" style="max-height:50vh; overflow:auto; display:none;">
+      <div class="ui feed" id="history-feed"></div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="ui deny button">Cerrar</div>
+  </div>
+</div>
+
 {%endblock%}
 {%block script%}
 {%include 'datatables.html'%}
@@ -227,10 +258,36 @@ $(document).ready(function(){
           {'data':'area'},
           {'data':'m2_price','render': $.fn.dataTable.render.number( ',', '.', 0,'$')},
           {'data':'prop_registry'},
-          {'data':'state'},
+          {
+            'data':'state',
+            'render': function(data, type, row){
+              if (type !== 'display') return data;
+              let tip = '';
+              if (row.assigned_sale) {
+                tip = 'Contrato ' + row.assigned_sale + ' (' + row.assigned_sale_status + ')';
+                if (row.assigned_sale_owner) {
+                  tip += ' — ' + row.assigned_sale_owner;
+                }
+              } else if (data === 'Asignado') {
+                tip = 'Sin venta asociada';
+              }
+              if (!tip) return data;
+              return '<span title="'+ tip.replace(/"/g, '&quot;') +'" style="cursor:help; text-decoration: underline dotted;">'+ data +'</span>';
+            }
+          },
+          {
+            'data': null,
+            'orderable': false,
+            'searchable': false,
+            'render': function(data, type, row){
+              if (type !== 'display') return '';
+              return '<button type="button" class="ui mini circular icon button btn-property-history" title="Ver historial" data-id="'+ row.id_property +'" data-description="'+ String(row.description || '').replace(/"/g, '&quot;') +'">'+
+                '<i class="history icon"></i></button>';
+            }
+          },
       ],
       columnDefs: [
-          {targets:[0,1,2,3,4,5,6,7],className: 'center aligned'},
+          {targets:[0,1,2,3,4,5,6,7,8],className: 'center aligned'},
       ],
       order:[[2,'asc'],[3,'asc']],
   })
@@ -240,6 +297,73 @@ $(document).ready(function(){
     const query = (filterUrl || '').split('?')[1]
     $('#btn-export-excel').attr('href', query ? exportBaseUrl+'?'+query : exportBaseUrl)
   }
+
+  function escapeHtml(text){
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function openPropertyHistory(propertyId, description){
+    $('#history-property-name').text(description || '');
+    $('#history-loading').show();
+    $('#history-empty').hide();
+    $('#history-feed-wrap').hide();
+    $('#history-feed').empty();
+    $('#modal-property-history').modal('show');
+
+    $.ajax({
+      type: 'GET',
+      url: '/sales/ajax/' + project + '/property-history/' + propertyId + '/',
+      success: function(response){
+        $('#history-loading').hide();
+        if (!response.events || response.events.length === 0) {
+          $('#history-empty').show();
+          return;
+        }
+        const feed = $('#history-feed');
+        response.events.forEach(function(event){
+          let meta = escapeHtml(event.date || '');
+          if (event.contract) {
+            meta += ' · Contrato ' + escapeHtml(event.contract);
+            if (event.contract_status) {
+              meta += ' (' + escapeHtml(event.contract_status) + ')';
+            }
+          }
+          let detail = escapeHtml(event.event || '');
+          if (event.detail) {
+            detail += '<div class="meta">' + escapeHtml(event.detail) + '</div>';
+          }
+          feed.append(
+            '<div class="event">'+
+              '<div class="label"><i class="circular teal history icon"></i></div>'+
+              '<div class="content">'+
+                '<div class="summary">'+
+                  '<a class="user">' + escapeHtml(event.user || 'Sistema') + '</a>'+
+                  '<div class="date">' + meta + '</div>'+
+                '</div>'+
+                '<div class="extra text">' + detail + '</div>'+
+              '</div>'+
+            '</div>'
+          );
+        });
+        $('#history-feed-wrap').show();
+      },
+      error: function(xhr){
+        $('#history-loading').hide();
+        $('#modal-property-history').modal('hide');
+        error_message(xhr);
+      }
+    });
+  }
+
+  $('#table-prop tbody').on('click', '.btn-property-history', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    openPropertyHistory($(this).data('id'), $(this).data('description'));
+  })
 
   $('#table-prop tbody').on('click','tr',function(){
     let row = tableprop.row(this).data()

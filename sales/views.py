@@ -1062,8 +1062,42 @@ def properties_for_sales(request,project):
                 obj_properties_filtered = obj_properties.filter(description=aggrupate_value)
             else:
                 obj_properties_filtered = obj_properties
+
+            rows = JsonRender(obj_properties_filtered).render()
+            prop_ids = [row['id_property'] for row in rows]
+            sales_by_prop = {}
+            if prop_ids:
+                related_sales = (
+                    Sales.objects.filter(
+                        property_sold_id__in=prop_ids,
+                        project=obj_project,
+                    )
+                    .select_related('first_owner')
+                    .order_by('-id_sale')
+                )
+                for sale in related_sales:
+                    current = sales_by_prop.get(sale.property_sold_id)
+                    if current is None:
+                        sales_by_prop[sale.property_sold_id] = sale
+                    elif (
+                        current.status in ('Desistido', 'Anulado')
+                        and sale.status not in ('Desistido', 'Anulado')
+                    ):
+                        sales_by_prop[sale.property_sold_id] = sale
+
+            for row in rows:
+                sale = sales_by_prop.get(row['id_property'])
+                if sale:
+                    row['assigned_sale'] = sale.formatted_contract_label()
+                    row['assigned_sale_status'] = sale.status
+                    row['assigned_sale_owner'] = sale.first_owner.full_name()
+                else:
+                    row['assigned_sale'] = ''
+                    row['assigned_sale_status'] = ''
+                    row['assigned_sale_owner'] = ''
+
             data = {
-                'data':JsonRender(obj_properties_filtered).render()
+                'data': rows
             }
             return JsonResponse(data)
         
@@ -4045,6 +4079,21 @@ def review_properties_status(request, project):
                     change_needed = True
                     new_state = 'Libre'
                     reason = "Inmueble asignado sin venta activa"
+                    inactive_sale = (
+                        Sales.objects.filter(
+                            property_sold=prop,
+                            project=obj_project,
+                        )
+                        .order_by('-id_sale')
+                        .first()
+                    )
+                    if inactive_sale:
+                        sale_contract = (
+                            f"{inactive_sale.formatted_contract_label()} "
+                            f"({inactive_sale.status})"
+                        )
+                    else:
+                        reason = "Inmueble asignado sin ninguna venta asociada"
                     
                 elif prop.state in ['Libre', 'Bloqueado'] and active_sales:
                     # Inmueble libre/bloqueado pero con venta activa
@@ -4119,7 +4168,183 @@ def review_properties_status(request, project):
             })
     
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'})
-        
+
+
+_PROPERTY_HISTORY_LIFECYCLE = (
+    'Creó el contrato',
+    'Aprobó el contrato',
+    'Anuló el contrato',
+    'Adjudicó el contrato',
+    'Desaprobó el contrato',
+    'Desistió el contrato',
+    'Cambió el inmueble',
+)
+
+
+def _timeline_matches_property(action, prop):
+    """Match inventory Timeline rows to a specific property without broad false positives."""
+    if not action:
+        return False
+    description = (prop.description or '').strip()
+    if description and description in action:
+        return True
+
+    inventory_markers = (
+        'Liberó',
+        'Bloqueó',
+        'Cambio el precio del m2',
+        'Revisión automática',
+    )
+    if not any(marker in action for marker in inventory_markers):
+        return False
+
+    stage = (prop.stage or '').strip()
+    block = (prop.block or '').strip()
+    if stage and f'la Etapa {stage}' in action:
+        return True
+    if block and (
+        f'la Manzana {block}' in action
+        or f'la Etapa {block}' in action
+        or f'el Bloque {block}' in action
+    ):
+        return True
+    if description and f'el Lote {description}' in action:
+        return True
+    return False
+
+
+def _history_event_payload(dt, event, user=None, contract='', contract_status='', detail=''):
+    if isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
+        dt = datetime.datetime.combine(dt, datetime.time.min)
+    user_name = ''
+    if user is not None:
+        user_name = user.get_full_name() or user.username
+    return {
+        'date': dt.strftime('%d/%m/%Y %H:%M') if dt else '',
+        'date_sort': dt.isoformat() if dt else '',
+        'event': event,
+        'detail': detail,
+        'user': user_name,
+        'contract': contract,
+        'contract_status': contract_status,
+    }
+
+
+@login_required
+@project_permission
+@user_permission('ver inventario')
+def property_history(request, project, property_id):
+    """Reconstruye la trazabilidad de uso de un lote desde Sales_history y Timeline."""
+    if request.method != 'GET':
+        return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+    obj_project = get_object_or_404(Projects, name=project)
+    prop = get_object_or_404(Properties, pk=property_id, project=obj_project)
+
+    events = []
+    seen_history_ids = set()
+
+    sales = (
+        Sales.objects.filter(property_sold=prop, project=obj_project)
+        .select_related('first_owner')
+        .order_by('id_sale')
+    )
+    sale_ids = [sale.pk for sale in sales]
+    sales_with_create = set()
+
+    lifecycle_q = Q()
+    for keyword in _PROPERTY_HISTORY_LIFECYCLE:
+        lifecycle_q |= Q(action__icontains=keyword)
+
+    if sale_ids:
+        for hist in (
+            Sales_history.objects.filter(sale_id__in=sale_ids)
+            .filter(lifecycle_q)
+            .select_related('user', 'sale', 'sale__first_owner')
+            .order_by('add_date')
+        ):
+            seen_history_ids.add(hist.pk)
+            if 'Creó el contrato' in hist.action:
+                sales_with_create.add(hist.sale_id)
+            sale = hist.sale
+            events.append(
+                _history_event_payload(
+                    hist.add_date,
+                    hist.action,
+                    user=hist.user,
+                    contract=sale.formatted_contract_label(),
+                    contract_status=sale.status,
+                )
+            )
+
+        for sale in sales:
+            if sale.pk in sales_with_create:
+                continue
+            events.append(
+                _history_event_payload(
+                    sale.add_date,
+                    'Creó el contrato de venta',
+                    contract=sale.formatted_contract_label(),
+                    contract_status=sale.status,
+                    detail='Fecha estimada desde creación del contrato',
+                )
+            )
+
+    # Cambios de inmueble que mencionan este lote (aunque ya no sea el property_sold actual)
+    if prop.description:
+        for hist in (
+            Sales_history.objects.filter(
+                sale__project=obj_project,
+                action__icontains='Cambió el inmueble',
+                action__icontains=prop.description,
+            )
+            .exclude(pk__in=seen_history_ids)
+            .select_related('user', 'sale', 'sale__first_owner')
+            .order_by('add_date')
+        ):
+            seen_history_ids.add(hist.pk)
+            sale = hist.sale
+            events.append(
+                _history_event_payload(
+                    hist.add_date,
+                    hist.action,
+                    user=hist.user,
+                    contract=sale.formatted_contract_label(),
+                    contract_status=sale.status,
+                )
+            )
+
+    for tl in (
+        Timeline.objects.filter(project=obj_project, aplication='sales')
+        .select_related('user')
+        .order_by('date')
+    ):
+        if not _timeline_matches_property(tl.action, prop):
+            continue
+        events.append(
+            _history_event_payload(
+                tl.date,
+                tl.action,
+                user=tl.user,
+            )
+        )
+
+    events.sort(key=lambda e: e['date_sort'] or '', reverse=True)
+
+    return JsonResponse({
+        'status': 'success',
+        'property': {
+            'id': prop.pk,
+            'description': prop.description,
+            'state': prop.state,
+            'block': prop.block,
+            'location': prop.location,
+        },
+        'events': events,
+        'total': len(events),
+    })
+
+
 urlpattern = [
     path('projectselection', project_selection),
     path('<project>/new_sale', new_sale),
@@ -4166,5 +4391,6 @@ urlpattern = [
     path('ajax/<str:project>/desaplicar-recibos/<int:sale_id>', desaplicar_recibos, name='desaplicar_recibos'),
     path('ajax/<str:project>/eliminar-detalles-orfanos/<int:sale_id>', eliminar_detalles_orfanos, name='eliminar_detalles_orfanos'),
     path('ajax/<str:project>/review-properties-status', review_properties_status, name='review_properties_status'),
+    path('ajax/<str:project>/property-history/<int:property_id>/', property_history, name='property_history'),
     
 ]
