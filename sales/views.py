@@ -3603,6 +3603,84 @@ def _excel_numeric_or_raw(value):
 
 @login_required
 @project_permission
+@user_permission('ver inventario')
+def export_properties_inventory(request, project):
+    obj_project = Projects.objects.get(name=project)
+    properties = Properties.objects.filter(project=project)
+
+    search_by = request.GET.get('search_by')
+    aggrupate_value = request.GET.get('value')
+    if search_by == 'stage':
+        properties = properties.filter(stage=aggrupate_value)
+    elif search_by == 'block':
+        properties = properties.filter(block=aggrupate_value)
+    elif search_by == 'property':
+        properties = properties.filter(description=aggrupate_value)
+
+    properties = properties.order_by('block', 'location')
+
+    block_label = {
+        'nutrias': 'Etapa',
+        'altoscovenas': 'Manzana',
+        'mangata': 'Bloque',
+    }.get(obj_project.name, 'Manzana / Bloque')
+
+    headers = [
+        'Inmueble',
+        'Etapa (de entrega)',
+        block_label,
+        'Lote',
+        'Area',
+        'Precio m2',
+        'Matricula',
+        'Estado',
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Inventario'
+
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+
+    for row_idx, prop in enumerate(properties, start=2):
+        ws.cell(row=row_idx, column=1, value=prop.description)
+        ws.cell(row=row_idx, column=2, value=prop.stage or '')
+        ws.cell(row=row_idx, column=3, value=_excel_numeric_or_raw(prop.block))
+        ws.cell(row=row_idx, column=4, value=_excel_numeric_or_raw(prop.location))
+        ws.cell(row=row_idx, column=5, value=float(prop.area) if prop.area is not None else '')
+        ws.cell(row=row_idx, column=6, value=float(prop.m2_price) if prop.m2_price is not None else '')
+        ws.cell(row=row_idx, column=7, value=prop.prop_registry or '')
+        ws.cell(row=row_idx, column=8, value=prop.state)
+
+    ws.column_dimensions['A'].width = 28
+    ws.column_dimensions['B'].width = 18
+    ws.column_dimensions['C'].width = 14
+    ws.column_dimensions['D'].width = 10
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 14
+    ws.column_dimensions['G'].width = 22
+    ws.column_dimensions['H'].width = 12
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    project_label = obj_project.name_to_show.replace('ñ', 'n').replace(' ', '_')
+    filename = f'Inventario_{project_label}.xlsx'
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+@project_permission
 @user_permission('ver ventas adjudicadas')
 def export_adjudicated_sales_report(request, project):
     obj_project = Projects.objects.get(name=project)
@@ -4050,6 +4128,7 @@ urlpattern = [
     path('<project>/adjudicatesales', adjudicate_sales),
     path('<project>/adjudicatesales/informe-excel', export_adjudicated_sales_report, name='export_adjudicated_sales_report'),
     path('<project>/properties', properties_for_sales),
+    path('<project>/properties/informe-excel', export_properties_inventory, name='export_properties_inventory'),
     path('<project>/consecutivos', consecutivos),
     path('<project>/graphs',graphs),
     path('<str:project>/files/<int:sale_id>/get/', get_sales_files, name='get_sales_files'),

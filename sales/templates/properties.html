@@ -98,6 +98,10 @@
         <i class="sync icon"></i>Revisar Estados
       </button>
       {% endif %}
+      <a href="{% url 'export_properties_inventory' project.name %}" class="ui green button" id="btn-export-excel">
+        <i class="file excel outline icon"></i>
+        Excel
+      </a>
     </div>
   </div>
   <div class="ui basic segment" id="div-table-prop">
@@ -231,6 +235,12 @@ $(document).ready(function(){
       order:[[2,'asc'],[3,'asc']],
   })
 
+  const exportBaseUrl = '/sales/'+project+'/properties/informe-excel'
+  function syncExportUrl(filterUrl){
+    const query = (filterUrl || '').split('?')[1]
+    $('#btn-export-excel').attr('href', query ? exportBaseUrl+'?'+query : exportBaseUrl)
+  }
+
   $('#table-prop tbody').on('click','tr',function(){
     let row = tableprop.row(this).data()
     $('#dropdown-property').dropdown('set text',row.description)
@@ -239,6 +249,7 @@ $(document).ready(function(){
     $('#dropdown-block').dropdown('restore defaults')
     let url = '/sales/'+project+'/properties?search_by=property&value='+row.description
     tableprop.ajax.url(url).load()
+    syncExportUrl(url)
     $('.ui.dropdown').removeClass('green')
     $('#dropdown-property').addClass('green')
 
@@ -268,6 +279,7 @@ $(document).ready(function(){
         $('#dropdown-property').dropdown('restore defaults')
         let url = '/sales/'+project+'/properties?search_by=stage&value='+text
         tableprop.ajax.url(url).load()
+        syncExportUrl(url)
         $('.ui.dropdown').removeClass('green')
         $('#dropdown-stage').addClass('green')  
     }
@@ -280,6 +292,7 @@ $(document).ready(function(){
       $('#dropdown-property').dropdown('restore defaults')
       let url = '/sales/'+project+'/properties?search_by=block&value='+text
       tableprop.ajax.url(url).load()
+      syncExportUrl(url)
       $('.ui.dropdown').removeClass('green')
       $('#dropdown-block').addClass('green')
     }
@@ -292,6 +305,7 @@ $(document).ready(function(){
       $('#dropdown-block').dropdown('restore defaults')
       let url = '/sales/'+project+'/properties?search_by=property&value='+text
       tableprop.ajax.url(url).load()
+      syncExportUrl(url)
       $('.ui.dropdown').removeClass('green')
       $('#dropdown-property').addClass('green')
     }
@@ -302,6 +316,7 @@ $(document).ready(function(){
     $('#div-actions button').addClass('disabled')
     let url = '/sales/'+project+'/properties'
       tableprop.ajax.url(url).load()
+      syncExportUrl(url)
   })
   $('#btn-relase').click(() => actionsProperties('relase') )
   $('#btn-block').click(() => actionsProperties('block') )
