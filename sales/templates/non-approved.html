@@ -561,8 +561,9 @@
                 $('#id_id_first_owner').focus()
                 return false;
             }
-            if (first_owner == second_owner || first_owner == third_owner || second_owner == third_owner
-                && second_owner!= ""){
+            let owners = [first_owner, second_owner, third_owner].filter(function(v){ return v && v !== '' })
+            let hasDuplicateOwner = owners.some(function(v, i){ return owners.indexOf(v) !== i })
+            if (hasDuplicateOwner) {
                 new_message('error','Ocurrio un error','Un titular no puede estar mas de una (1) vez en un contrato.')
                 return false;
             }

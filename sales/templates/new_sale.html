@@ -364,13 +364,15 @@
             let first_owner = $('#id_id_first_owner').val()
             let second_owner = $('#id_id_second_owner').val()
             let third_owner = $('#id_id_third_owner').val()
+            let fourth_owner = $('#id_id_fourth_owner').val()
             if (first_owner == ''){
                 new_message('error','Ocurrio un error','Debes seleccionar por lo menos un primer titular')
                 $('#id_id_first_owner').focus()
                 return false;
             }
-            if (first_owner == second_owner || first_owner == third_owner || first_owner == fourth_owner ||
-                second_owner == third_owner || second_owner == fourth_owner || third_owner == fourth_owner) {
+            let owners = [first_owner, second_owner, third_owner, fourth_owner].filter(function(v){ return v && v !== '' })
+            let hasDuplicateOwner = owners.some(function(v, i){ return owners.indexOf(v) !== i })
+            if (hasDuplicateOwner) {
                 new_message('error', 'Ocurrió un error', 'Un titular no puede estar más de una vez en un contrato.');
                 return false;
             }
@@ -379,7 +381,7 @@
                 $('#id_id_first_owner').focus()
                 return false;
             }
-            if (third_owner == '' || second_owner == '') && fourth_owner != '') {
+            if ((third_owner == '' || second_owner == '') && fourth_owner != '') {
                 new_message('error', 'Ocurrió un error', 'Para agregar un 4to titular, los campos anteriores no pueden estar vacíos.');
                 return false;
             }
