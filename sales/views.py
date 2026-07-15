@@ -1129,15 +1129,17 @@ def properties_for_sales(request,project):
             if to_do  == 'relase':
                 user_check_perms(request,'liberar inventario',raise_exception=True)
 
-                # Obtener IDs de propiedades que están siendo usadas en ventas activas
-                used_properties_ids = Sales.objects.filter(
-                    project=project,
-                    status__in=['Pendiente', 'Aprobado', 'Adjudicado']
-                ).values_list('property_sold_id', flat=True)
+                # Solo impedir liberar si hay venta activa (Pendiente/Aprobado/Adjudicado).
+                # Un lote "Asignado" huérfano (sin contrato activo) sí se puede liberar.
+                used_properties_ids = set(
+                    Sales.objects.filter(
+                        project=project,
+                        status__in=['Pendiente', 'Aprobado', 'Adjudicado']
+                    ).values_list('property_sold_id', flat=True)
+                )
 
                 for prop in properties_to_change:
-                    # Doble check: verificar estado 'Asignado' O si está en ventas activas
-                    if prop.state == 'Asignado' or prop.id_property in used_properties_ids:
+                    if prop.id_property in used_properties_ids:
                         cant_do += prop.description +' '
                     else:
                         prop.state = 'Libre'
@@ -1151,15 +1153,21 @@ def properties_for_sales(request,project):
 
                 else:
                     title = 'Peticion con novedades'
-                    msj = 'Listo, tu petición fue realizada pero los siguientes lotes no se liberaron porque están asignados o en ventas activas: '+cant_do
+                    msj = 'Listo, tu petición fue realizada pero los siguientes lotes no se liberaron porque tienen una venta activa (Pendiente, Aprobado o Adjudicado): '+cant_do
                     type_of = 'yellow'                
                 
             elif to_do == 'block':
                 check = user_check_perms(request,'bloquear inventario',raise_exception=True)
-                
-                
+
+                used_properties_ids = set(
+                    Sales.objects.filter(
+                        project=project,
+                        status__in=['Pendiente', 'Aprobado', 'Adjudicado']
+                    ).values_list('property_sold_id', flat=True)
+                )
+
                 for prop in properties_to_change:
-                    if prop.state == 'Asignado':
+                    if prop.id_property in used_properties_ids:
                         cant_do += prop.description +' '
                     else:
                         prop.state = 'Bloqueado'
@@ -1172,7 +1180,7 @@ def properties_for_sales(request,project):
                     type_of = 'success'
                 else:
                     title = 'Peticion con novedades'
-                    msj = 'Tu petición fue realizada pero los siguientes lotes no se bloquearon porque ya estan asignados: '+cant_do
+                    msj = 'Tu petición fue realizada pero los siguientes lotes no se bloquearon porque tienen una venta activa (Pendiente, Aprobado o Adjudicado): '+cant_do
                     type_of = 'yellow'
                 
                 
@@ -4046,70 +4054,78 @@ def review_properties_status(request, project):
     """
     Revisa inconsistencias entre el estado de los inmuebles y las ventas activas.
     Retorna un preview de cambios propuestos para aprobación/rechazo.
+
+    Venta activa = Pendiente (sin aprobar), Aprobado o Adjudicado.
     """
     obj_project = Projects.objects.get(name=project)
-    
+    active_statuses = ('Pendiente', 'Aprobado', 'Adjudicado')
+
     if request.method == 'POST' and request.is_ajax():
         action = request.POST.get('action')
-        
+
         if action == 'preview':
-            # Revisar inconsistencias y generar preview
             changes = []
-            
-            # Obtener todos los inmuebles del proyecto
-            properties = Properties.objects.filter(project=project)
-            
+            properties = list(Properties.objects.filter(project=obj_project))
+            prop_ids = [p.pk for p in properties]
+
+            sales_by_prop = {pid: [] for pid in prop_ids}
+            if prop_ids:
+                related_sales = (
+                    Sales.objects.filter(
+                        project=obj_project,
+                        property_sold_id__in=prop_ids,
+                    )
+                    .select_related('first_owner')
+                    .order_by('-id_sale')
+                )
+                for sale in related_sales:
+                    sales_by_prop.setdefault(sale.property_sold_id, []).append(sale)
+
             for prop in properties:
-                # Buscar ventas activas (no desistidas) asociadas a este inmueble
-                active_sales = Sales.objects.filter(
-                    property_sold=prop,
-                    project=obj_project
-                ).exclude(
-                    status__in=['Desistido', 'Anulado']
-                ).exists()
-                
+                prop_sales = sales_by_prop.get(prop.pk, [])
+                active_sales = [s for s in prop_sales if s.status in active_statuses]
+                inactive_sales = [s for s in prop_sales if s.status not in active_statuses]
+
                 change_needed = False
                 new_state = prop.state
-                reason = ""
-                sale_contract = ""
-                
-                # Verificar inconsistencias
+                reason = ''
+                sale_contract = ''
+
                 if prop.state == 'Asignado' and not active_sales:
-                    # Inmueble marcado como asignado pero sin venta activa
+                    # Asignado sin contrato Pendiente/Aprobado/Adjudicado
                     change_needed = True
                     new_state = 'Libre'
-                    reason = "Inmueble asignado sin venta activa"
-                    inactive_sale = (
-                        Sales.objects.filter(
-                            property_sold=prop,
-                            project=obj_project,
+                    if inactive_sales:
+                        last = inactive_sales[0]
+                        reason = (
+                            'Asignado sin contrato activo '
+                            f'(último: {last.status})'
                         )
-                        .order_by('-id_sale')
-                        .first()
-                    )
-                    if inactive_sale:
                         sale_contract = (
-                            f"{inactive_sale.formatted_contract_label()} "
-                            f"({inactive_sale.status})"
+                            f'{last.formatted_contract_label()} ({last.status})'
+                        )
+                    elif prop_sales:
+                        # Defensa: lista no vacía pero filtrado falló
+                        last = prop_sales[0]
+                        reason = 'Asignado sin contrato Pendiente/Aprobado/Adjudicado'
+                        sale_contract = (
+                            f'{last.formatted_contract_label()} ({last.status})'
                         )
                     else:
-                        reason = "Inmueble asignado sin ninguna venta asociada"
-                    
-                elif prop.state in ['Libre', 'Bloqueado'] and active_sales:
-                    # Inmueble libre/bloqueado pero con venta activa
+                        reason = 'Asignado sin ninguna venta asociada'
+
+                elif prop.state in ('Libre', 'Bloqueado') and active_sales:
                     change_needed = True
                     new_state = 'Asignado'
-                    reason = "Inmueble libre/bloqueado con venta activa"
-                    # Obtener número de contrato
-                    sale = Sales.objects.filter(
-                        property_sold=prop,
-                        project=obj_project
-                    ).exclude(
-                        status__in=['Desistido', 'Anulado']
-                    ).first()
-                    if sale:
-                        sale_contract = sale.formatted_contract_label()
-                
+                    active = active_sales[0]
+                    reason = (
+                        f'{prop.state} con contrato activo '
+                        f'({active.status})'
+                    )
+                    sale_contract = (
+                        f'{active.formatted_contract_label()} ({active.status})'
+                    )
+
                 if change_needed:
                     changes.append({
                         'property_id': prop.pk,
@@ -4119,54 +4135,63 @@ def review_properties_status(request, project):
                         'current_state': prop.state,
                         'new_state': new_state,
                         'reason': reason,
-                        'sale_contract': sale_contract
+                        'sale_contract': sale_contract,
                     })
-            
+
             return JsonResponse({
                 'status': 'success',
                 'changes': changes,
-                'total': len(changes)
+                'total': len(changes),
             })
-        
+
         elif action == 'confirm':
-            # Aplicar los cambios confirmados
             changes_data = json.loads(request.POST.get('changes', '[]'))
             applied_changes = []
-            
+
             from django.db import transaction
             with transaction.atomic():
                 for change in changes_data:
                     try:
-                        prop = Properties.objects.select_for_update().get(pk=change['property_id'])
+                        prop = Properties.objects.select_for_update().get(
+                            pk=change['property_id']
+                        )
                         old_state = prop.state
                         prop.state = change['new_state']
                         prop.save()
-                        
-                        # Registrar en timeline
+
                         Timeline.objects.create(
                             user=request.user,
-                            action=f"Revisión automática: {prop.description} cambió de {old_state} a {change['new_state']}",
+                            action=(
+                                f"Revisión automática: {prop.description} "
+                                f"cambió de {old_state} a {change['new_state']}"
+                            ),
                             project=obj_project,
-                            aplication='sales'
+                            aplication='sales',
                         )
-                        
+
                         applied_changes.append({
                             'property': prop.description,
                             'old_state': old_state,
-                            'new_state': change['new_state']
+                            'new_state': change['new_state'],
                         })
                     except Exception as e:
                         return JsonResponse({
                             'status': 'error',
-                            'message': f'Error al actualizar {change["description"]}: {str(e)}'
+                            'message': (
+                                f"Error al actualizar "
+                                f"{change.get('description', '')}: {str(e)}"
+                            ),
                         })
-            
+
             return JsonResponse({
                 'status': 'success',
-                'message': f'Se actualizaron {len(applied_changes)} inmuebles correctamente',
-                'applied_changes': applied_changes
+                'message': (
+                    f'Se actualizaron {len(applied_changes)} '
+                    f'inmuebles correctamente'
+                ),
+                'applied_changes': applied_changes,
             })
-    
+
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'})
 
 
@@ -4295,8 +4320,10 @@ def property_history(request, project, property_id):
         for hist in (
             Sales_history.objects.filter(
                 sale__project=obj_project,
-                action__icontains='Cambió el inmueble',
-                action__icontains=prop.description,
+            )
+            .filter(
+                Q(action__icontains='Cambió el inmueble')
+                & Q(action__icontains=prop.description)
             )
             .exclude(pk__in=seen_history_ids)
             .select_related('user', 'sale', 'sale__first_owner')
