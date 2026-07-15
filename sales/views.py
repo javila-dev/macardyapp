@@ -45,6 +45,17 @@ locale.setlocale(locale.LC_ALL,'es_CO.UTF-8')
 #messages.success(request,'<div class="header">¡Lo hicimos!</div>Aprobaste el contrato '+sale)
 
 
+def _sale_initial_finance_breakdown(sale_value, initial):
+    """Return (initial_perc, to_finance, to_finance_perc). Safe when sale_value is 0."""
+    if initial is None:
+        initial = 0
+    if not sale_value:
+        return 0, 0, 0
+    initial_perc = float(f'{(initial * 100 / sale_value):.2f}')
+    to_finance = sale_value - initial
+    return initial_perc, to_finance, 100 - initial_perc
+
+
 def get_positions_queryset(project_obj, group, include_default=False):
     filters = {'group': group, 'is_active': True}
     if include_default:
@@ -121,6 +132,12 @@ def new_sale(request, project):
                 request,
                 '<div class="header">Lote no disponible</div>No se pudo crear el contrato porque el lote '
                 'seleccionado ya no está disponible. Puede estar asignado a otra venta activa.'
+            )
+        elif not sale_value or int(float(sale_value)) <= 0:
+            messages.error(
+                request,
+                '<div class="header">Valor inválido</div>No se puede crear un contrato con valor de venta '
+                'en cero o vacío. Revisa el precio del inmueble (precio m²) y el valor del contrato.'
             )
         else:
             with transaction.atomic():
@@ -314,10 +331,16 @@ def non_approved_sales(request, project):
         initial = initial_quotas.aggregate(Sum('capital')).get('capital__sum')
         if initial == None:
             initial = 0
-        initial_perc = initial*100/obj_sale.value
-        initial_perc = float(f'{initial_perc:.2f}')
-        to_finance = obj_sale.value - initial
-        to_finance_perc = 100 - initial_perc
+        if not obj_sale.value:
+            messages.error(
+                request,
+                '<div class="header">Contrato con valor en cero</div>'
+                'Este contrato tiene valor de venta $0. Debes corregir el valor '
+                'antes de continuar (revisa también el precio m² del inmueble).'
+            )
+        initial_perc, to_finance, to_finance_perc = _sale_initial_finance_breakdown(
+            obj_sale.value, initial
+        )
 
         # calculate  initial payment blocks
         ci_form = []
@@ -488,6 +511,14 @@ def non_approved_sales(request, project):
                 value_extra_quota = rq.get('value_extra_quota')
                 observations = rq.get('observations')
                 club = True if rq.get('club') == 'on' else False
+
+                if not sale_value or int(float(sale_value)) <= 0:
+                    data = {
+                        'type': 'danger',
+                        'title': 'Valor inválido',
+                        'msj': 'El valor de venta no puede ser cero o vacío.',
+                    }
+                    return JsonResponse(data)
 
                 obj_sale.first_owner = Clients.objects.get(pk=first_owner)
                 obj_sale.second_owner = Clients.objects.get(pk=second_owner)
@@ -706,10 +737,16 @@ def to_adjudicate_sales(request, project):
         initial = initial_quotas.aggregate(Sum('capital')).get('capital__sum')
         if initial == None:
             initial = 0
-        initial_perc = initial*100/obj_sale.value
-        initial_perc = float(f'{initial_perc:.2f}')
-        to_finance = obj_sale.value - initial
-        to_finance_perc = 100 - initial_perc
+        if not obj_sale.value:
+            messages.error(
+                request,
+                '<div class="header">Contrato con valor en cero</div>'
+                'Este contrato tiene valor de venta $0. Debes corregir el valor '
+                'antes de continuar (revisa también el precio m² del inmueble).'
+            )
+        initial_perc, to_finance, to_finance_perc = _sale_initial_finance_breakdown(
+            obj_sale.value, initial
+        )
 
         # calculate  initial payment blocks
         ci_form = []
