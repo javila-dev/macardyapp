@@ -379,8 +379,14 @@
                 $('#id_id_first_owner').focus()
                 return false;
             }
-            if ((third_owner == '' || second_owner == '') && fourth_owner != '') {
+            if (third_owner == '' || second_owner == '') && fourth_owner != '') {
                 new_message('error', 'Ocurrió un error', 'Para agregar un 4to titular, los campos anteriores no pueden estar vacíos.');
+                return false;
+            }
+            let sale_value = $('#id_sale_value').val().replace(/[\$,]/g,'') * 1
+            if (!sale_value || sale_value <= 0){
+                new_message('error','Valor inválido','El valor de venta no puede ser cero o vacío. Revisa el precio m² del inmueble.')
+                $('#id_sale_value').focus()
                 return false;
             }
             if (total_ci_added != total_ci){
