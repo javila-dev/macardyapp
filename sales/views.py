@@ -15,7 +15,7 @@ from django.urls.conf import path
 from django.db.models import Sum, Count, Exists, OuterRef, Max, Value, DecimalField as ModelDecimalField
 from django.db.models.query import F
 from django.db.models.query_utils import Q
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from finance.models import Collection_feed, Collector_per_sale, Credit_info, Incomes, Incomes_detail, Sales_extra_info, Incomes_return
 from finance.views import apply_income
 from mcd_site.models import Counters, Parameters, Projects, Timeline
@@ -140,118 +140,171 @@ def new_sale(request, project):
                 'en cero o vacío. Revisa el precio del inmueble (precio m²) y el valor del contrato.'
             )
         else:
-            with transaction.atomic():
-                consecutive = Counters.objects.select_for_update().get(
-                    name='contratos', project=project
-                )
-                contract_prefix = normalize_counter_prefix(consecutive.prefix)
-                contract_number = consecutive.value
+            try:
+                with transaction.atomic():
+                    consecutive = Counters.objects.select_for_update().get(
+                        name='contratos', project=project
+                    )
+                    contract_prefix = normalize_counter_prefix(consecutive.prefix)
+                    contract_number = consecutive.value
 
-                sale = Sales.objects.create(
-                    project=obj_project,
-                    contract_prefix=contract_prefix,
-                    contract_number=contract_number,
-                    first_owner=Clients.objects.get(pk=first_owner),
-                    second_owner=Clients.objects.get(pk=second_owner),
-                    third_owner=Clients.objects.get(pk=third_owner),
-                    fourth_owner=Clients.objects.get(pk=fourth_owner),
-                    property_sold=prop,
-                    value=sale_value,
-                    comission_base=sale_value,
-                    sale_plan=Sales_plans.objects.get(pk=sale_plan),
-                    observations=observations,
-                    status='Pendiente',
-                    club=club,
-                )
+                    sale = Sales.objects.create(
+                        project=obj_project,
+                        contract_prefix=contract_prefix,
+                        contract_number=contract_number,
+                        first_owner=Clients.objects.get(pk=first_owner),
+                        second_owner=Clients.objects.get(pk=second_owner),
+                        third_owner=Clients.objects.get(pk=third_owner),
+                        fourth_owner=Clients.objects.get(pk=fourth_owner),
+                        property_sold=prop,
+                        value=sale_value,
+                        comission_base=sale_value,
+                        sale_plan=Sales_plans.objects.get(pk=sale_plan),
+                        observations=observations,
+                        status='Pendiente',
+                        club=club,
+                    )
 
-                consecutive.value += 1
-                consecutive.save()
+                    consecutive.value += 1
+                    consecutive.save()
 
-                prop.state = 'Asignado'
-                prop.save()
+                    prop.state = 'Asignado'
+                    prop.save()
 
-                counter = 1
-                for i in range(0, len(quanty_ci_quota)):
-                    quanty = quanty_ci_quota[i]
-                    initial_date = date_ci_quota[i]
-                    dt_initial_date = datetime.datetime.strptime(
-                        initial_date, '%B %d, %Y')
-                    value = value_ci_quota[i].replace(',', '')
-                    date = dt_initial_date
+                    counter = 1
+                    for i in range(0, len(quanty_ci_quota)):
+                        quanty = quanty_ci_quota[i]
+                        initial_date = date_ci_quota[i]
+                        dt_initial_date = datetime.datetime.strptime(
+                            initial_date, '%B %d, %Y')
+                        value = value_ci_quota[i].replace(',', '')
+                        date = dt_initial_date
 
-                    for j in range(0, int(quanty)):
-                        id_quota = build_id_quota('CI', counter, sale)
-                        Payment_plans.objects.create(
-                            id_quota=id_quota, sale=sale, pay_date=date,
-                            capital=value, interest=0, others=0,
-                            project=obj_project, quota_type='CI'
-                        )
-                        counter += 1
-                        date += relativedelta(months=1)
+                        for j in range(0, int(quanty)):
+                            id_quota = build_id_quota('CI', counter, sale)
+                            Payment_plans.objects.create(
+                                id_quota=id_quota, sale=sale, pay_date=date,
+                                capital=value, interest=0, others=0,
+                                project=obj_project, quota_type='CI'
+                            )
+                            counter += 1
+                            date += relativedelta(months=1)
 
-                if quanty_to_finance_quota:
-                    quanty = int(quanty_to_finance_quota)
-                    initial_date = initial_date_to_finance_quota
-                    dt_initial_date = datetime.datetime.strptime(initial_date, '%B %d, %Y')
-                    quota = int(value_to_finance_quota.replace(',', ''))
-                    remaining_value = int(to_finance.replace(',', ''))
-                    rate_mv = float(rate)/100
-                    vp_regular = 0
+                    if quanty_to_finance_quota:
+                        quanty = int(quanty_to_finance_quota)
+                        initial_date = initial_date_to_finance_quota
+                        dt_initial_date = datetime.datetime.strptime(initial_date, '%B %d, %Y')
+                        quota = int(value_to_finance_quota.replace(',', ''))
+                        remaining_value = int(to_finance.replace(',', ''))
+                        rate_mv = float(rate)/100
+                        vp_regular = 0
+                        if periodicity_extra_quota:
+                            vp_regular = int(numpy_financial.pv(rate_mv, quanty, quota))*-1
+                            remaining_value = vp_regular
+
+                        date = dt_initial_date
+                        for i in range(1, quanty+1):
+                            interest = int(remaining_value*rate_mv)
+                            capital = quota - interest
+                            if capital + 1000 > remaining_value:
+                                capital = remaining_value
+                            others = 0
+                            id_quota = build_id_quota('SCR', i, sale)
+                            Payment_plans.objects.create(
+                                id_quota=id_quota, sale=sale, pay_date=date,
+                                capital=capital, interest=interest, others=others,
+                                project=obj_project, quota_type='SCR'
+                            )
+                            date += relativedelta(months=1)
+                            remaining_value -= capital
+
                     if periodicity_extra_quota:
-                        vp_regular = int(numpy_financial.pv(rate_mv, quanty, quota))*-1
-                        remaining_value = vp_regular
+                        periodicity = int(periodicity_extra_quota)
+                        quanty = int(quanty_extra_quota)
+                        initial_date = initial_date_extra_quota
+                        dt_initial_date = datetime.datetime.strptime(
+                            initial_date, '%B %d, %Y')
+                        quota = int(value_extra_quota.replace(',', ''))
+                        remaining_value = int(to_finance.replace(',', '')) - vp_regular
+                        date = dt_initial_date
 
-                    date = dt_initial_date
-                    for i in range(1, quanty+1):
-                        interest = int(remaining_value*rate_mv)
-                        capital = quota - interest
-                        if capital + 1000 > remaining_value:
-                            capital = remaining_value
-                        others = 0
-                        id_quota = build_id_quota('SCR', i, sale)
-                        Payment_plans.objects.create(
-                            id_quota=id_quota, sale=sale, pay_date=date,
-                            capital=capital, interest=interest, others=others,
-                            project=obj_project, quota_type='SCR'
-                        )
-                        date += relativedelta(months=1)
-                        remaining_value -= capital
+                        for i in range(1, quanty+1):
+                            interest = int(remaining_value*rate_mv*periodicity)
+                            capital = quota - interest
+                            if capital + 1000 > remaining_value:
+                                capital = remaining_value
+                            if i == quanty and capital != remaining_value:
+                                capital = remaining_value
+                            others = 0
+                            id_quota = build_id_quota('SCE', i, sale)
+                            Payment_plans.objects.create(
+                                id_quota=id_quota, sale=sale, pay_date=date,
+                                capital=capital, interest=interest, others=others,
+                                project=obj_project, quota_type='SCE'
+                            )
+                            date += relativedelta(months=periodicity)
+                            remaining_value -= capital
 
-                if periodicity_extra_quota:
-                    periodicity = int(periodicity_extra_quota)
-                    quanty = int(quanty_extra_quota)
-                    initial_date = initial_date_extra_quota
-                    dt_initial_date = datetime.datetime.strptime(
-                        initial_date, '%B %d, %Y')
-                    quota = int(value_extra_quota.replace(',', ''))
-                    remaining_value = int(to_finance.replace(',', '')) - vp_regular
-                    date = dt_initial_date
+                    Sales_history.objects.create(
+                        sale=sale,
+                        action='Creó el contrato de venta',
+                        user=request.user
+                    )
 
-                    for i in range(1, quanty+1):
-                        interest = int(remaining_value*rate_mv*periodicity)
-                        capital = quota - interest
-                        if capital + 1000 > remaining_value:
-                            capital = remaining_value
-                        if i == quanty and capital != remaining_value:
-                            capital = remaining_value
-                        others = 0
-                        id_quota = build_id_quota('SCE', i, sale)
-                        Payment_plans.objects.create(
-                            id_quota=id_quota, sale=sale, pay_date=date,
-                            capital=capital, interest=interest, others=others,
-                            project=obj_project, quota_type='SCE'
-                        )
-                        date += relativedelta(months=periodicity)
-                        remaining_value -= capital
-
-                Sales_history.objects.create(
-                    sale=sale,
-                    action='Creó el contrato de venta',
-                    user=request.user
+                messages.success(
+                    request, '<div class="header">¡Excelente!</div>Creaste un contrato nuevo, puedes verlo en la sección VENTAS SIN APROBAR')
+            except IntegrityError:
+                conflict_msg = (
+                    'Ya existe un contrato con el número consecutivo actual. '
+                    'Revisa y ajusta la numeración en Consecutivos antes de crear uno nuevo.'
                 )
-
-            messages.success(
-                request, '<div class="header">¡Excelente!</div>Creaste un contrato nuevo, puedes verlo en la sección VENTAS SIN APROBAR')
+                try:
+                    consecutive = Counters.objects.get(name='contratos', project=project)
+                    prefix = normalize_counter_prefix(consecutive.prefix)
+                    number = consecutive.value
+                    label = f'{prefix}-{number:03d}' if prefix else str(number)
+                    existing = (
+                        Sales.objects
+                        .filter(
+                            project=obj_project,
+                            contract_prefix=prefix,
+                            contract_number=number,
+                        )
+                        .select_related('first_owner', 'property_sold')
+                        .first()
+                    )
+                    if existing:
+                        status_routes = {
+                            'Pendiente': 'nonapprovedsales',
+                            'Aprobado': 'toadjudicatesales',
+                            'Adjudicado': 'adjudicatesales',
+                            'Desistido': 'adjudicatesales',
+                            'Anulado': 'nonapprovedsales',
+                        }
+                        route = status_routes.get(existing.status, 'nonapprovedsales')
+                        href = f'/sales/{project}/{route}?sale={existing.pk}'
+                        owner = existing.first_owner.full_name() if existing.first_owner_id else '—'
+                        prop_desc = (
+                            existing.property_sold.description
+                            if existing.property_sold_id else '—'
+                        )
+                        conflict_msg = (
+                            f'El número <strong>{label}</strong> ya está en uso por el contrato '
+                            f'<a href="{href}"><strong>{existing.formatted_contract_label()}</strong></a> '
+                            f'({existing.status}) — titular: {owner}, inmueble: {prop_desc}. '
+                            'Ajusta la numeración en Consecutivos si quieres crear uno nuevo.'
+                        )
+                    else:
+                        conflict_msg = (
+                            f'El número <strong>{label}</strong> ya está registrado. '
+                            'Revisa y ajusta la numeración en Consecutivos antes de crear uno nuevo.'
+                        )
+                except Exception:
+                    pass
+                messages.error(
+                    request,
+                    '<div class="header">Número de contrato duplicado</div>' + conflict_msg
+                )
     if request.method == 'GET':
         if request.is_ajax():
             todo = request.GET.get('todo')
@@ -2669,9 +2722,9 @@ def ajax_change_comissions(request, sale):
 def ajax_desist_sale(request, sale):
     if request.is_ajax():
         if request.method == 'POST':
-            obj_sale = Sales.objects.get(pk=sale)
             todo = request.POST.get('todo')
             if todo == 'desist':
+                obj_sale = Sales.objects.get(pk=sale)
                 if user_check_perms(request, 'desistir venta'):
                     date = request.POST.get('date')
                     if date != None and date != '':
@@ -2714,7 +2767,78 @@ def ajax_desist_sale(request, sale):
                     status = 403
 
                 return JsonResponse(data, status=status)
-            
+
+            if todo == 'reverse-desist':
+                if not user_check_perms(request, 'desistir venta'):
+                    return JsonResponse({
+                        'type': 'error',
+                        'title': 'Ups!',
+                        'msj': 'No tienes los privilegios suficientes para reversar un desistimiento'
+                    }, status=403)
+
+                try:
+                    with transaction.atomic():
+                        obj_sale = Sales.objects.select_for_update().get(pk=sale)
+                        if obj_sale.status != 'Desistido':
+                            data = {
+                                'type': 'error',
+                                'title': 'No se puede reversar',
+                                'msj': (
+                                    f'El contrato debe estar Desistido. '
+                                    f'Estado actual: {obj_sale.status}'
+                                )
+                            }
+                            status_code = 400
+                        else:
+                            prop = Properties.objects.select_for_update().get(
+                                pk=obj_sale.property_sold_id
+                            )
+                            active_sale = Sales.objects.filter(
+                                project=obj_sale.project,
+                                property_sold=prop,
+                                status__in=['Pendiente', 'Aprobado', 'Adjudicado']
+                            ).exclude(pk=obj_sale.pk).exists()
+
+                            if prop.state != 'Libre' or active_sale:
+                                data = {
+                                    'type': 'error',
+                                    'title': 'Lote no disponible',
+                                    'msj': (
+                                        'No se puede reversar el desistimiento porque el lote '
+                                        'ya no está disponible. Puede estar asignado a otra venta '
+                                        'activa o no estar en estado Libre.'
+                                    )
+                                }
+                                status_code = 400
+                            else:
+                                obj_sale.status = 'Adjudicado'
+                                obj_sale.save()
+
+                                prop.state = 'Asignado'
+                                prop.save()
+
+                                Sales_history.objects.create(
+                                    user=request.user,
+                                    sale=obj_sale,
+                                    action='Reversó el desistimiento'
+                                )
+                                data = {}
+                                status_code = 200
+
+                    if status_code == 200:
+                        messages.success(
+                            request,
+                            '<div class="header">¡Lo hicimos!</div>'
+                            'Se reversó el desistimiento del contrato'
+                        )
+                    return JsonResponse(data, status=status_code)
+                except ObjectDoesNotExist:
+                    return JsonResponse({
+                        'type': 'error',
+                        'title': 'Error',
+                        'msj': 'No se encontró el contrato o el inmueble asociado'
+                    }, status=404)
+
 def ajax_change_dates_adj(request,project,sale):
     if request.method == 'POST':
         if user_check_perms(request, 'cambiar fechas de cuotas'):
@@ -4239,6 +4363,7 @@ _PROPERTY_HISTORY_LIFECYCLE = (
     'Adjudicó el contrato',
     'Desaprobó el contrato',
     'Desistió el contrato',
+    'Reversó el desistimiento',
     'Cambió el inmueble',
 )
 

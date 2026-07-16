@@ -125,7 +125,11 @@
                                 <a class="item" href="/sales/venta/{{sale.pk}}/plan-pagos"><i class="random icon"></i>Cambiar plan de pagos</a>
                                 <a class="item" id='actions-change-delivery-dates'><i class="calendar check icon"></i>Fechas de entrega</a>
                                 <a class="item" id='actions-change-partners'><i class="people arrows icon"></i>Cambio de titulares</a>
+                                {% if sale.status == 'Desistido' %}
+                                <a class="item" id='actions-reverse-desist'><i class="undo icon"></i>Reversar desistimiento</a>
+                                {% elif sale.status == 'Adjudicado' %}
                                 <a class="item" id='actions-desist'><i class="trash restore alternate icon"></i>Desistir</a>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="item has-submenu">
@@ -697,6 +701,19 @@
                 </div>
                 <input type="text" class="money text-center" id="id-value-to-return" name="value-to-return" required value="0">
             </div>
+        </div>
+        <div class="actions">
+            <button class="ui negative basic red button">No</button>
+            <button class="ui approve basic green button">Si</button>
+        </div>
+    </div>
+    <div class="ui mini modal" id='modal-reverse-desist'>
+        <div class="ui icon header">
+            <i class="undo icon"></i>
+            Reversar desistimiento
+        </div>
+        <div class="content">
+            <p>¿Confirmas que deseas reversar el desistimiento de este contrato? El lote debe estar disponible.</p>
         </div>
         <div class="actions">
             <button class="ui negative basic red button">No</button>
@@ -1434,6 +1451,36 @@
                     maxDate: new Date(),
                 })
             })
+        $('#actions-reverse-desist').click(function(){
+            $('#modal-reverse-desist').modal({
+                closable:false,
+                onApprove:function(){
+                    $('#modal-reverse-desist div.actions button').addClass('disabled')
+                    $('#modal-reverse-desist div.actions button.approve').addClass('elastic loading')
+                    $.ajax({
+                        type:'POST',
+                        url:'/sales/ajax/desistsale/'+sale,
+                        data:{
+                            'csrfmiddlewaretoken':getCookie('csrftoken'),
+                            'todo':'reverse-desist',
+                        },
+                        success:function(xhr){
+                            window.location.reload()
+                        },
+                        error: function(xhr){
+                            $('#modal-reverse-desist div.actions button').removeClass('disabled loading')
+                            if (xhr.responseJSON){
+                                new_message('error',xhr.responseJSON.title,xhr.responseJSON.msj)
+                            }
+                            else{
+                                console.log(xhr.responseText)
+                            }
+                        },
+                    })
+                    return false;
+                }
+            }).modal('show')
+        })
         $('#actions-print-account').click(function(){
             new_message('info','Cargando <i class="asterisk loading icon"></i>',
                         'Estamos generando el documento')
@@ -1442,7 +1489,7 @@
                 url:'/sales/ajax/'+project+'/printsalesdocuments',
                 data:{
                     'type':'statement_of_account',
-                    'sale':contract_number
+                    'sale':sale
                 },
                 success:function(xhr){
                     new_message(xhr.type,xhr.title,xhr.msj,true)
@@ -1967,7 +2014,7 @@
                 url:'/sales/ajax/'+project+'/printsalesdocuments',
                 data:{
                     'type':'comissions-report',
-                    'sale':contract_number
+                    'sale':sale
                 },
                 success:function(xhr){
                     new_message(xhr.type,xhr.title,xhr.msj,true)
