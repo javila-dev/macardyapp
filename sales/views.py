@@ -2723,9 +2723,9 @@ def ajax_change_comissions(request, sale):
 def ajax_desist_sale(request, sale):
     if request.is_ajax():
         if request.method == 'POST':
-            obj_sale = Sales.objects.get(pk=sale)
             todo = request.POST.get('todo')
             if todo == 'desist':
+                obj_sale = Sales.objects.get(pk=sale)
                 if user_check_perms(request, 'desistir venta'):
                     date = request.POST.get('date')
                     if date != None and date != '':
@@ -2768,7 +2768,78 @@ def ajax_desist_sale(request, sale):
                     status = 403
 
                 return JsonResponse(data, status=status)
-            
+
+            if todo == 'reverse-desist':
+                if not user_check_perms(request, 'desistir venta'):
+                    return JsonResponse({
+                        'type': 'error',
+                        'title': 'Ups!',
+                        'msj': 'No tienes los privilegios suficientes para reversar un desistimiento'
+                    }, status=403)
+
+                try:
+                    with transaction.atomic():
+                        obj_sale = Sales.objects.select_for_update().get(pk=sale)
+                        if obj_sale.status != 'Desistido':
+                            data = {
+                                'type': 'error',
+                                'title': 'No se puede reversar',
+                                'msj': (
+                                    f'El contrato debe estar Desistido. '
+                                    f'Estado actual: {obj_sale.status}'
+                                )
+                            }
+                            status_code = 400
+                        else:
+                            prop = Properties.objects.select_for_update().get(
+                                pk=obj_sale.property_sold_id
+                            )
+                            active_sale = Sales.objects.filter(
+                                project=obj_sale.project,
+                                property_sold=prop,
+                                status__in=['Pendiente', 'Aprobado', 'Adjudicado']
+                            ).exclude(pk=obj_sale.pk).exists()
+
+                            if prop.state != 'Libre' or active_sale:
+                                data = {
+                                    'type': 'error',
+                                    'title': 'Lote no disponible',
+                                    'msj': (
+                                        'No se puede reversar el desistimiento porque el lote '
+                                        'ya no está disponible. Puede estar asignado a otra venta '
+                                        'activa o no estar en estado Libre.'
+                                    )
+                                }
+                                status_code = 400
+                            else:
+                                obj_sale.status = 'Adjudicado'
+                                obj_sale.save()
+
+                                prop.state = 'Asignado'
+                                prop.save()
+
+                                Sales_history.objects.create(
+                                    user=request.user,
+                                    sale=obj_sale,
+                                    action='Reversó el desistimiento'
+                                )
+                                data = {}
+                                status_code = 200
+
+                    if status_code == 200:
+                        messages.success(
+                            request,
+                            '<div class="header">¡Lo hicimos!</div>'
+                            'Se reversó el desistimiento del contrato'
+                        )
+                    return JsonResponse(data, status=status_code)
+                except ObjectDoesNotExist:
+                    return JsonResponse({
+                        'type': 'error',
+                        'title': 'Error',
+                        'msj': 'No se encontró el contrato o el inmueble asociado'
+                    }, status=404)
+
 def ajax_change_dates_adj(request,project,sale):
     if request.method == 'POST':
         if user_check_perms(request, 'cambiar fechas de cuotas'):
@@ -4293,6 +4364,7 @@ _PROPERTY_HISTORY_LIFECYCLE = (
     'Adjudicó el contrato',
     'Desaprobó el contrato',
     'Desistió el contrato',
+    'Reversó el desistimiento',
     'Cambió el inmueble',
 )
 
