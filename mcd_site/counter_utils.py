@@ -43,6 +43,36 @@ def max_contract_number(project, contract_prefix=''):
     return result['max_number'] or 0
 
 
+def is_last_contract(sale):
+    """True if this sale holds the highest contract_number for its project+prefix."""
+    max_used = max_contract_number(sale.project, sale.contract_prefix or '')
+    return bool(max_used) and sale.contract_number == max_used
+
+
+def rollback_contract_counter(sale):
+    """
+    Set the contratos counter next value back to sale.contract_number so that
+    number can be reused. Only updates when the counter's active prefix matches
+    the sale's prefix. Call inside transaction.atomic(); the sale row may already
+    be deleted — only in-memory fields project / contract_prefix / contract_number
+    are read.
+    """
+    from mcd_site.models import Counters
+
+    project = sale.project
+    counter = Counters.objects.select_for_update().get(
+        name='contratos',
+        project=project,
+    )
+    active_prefix = normalize_counter_prefix(counter.prefix)
+    sale_prefix = sale.contract_prefix or ''
+    if active_prefix != sale_prefix:
+        return False
+    counter.value = sale.contract_number
+    counter.save(update_fields=['value'])
+    return True
+
+
 def max_receipt_number(project):
     from finance.models import Incomes
 

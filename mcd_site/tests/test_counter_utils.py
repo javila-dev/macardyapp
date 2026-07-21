@@ -7,6 +7,7 @@ from mcd_site.counter_utils import (
     contract_preview,
     counter_uses_prefix,
     describe_contract_counter_change,
+    is_last_contract,
     validate_contract_counter_update,
     validate_prefix_value,
     validate_receipt_counter_update,
@@ -119,3 +120,10 @@ class PermissionMigrationTests(TestCase):
         self.assertTrue(
             Permiso.objects.filter(descripcion='configurar consecutivos').exists()
         )
+
+    def test_is_last_contract_with_mock_sale(self):
+        sale = SimpleNamespace(project='p', contract_prefix='', contract_number=10)
+        with patch('mcd_site.counter_utils.max_contract_number', return_value=10):
+            self.assertTrue(is_last_contract(sale))
+        with patch('mcd_site.counter_utils.max_contract_number', return_value=11):
+            self.assertFalse(is_last_contract(sale))

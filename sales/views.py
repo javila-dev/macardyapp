@@ -39,6 +39,7 @@ from sales.contract_utils import (
     resolve_sale,
 )
 from sales.utils import backup_plan_pagos, recalcular_plan_pagos
+from sales.delete_sale import delete_pending_sale, sale_delete_block_reasons
 # Create your views here.
 
 locale.setlocale(locale.LC_ALL,'es_CO.UTF-8')
@@ -757,6 +758,75 @@ def non_approved_sales(request, project):
                     'msj': 'Se Anuló el contrato sin problemas',
                 }
 
+                return JsonResponse(data)
+            elif action == 'delete':
+                if not user_check_perms(request, 'borrar venta'):
+                    messages.error(
+                        request,
+                        '<div class="header">Falta de privilegios</div>'
+                        'Tu usuario no tiene privilegios suficientes para borrar un contrato'
+                    )
+                    data = {
+                        'type': 'danger',
+                        'title': 'Faltan privilegios',
+                        'msj': 'Tu usuario no puede borrar un contrato',
+                    }
+                    return JsonResponse(data)
+
+                blockers = sale_delete_block_reasons(obj_sale)
+                if blockers:
+                    messages.error(
+                        request,
+                        f'<div class="header">Error al borrar</div>{blockers[0]}'
+                    )
+                    data = {
+                        'type': 'danger',
+                        'title': 'Error al borrar',
+                        'msj': blockers[0],
+                    }
+                    return JsonResponse(data)
+
+                try:
+                    with transaction.atomic():
+                        result = delete_pending_sale(obj_sale)
+                except ValueError as exc:
+                    messages.error(
+                        request,
+                        f'<div class="header">Error al borrar</div>{exc}'
+                    )
+                    data = {
+                        'type': 'danger',
+                        'title': 'Error al borrar',
+                        'msj': str(exc),
+                    }
+                    return JsonResponse(data)
+                except Exception:
+                    messages.error(
+                        request,
+                        '<div class="header">Error al borrar</div>'
+                        'No se pudo eliminar el contrato por dependencias protegidas.'
+                    )
+                    data = {
+                        'type': 'danger',
+                        'title': 'Error al borrar',
+                        'msj': 'No se pudo eliminar el contrato por dependencias protegidas.',
+                    }
+                    return JsonResponse(data)
+
+                label = result['contract_label']
+                messages.success(
+                    request,
+                    f'<div class="header">¡Lo hicimos!</div>'
+                    f'Borraste el contrato {label}. El consecutivo quedó disponible nuevamente.'
+                )
+                data = {
+                    'type': 'success',
+                    'title': '¡Lo hicimos!',
+                    'msj': (
+                        f'Se borró el contrato {label} y el consecutivo '
+                        f'{result["contract_number"]} quedó disponible.'
+                    ),
+                }
                 return JsonResponse(data)
 
     return render(request, 'non-approved.html', context)
