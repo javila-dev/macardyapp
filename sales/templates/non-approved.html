@@ -78,6 +78,8 @@
                         <i class="thumbs up outline icon"></i>Aprobar</a>
                       <a class="item" id='actions-nullify'>
                         <i class="trash alternate outline icon"></i>Anular</a>
+                      <a class="item" id='actions-delete'>
+                        <i class="times circle outline icon"></i>Borrar</a>
                     </div>
                   </div>
                   <div class="ui dropdown pointing item">
@@ -156,6 +158,32 @@
       <div class="ui green ok inverted button">
         <i class="checkmark icon"></i>
         Si
+      </div>
+    </div>
+  </div>
+  <!-- modal delete sale -->
+  <div class="ui basic modal" id='delete-confirmation'>
+    <div class="ui icon header">
+        <i class="times circle icon"></i>
+      Borrar venta
+    </div>
+    <div class="content">
+      <p>
+        ¿Seguro que deseas <strong>borrar</strong> esta venta?
+        Se eliminará el contrato y sus dependencias, se liberará el lote
+        y el consecutivo volverá a estar disponible.
+        Esta acción no deja historial (a diferencia de anular).
+        Solo aplica si es el último consecutivo del prefijo y está sin aprobar.
+      </p>
+    </div>
+    <div class="actions">
+      <div class="ui red basic cancel inverted button">
+        <i class="remove icon"></i>
+        No
+      </div>
+      <div class="ui green ok inverted button">
+        <i class="checkmark icon"></i>
+        Si, borrar
       </div>
     </div>
   </div>
@@ -677,6 +705,56 @@
                         },
                         complete:function(xhr){
                             $('#nullify-confirmation .ui.ok.button')
+                            .removeClass('loading')
+                            .removeClass('disabled')
+                        },
+                    })
+                    return false;
+                }
+            }).modal('show')
+        })
+        $('#actions-delete').click(function(){
+            $('#delete-confirmation').modal({
+                closable  : false,
+                onApprove : function() {
+                    $('#delete-confirmation .ui.ok.button')
+                    .addClass('loading')
+                    .addClass('disabled')
+                    $.ajax({
+                        url:'/sales/'+project+'/nonapprovedsales',
+                        type:'POST',
+                        data:{
+                            'csrfmiddlewaretoken':'{{csrf_token}}',
+                            'action':'delete',
+                            'sale': sale
+                        },
+                        success:function(xhr){
+                            $('#delete-confirmation').modal('hide')
+                            if (xhr.type === 'danger' || xhr.type === 'error') {
+                                $('body').toast({
+                                    class: 'error',
+                                    showProgress: 'bottom',
+                                    displayTime: 'auto',
+                                    message: xhr.msj || 'No se pudo borrar el contrato'
+                                })
+                                return
+                            }
+                            window.location.href = "/sales/"+project+"/nonapprovedsales"
+                        },
+                        error:function(xhr){
+                            var msj = 'No se pudo borrar el contrato'
+                            if (xhr.responseJSON && xhr.responseJSON.msj) {
+                                msj = xhr.responseJSON.msj
+                            }
+                            $('body').toast({
+                                class: 'error',
+                                showProgress: 'bottom',
+                                displayTime: 'auto',
+                                message: msj
+                            })
+                        },
+                        complete:function(xhr){
+                            $('#delete-confirmation .ui.ok.button')
                             .removeClass('loading')
                             .removeClass('disabled')
                         },
