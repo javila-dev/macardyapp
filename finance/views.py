@@ -4790,6 +4790,168 @@ def ajax_get_sale_status(request, project, sale_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 # utils
+def _dprint(*args, **kwargs):
+    if settings.DEBUG:
+        print(*args, **kwargs)
+
+
+def _zero_paid():
+    return {
+        'paid_capital': Decimal('0'),
+        'paid_interest': Decimal('0'),
+        'paid_others': Decimal('0'),
+        'paid_arrears': Decimal('0'),
+    }
+
+
+def _load_apply_income_balance_cache(sale_id):
+    """Prefetch paid aggregates and mora-related dates for all quotas of a sale."""
+    paid_by_quota = {}
+    for row in (
+        Incomes_detail.objects.filter(quota__sale=sale_id)
+        .values('quota')
+        .annotate(
+            capital=Sum('capital'),
+            interest=Sum('interest'),
+            others=Sum('others'),
+            arrears=Sum('arrears'),
+        )
+    ):
+        paid_by_quota[row['quota']] = {
+            'paid_capital': row['capital'] or Decimal('0'),
+            'paid_interest': row['interest'] or Decimal('0'),
+            'paid_others': row['others'] or Decimal('0'),
+            'paid_arrears': row['arrears'] or Decimal('0'),
+        }
+
+    last_pay_by_quota = {
+        row['quota']: row['max_date']
+        for row in (
+            Incomes_detail.objects.filter(
+                Q(capital__gt=0) | Q(interest__gt=0),
+                quota__sale=sale_id,
+            )
+            .values('quota')
+            .annotate(max_date=Max('income__payment_date'))
+        )
+    }
+    last_only_arrears_by_quota = {
+        row['quota']: row['max_date']
+        for row in (
+            Incomes_detail.objects.filter(
+                capital=0,
+                interest=0,
+                arrears__gt=0,
+                quota__sale=sale_id,
+            )
+            .values('quota')
+            .annotate(max_date=Max('income__payment_date'))
+        )
+    }
+
+    try:
+        mora_rate = Parameters.objects.get(name='tasa de mora mv').value
+    except Parameters.DoesNotExist:
+        mora_rate = None
+
+    return {
+        'paid_by_quota': paid_by_quota,
+        'last_pay_by_quota': last_pay_by_quota,
+        'last_only_arrears_by_quota': last_only_arrears_by_quota,
+        'mora_rate': mora_rate,
+    }
+
+
+def _pending_from_cache(quota, cache):
+    """Mirror Credit_info.quota_pending using prefetched paid amounts."""
+    paid = cache['paid_by_quota'].get(getattr(quota, 'pk', None), _zero_paid())
+    pending_capital = Decimal(str(quota.capital)) - Decimal(str(paid['paid_capital']))
+    pending_int = Decimal(str(quota.interest)) - Decimal(str(paid['paid_interest']))
+    pending_others = Decimal(str(quota.others)) - Decimal(str(paid['paid_others']))
+    return {
+        'pendient_capital': pending_capital,
+        'pendient_int': pending_int,
+        'pendient_others': pending_others,
+        'total_pending': pending_capital + pending_int + pending_others,
+    }
+
+
+def _arrears_from_cache(quota, paid_day, cache):
+    """Mirror Credit_info.arrears_info using prefetched data."""
+    rate = cache['mora_rate']
+    if rate is None:
+        raise Parameters.DoesNotExist('tasa de mora mv')
+
+    pending = _pending_from_cache(quota, cache).get('total_pending', 0)
+    last_pay_date = cache['last_pay_by_quota'].get(quota.pk)
+    if last_pay_date is None:
+        last_pay_date = quota.pay_date
+
+    last_only_arrears_date = cache['last_only_arrears_by_quota'].get(quota.pk)
+
+    if quota.pay_date >= paid_day or pending <= 0:
+        days = 0
+        value = 0
+    elif last_only_arrears_date and last_only_arrears_date > last_pay_date:
+        days = (paid_day - last_pay_date).days
+        total_arrears = pending * days * (Decimal(rate) / 30) / 100
+        arrears_paid = Decimal(str(
+            cache['paid_by_quota'].get(quota.pk, _zero_paid())['paid_arrears']
+        ))
+        value = total_arrears - arrears_paid
+    else:
+        if last_pay_date < quota.pay_date:
+            last_pay_date = quota.pay_date
+        days = (paid_day - last_pay_date).days
+        if days < 0:
+            days = 0
+        value = pending * days * (Decimal(rate) / 30) / 100
+
+    return {'days': days, 'r_value': int(value)}
+
+
+def _get_quota_pending(quota, cache=None):
+    if cache is not None:
+        try:
+            return _pending_from_cache(quota, cache)
+        except (AttributeError, TypeError, KeyError):
+            pass
+    return quota.quota_pending()
+
+
+def _get_quota_arrears(quota, paid_day, cache=None):
+    if cache is not None:
+        try:
+            return _arrears_from_cache(quota, paid_day, cache)
+        except (AttributeError, TypeError, KeyError, Parameters.DoesNotExist):
+            pass
+    return quota.arrears_info(paid_day=paid_day)
+
+
+def _apply_to_balance_cache(cache, quota, paid_capital, paid_interest, paid_others, paid_arrears, paid_day):
+    """Keep in-memory balances coherent after applying a detail in this call."""
+    if cache is None:
+        return
+    quota_pk = getattr(quota, 'pk', None)
+    if quota_pk is None:
+        return
+
+    paid = cache['paid_by_quota'].setdefault(quota_pk, _zero_paid())
+    paid['paid_capital'] = Decimal(str(paid['paid_capital'])) + Decimal(str(paid_capital))
+    paid['paid_interest'] = Decimal(str(paid['paid_interest'])) + Decimal(str(paid_interest))
+    paid['paid_others'] = Decimal(str(paid['paid_others'])) + Decimal(str(paid_others))
+    paid['paid_arrears'] = Decimal(str(paid['paid_arrears'])) + Decimal(str(paid_arrears))
+
+    if Decimal(str(paid_capital)) > 0 or Decimal(str(paid_interest)) > 0:
+        prev = cache['last_pay_by_quota'].get(quota_pk)
+        if prev is None or paid_day > prev:
+            cache['last_pay_by_quota'][quota_pk] = paid_day
+    elif Decimal(str(paid_arrears)) > 0:
+        prev = cache['last_only_arrears_by_quota'].get(quota_pk)
+        if prev is None or paid_day > prev:
+            cache['last_only_arrears_by_quota'][quota_pk] = paid_day
+
+
 def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abono_capital=False, tipo_abono=None):
     import datetime
     from decimal import Decimal
@@ -4817,10 +4979,12 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
     applicated = []
     remaining_value = Decimal(total_income)
     hoy = datetime.date.today()
-    
+
+    balance_cache = _load_apply_income_balance_cache(sale)
+
     sale_obj = Sales_extra_info.objects.get(pk=sale)
     hay_ci_pendiente = sale_obj.has_pending_ci_quota()
-    
+
     # Si el pago supera lo exigible a la fecha y el usuario no eligio un tipo
     # de abono, por defecto lo tratamos como pago anticipado de cuotas.
     if not hay_ci_pendiente and not abono_capital and not tipo_abono and remaining_value > 0:
@@ -4828,7 +4992,9 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
         for quota in credit:
             if quota.pay_date > paid_day:
                 break
-            total_exigible_hoy += Decimal(str(quota.quota_pending().get("total_pending") or 0))
+            total_exigible_hoy += Decimal(str(
+                _get_quota_pending(quota, balance_cache).get("total_pending") or 0
+            ))
 
         if remaining_value > total_exigible_hoy:
             abono_capital = True
@@ -4839,10 +5005,20 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
             raise ValueError("No se puede aplicar abono a capital mientras existan cuotas CI pendientes.")
         else:
             return {'error': 'No se puede aplicar abono a capital mientras existan cuotas CI pendientes.'}
-    
-    print(f"DEBUG: abono_capital es: {abono_capital} (Tipo: {type(abono_capital)})")
-    print(f"DEBUG: tipo_abono es: '{tipo_abono}'")
-    print(f"DEBUG: Condición de break futura: {not (abono_capital and tipo_abono == 'cuotas_futuras')}")
+
+    _dprint(f"DEBUG: abono_capital es: {abono_capital} (Tipo: {type(abono_capital)})")
+    _dprint(f"DEBUG: tipo_abono es: '{tipo_abono}'")
+    _dprint(f"DEBUG: Condición de break futura: {not (abono_capital and tipo_abono == 'cuotas_futuras')}")
+
+    # Check once before the loop (same predicate as the former first iteration).
+    # Avoids O(quotas²) re-aggregation after partial creates in the same call.
+    total_pendiente = None
+    if not abono_capital:
+        total_pendiente = sum(
+            float(_get_quota_pending(q, balance_cache).get('total_pending') or 0)
+            for q in credit
+        )
+
     # Fase 1: pagar cuotas vencidas (pay_date <= paid_day)
     for quota in credit:
         if remaining_value <= 0:
@@ -4851,27 +5027,26 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
             pass
         elif not (abono_capital and tipo_abono == "cuotas_futuras") and quota.pay_date > paid_day:
             break
-        
+
         elif not abono_capital:
-            total_pendiente = sum(float(q.quota_pending().get('total_pending') or 0) for q in credit)
             if total_income > total_pendiente:
                 sobra = total_income - total_pendiente
                 if apply:
                     raise ValueError("El valor a pagar supera el total pendiente del crédito. Sobra ${:,.2f}.".format(sobra))
                 else:
                     return {'error': 'El valor a pagar supera el total pendiente del crédito. Sobra ${:,.2f}.'.format(sobra)}
-                            
-        pending = quota.quota_pending()
+
+        pending = _get_quota_pending(quota, balance_cache)
         total_pending = pending.get('total_pending') or 0
 
-        print(f"DEBUG Cuota {quota.id_quota}: total_pending={total_pending}, remaining_value={remaining_value}")
+        _dprint(f"DEBUG Cuota {quota.id_quota}: total_pending={total_pending}, remaining_value={remaining_value}")
 
         if total_pending > 0:
 
             capital = pending.get('pendient_capital')
             interest = pending.get('pendient_int')
             others = pending.get('pendient_others')
-            arrears_data = quota.arrears_info(paid_day=paid_day)
+            arrears_data = _get_quota_arrears(quota, paid_day, balance_cache)
             initial_arrears = arrears_data.get('r_value')
             arrears = Decimal(initial_arrears) * (Decimal('1') - Decimal(condonate_arrears) / Decimal('100'))
             arrears_days = arrears_data.get('days')
@@ -4888,8 +5063,11 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
             paid_capital = min(remaining_value, capital)
             remaining_value -= paid_capital
 
-            print(f"DEBUG Cuota {quota.id_quota}: pagado capital={paid_capital}, interest={paid_interest}, others={paid_others}, arrears={paid_arrears}")
-            print(f"DEBUG remaining_value después de pagar: {remaining_value}")
+            _dprint(
+                f"DEBUG Cuota {quota.id_quota}: pagado capital={paid_capital}, "
+                f"interest={paid_interest}, others={paid_others}, arrears={paid_arrears}"
+            )
+            _dprint(f"DEBUG remaining_value después de pagar: {remaining_value}")
 
             if apply:
                 Incomes_detail.objects.create(
@@ -4897,6 +5075,10 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
                     capital=paid_capital, interest=paid_interest,
                     others=paid_others, arrears=paid_arrears,
                     arrears_days=arrears_days,
+                )
+                _apply_to_balance_cache(
+                    balance_cache, quota,
+                    paid_capital, paid_interest, paid_others, paid_arrears, paid_day,
                 )
             else:
                 date_pay = datetime.datetime.strftime(quota.pay_date, '%Y/%m/%d')
@@ -4915,28 +5097,32 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
                     'paid_total': float(paid_capital + paid_interest + paid_others + paid_arrears),
                     'arrears_days': arrears_days,
                 })
+                _apply_to_balance_cache(
+                    balance_cache, quota,
+                    paid_capital, paid_interest, paid_others, paid_arrears, paid_day,
+                )
 
     # Fase 2: aplicar abono a capital o pagar cuotas futuras
     if remaining_value > 0:
         cuotas_futuras = credit.filter(pay_date__gt=paid_day).order_by('pay_date')
         n = cuotas_futuras.count()
         saldo_capital = sum(float(q.capital) for q in cuotas_futuras)
-        
+
         if remaining_value > saldo_capital:
-            
+
             sobra = remaining_value - Decimal(str(saldo_capital))
             if apply:
                 raise ValueError("El valor a pagar es mayor al saldo de capital pendiente. Sobran ${:,.2f}.".format(sobra))
             else:
                 return {'error': 'El valor a pagar es mayor al saldo de capital pendiente. Sobran ${:,.2f}.'.format(sobra)}
-        
+
         if not abono_capital:
             if apply:
                 raise ValueError("Este pago aplica cuotas futuras, escoge una opcion de abono a capital.")
             else:
                 return {'error': 'Este pago aplica a futuras, escoge una opcion de abono a capital.'}
-        
-                
+
+
         if abono_capital and tipo_abono and not apply:
             if tipo_abono == "reducir_tiempo":
                 valor_cuota = float(cuotas_futuras.first().total_payment()) if n > 0 else 0
@@ -4983,9 +5169,9 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
                     'nueva_cuota': nueva_cuota
                 })
                 return applicated
-        
+
         elif apply:
-            
+
             recalcular_plan_por_abono(income, abono_capital=remaining_value, tipo_abono=tipo_abono)
 
     return applicated
@@ -4999,7 +5185,7 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
     paid_day = income.add_date
     sale = income.sale
 
-    print(f"DEBUG RECALCULAR: Iniciando recalculo para tipo_abono='{tipo_abono}', abono_capital={abono_capital}")
+    _dprint(f"DEBUG RECALCULAR: Iniciando recalculo para tipo_abono='{tipo_abono}', abono_capital={abono_capital}")
 
     # INICIALIZAR cuotas_afectadas al principio
     cuotas_afectadas = 0
@@ -5013,7 +5199,7 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
     saldo_restante = sum(q.capital for q in cuotas_recalculables)
     nuevo_saldo = saldo_restante - Decimal(str(abono_capital))
 
-    print(f"DEBUG RECALCULAR: Cuotas recalculables={cuotas_recalculables.count()}, saldo_restante={saldo_restante}, nuevo_saldo={nuevo_saldo}")
+    _dprint(f"DEBUG RECALCULAR: Cuotas recalculables={cuotas_recalculables.count()}, saldo_restante={saldo_restante}, nuevo_saldo={nuevo_saldo}")
     
     if nuevo_saldo <= 0 or not cuotas_recalculables.exists():
         return
@@ -5037,15 +5223,15 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
         )
         
     if tipo_abono == "reducir_tiempo":
-        print(f"DEBUG REDUCIR_TIEMPO: Iniciando proceso")
+        _dprint(f"DEBUG REDUCIR_TIEMPO: Iniciando proceso")
         tasa_mensual = Decimal(sale.sale_plan.rate) / Decimal("100")
         capital_restante = Decimal(nuevo_saldo)
 
-        print(f"DEBUG REDUCIR_TIEMPO: tasa_mensual={tasa_mensual}, capital_restante inicial={capital_restante}")
+        _dprint(f"DEBUG REDUCIR_TIEMPO: tasa_mensual={tasa_mensual}, capital_restante inicial={capital_restante}")
 
         for cuota in cuotas_recalculables:
             if capital_restante <= 0:
-                print(f"DEBUG REDUCIR_TIEMPO: Eliminando cuota {cuota.id_quota} (capital_restante <= 0)")
+                _dprint(f"DEBUG REDUCIR_TIEMPO: Eliminando cuota {cuota.id_quota} (capital_restante <= 0)")
                 cuota.delete()
                 continue
 
@@ -5061,36 +5247,36 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
             cuota.others = 0
             cuota.save()
 
-            print(f"DEBUG REDUCIR_TIEMPO: Cuota {cuota.id_quota} - Original: cap={capital_original}, int={interes_original} -> Nuevo: cap={capital}, int={interes}")
+            _dprint(f"DEBUG REDUCIR_TIEMPO: Cuota {cuota.id_quota} - Original: cap={capital_original}, int={interes_original} -> Nuevo: cap={capital}, int={interes}")
 
             capital_restante -= capital
             cuotas_afectadas += 1
 
-        print(f"DEBUG REDUCIR_TIEMPO: Proceso terminado. Capital restante final={capital_restante}, cuotas_afectadas={cuotas_afectadas}")
+        _dprint(f"DEBUG REDUCIR_TIEMPO: Proceso terminado. Capital restante final={capital_restante}, cuotas_afectadas={cuotas_afectadas}")
 
                 
     elif tipo_abono == "reducir_cuota":
-        print(f"DEBUG REDUCIR_CUOTA: Iniciando proceso")
+        _dprint(f"DEBUG REDUCIR_CUOTA: Iniciando proceso")
         tasa_mensual = Decimal(sale.sale_plan.rate) / Decimal("100")
 
         capital_scr = sum(c.capital for c in cuotas_recalculables.filter(quota_type="SCR"))
         capital_sce = sum(c.capital for c in cuotas_recalculables.filter(quota_type="SCE"))
         capital_total = capital_scr + capital_sce
 
-        print(f"DEBUG REDUCIR_CUOTA: capital_scr={capital_scr}, capital_sce={capital_sce}, capital_total={capital_total}")
+        _dprint(f"DEBUG REDUCIR_CUOTA: capital_scr={capital_scr}, capital_sce={capital_sce}, capital_total={capital_total}")
 
         saldo_por_tipo = {
             "SCR": nuevo_saldo * Decimal(str(capital_scr / capital_total)) if capital_total > 0 else Decimal("0"),
             "SCE": nuevo_saldo * Decimal(str(capital_sce / capital_total)) if capital_total > 0 else Decimal("0"),
         }
 
-        print(f"DEBUG REDUCIR_CUOTA: saldo_por_tipo={saldo_por_tipo}")
+        _dprint(f"DEBUG REDUCIR_CUOTA: saldo_por_tipo={saldo_por_tipo}")
 
         for tipo in ["SCR", "SCE"]:
             cuotas = list(cuotas_recalculables.filter(quota_type=tipo).order_by("pay_date"))
 
             if len(cuotas) < 2:
-                print(f"DEBUG REDUCIR_CUOTA: Saltando tipo {tipo}, solo tiene {len(cuotas)} cuotas (necesita al menos 2)")
+                _dprint(f"DEBUG REDUCIR_CUOTA: Saltando tipo {tipo}, solo tiene {len(cuotas)} cuotas (necesita al menos 2)")
                 continue
 
             saldo = saldo_por_tipo[tipo]
@@ -5102,7 +5288,7 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
             nueva_cuota = Decimal(npf.pmt(tasa_efectiva, n, -saldo)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
             capital_acumulado = Decimal("0")
 
-            print(f"DEBUG REDUCIR_CUOTA: Procesando tipo {tipo}, n={n}, tasa_efectiva={tasa_efectiva}, nueva_cuota={nueva_cuota}, saldo={saldo}")
+            _dprint(f"DEBUG REDUCIR_CUOTA: Procesando tipo {tipo}, n={n}, tasa_efectiva={tasa_efectiva}, nueva_cuota={nueva_cuota}, saldo={saldo}")
 
             for i, cuota in enumerate(cuotas):
                 capital_original = cuota.capital
@@ -5125,24 +5311,24 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
                 cuota.others = 0
                 cuota.save()
 
-                print(f"DEBUG REDUCIR_CUOTA: Cuota {cuota.id_quota} ({tipo}) - Original: cap={capital_original}, int={interes_original} -> Nuevo: cap={capital}, int={interes}, saldo restante={saldo}")
+                _dprint(f"DEBUG REDUCIR_CUOTA: Cuota {cuota.id_quota} ({tipo}) - Original: cap={capital_original}, int={interes_original} -> Nuevo: cap={capital}, int={interes}, saldo restante={saldo}")
 
                 saldo -= capital
                 capital_acumulado += capital
                 cuotas_afectadas += 1
 
-            print(f"DEBUG REDUCIR_CUOTA: Tipo {tipo} completado. Capital acumulado={capital_acumulado}, saldo final={saldo}")
+            _dprint(f"DEBUG REDUCIR_CUOTA: Tipo {tipo} completado. Capital acumulado={capital_acumulado}, saldo final={saldo}")
     
     # Si no se procesó ningún tipo específico, usar el conteo total como fallback
     if cuotas_afectadas == 0:
-        print(f"DEBUG RECALCULAR: cuotas_afectadas era 0, usando count={cuotas_recalculables.count()}")
+        _dprint(f"DEBUG RECALCULAR: cuotas_afectadas era 0, usando count={cuotas_recalculables.count()}")
         cuotas_afectadas = cuotas_recalculables.count()
 
-    print(f"DEBUG RECALCULAR: Creando cuota ABCAP con capital={abono_capital}, cuotas_afectadas={cuotas_afectadas}")
+    _dprint(f"DEBUG RECALCULAR: Creando cuota ABCAP con capital={abono_capital}, cuotas_afectadas={cuotas_afectadas}")
 
     # Calcular totales ANTES de crear ABCAP para verificación
     total_capital_antes = Decimal(str(sum(q.capital for q in Payment_plans.objects.filter(sale=sale, quota_type__in=["SCR", "SCE"])) or 0))
-    print(f"DEBUG RECALCULAR: Total capital SCR/SCE ANTES de ABCAP={total_capital_antes}")
+    _dprint(f"DEBUG RECALCULAR: Total capital SCR/SCE ANTES de ABCAP={total_capital_antes}")
 
     # Crear cuota tipo ABCAP
     n_abonos = Payment_plans.objects.filter(sale=sale, quota_type='ABCAP').count()
@@ -5158,7 +5344,7 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
         project=sale.project
     )
 
-    print(f"DEBUG RECALCULAR: Cuota ABCAP creada: {id_abono}")
+    _dprint(f"DEBUG RECALCULAR: Cuota ABCAP creada: {id_abono}")
 
     AbonoCapital.objects.create(
         income=income,
@@ -5182,10 +5368,10 @@ def recalcular_plan_por_abono(income, abono_capital, tipo_abono):
     # Calcular totales DESPUÉS de crear ABCAP para verificación
     total_capital_despues = Decimal(str(sum(q.capital for q in Payment_plans.objects.filter(sale=sale, quota_type__in=["SCR", "SCE", "ABCAP"])) or 0))
     total_capital_scr_sce = Decimal(str(sum(q.capital for q in Payment_plans.objects.filter(sale=sale, quota_type__in=["SCR", "SCE"])) or 0))
-    print(f"DEBUG RECALCULAR: Total capital SCR/SCE DESPUÉS de ABCAP={total_capital_scr_sce}")
-    print(f"DEBUG RECALCULAR: Total capital CON ABCAP={total_capital_despues}")
-    print(f"DEBUG RECALCULAR: Diferencia (debería ser ~= abono_capital)={total_capital_antes - total_capital_scr_sce}")
-    print(f"DEBUG RECALCULAR: VERIFICACIÓN: total_capital_antes={total_capital_antes}, saldo_restante={saldo_restante}, abono_capital={abono_capital}, nuevo_saldo esperado={nuevo_saldo}")
+    _dprint(f"DEBUG RECALCULAR: Total capital SCR/SCE DESPUÉS de ABCAP={total_capital_scr_sce}")
+    _dprint(f"DEBUG RECALCULAR: Total capital CON ABCAP={total_capital_despues}")
+    _dprint(f"DEBUG RECALCULAR: Diferencia (debería ser ~= abono_capital)={total_capital_antes - total_capital_scr_sce}")
+    _dprint(f"DEBUG RECALCULAR: VERIFICACIÓN: total_capital_antes={total_capital_antes}, saldo_restante={saldo_restante}, abono_capital={abono_capital}, nuevo_saldo esperado={nuevo_saldo}")
     
 def get_gestores_comisiones(project, anio, mes, req=None):
     from finance.models import Collection_budget, Collection_budget_detail, ComisionGestorCartera, Incomes_detail, AbonoCapital
