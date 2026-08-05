@@ -35,12 +35,13 @@ def simulate_abono_capital(sale, monto):
     fecha_inicio = cuotas_futuras.first().pay_date if n_cuotas > 0 else hoy
 
     # Opción 1: disminuir número de cuotas, mantener valor
+    # npf.nper/pmt may return ndarray; cast to float before round()
     nuevas_cuotas = npf.nper(tasa, valor_cuota, -(saldo_restante - pendiente))
-    nuevas_cuotas = int(round(nuevas_cuotas)) if nuevas_cuotas > 0 else 1
+    nuevas_cuotas = int(round(float(nuevas_cuotas))) if nuevas_cuotas > 0 else 1
 
     # Opción 2: mantener número de cuotas, reducir valor
     nueva_cuota = npf.pmt(tasa, n_cuotas, -(saldo_restante - pendiente))
-    nueva_cuota = int(round(nueva_cuota)) if nueva_cuota > 0 else valor_cuota
+    nueva_cuota = int(round(float(nueva_cuota))) if nueva_cuota > 0 else valor_cuota
 
     # Opción 3: cubrir cuotas futuras completas
     restante = pendiente

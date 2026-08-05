@@ -5127,7 +5127,8 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
             if tipo_abono == "reducir_tiempo":
                 valor_cuota = float(cuotas_futuras.first().total_payment()) if n > 0 else 0
                 nuevo_saldo_preview = float(saldo_capital) - float(remaining_value)
-                nuevas_cuotas = int(round(npf.nper(float(tasa), valor_cuota, -nuevo_saldo_preview))) or 1
+                # npf.nper returns a 0-d ndarray; cast to float before round()
+                nuevas_cuotas = int(round(float(npf.nper(float(tasa), valor_cuota, -nuevo_saldo_preview)))) or 1
                 nota = f'Abono capital: el plazo se reduce a {nuevas_cuotas * -1} cuotas aprox.'
                 applicated.append({
                     'quota': 'ABCAP',
@@ -5149,7 +5150,7 @@ def apply_income(income, condonate_arrears=0, apply=True, no_apply_data={}, abon
                 return applicated
             elif tipo_abono == "reducir_cuota":
                 nuevo_saldo_preview = float(saldo_capital) - float(remaining_value)
-                nueva_cuota = int(round(npf.pmt(float(tasa), n, -nuevo_saldo_preview))) if n > 0 else 0
+                nueva_cuota = int(round(float(npf.pmt(float(tasa), n, -nuevo_saldo_preview)))) if n > 0 else 0
                 nota = f'Abono capital: el valor de la cuota se reduce a ${nueva_cuota:,}.'
                 applicated.append({
                     'quota': 'ABCAP',
